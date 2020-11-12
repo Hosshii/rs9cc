@@ -1,0 +1,14 @@
+#!/bin/bash
+build() {
+    if [ -z "$1" ]; then
+        echo "argument err"
+        exit 1
+    fi
+
+    local file_no_extenison=$(echo $1 | sed 's/\.[^\.]*$//')
+    set -eux
+    docker run --rm -v $PWD:/ccrs -w /ccrs gcc gcc -o $file_no_extenison ./$1
+    set +eux
+}
+
+build "$@"
