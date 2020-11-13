@@ -7,7 +7,7 @@ build() {
 
     local file_no_extenison=$(echo $1 | sed 's/\.[^\.]*$//')
     set -eux
-    docker run --rm -v $PWD:/ccrs -w /ccrs gcc gcc -o $file_no_extenison ./$1
+    docker run --rm -v $PWD:/rs9cc -w /rs9cc gcc gcc -o $file_no_extenison ./$1
     set +eux
 }
 

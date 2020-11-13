@@ -1,4 +1,4 @@
-use ccrs::{input, input_inner, read_value};
+use rs9cc::{input, input_inner, read_value};
 
 fn main() {
     input! {
