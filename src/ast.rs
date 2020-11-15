@@ -6,6 +6,7 @@ use std::iter::Peekable;
 pub enum AstError {
     Expr,
     Mul,
+    Unary,
     Primary,
 }
 
@@ -94,17 +95,17 @@ pub fn mul<T>(iter: &mut Peekable<T>) -> Result<Node, AstError>
 where
     T: Iterator<Item = Token>,
 {
-    let mut node = primary(iter)?;
+    let mut node = unary(iter)?;
     while let Some(token) = iter.peek() {
         match token.kind {
             TokenKind::Reserved(op) => match op {
                 Operator::Mul => {
                     iter.next();
-                    node = Node::new(Mul, node, primary(iter)?)
+                    node = Node::new(Mul, node, unary(iter)?)
                 }
                 Operator::Div => {
                     iter.next();
-                    node = Node::new(Div, node, primary(iter)?)
+                    node = Node::new(Div, node, unary(iter)?)
                 }
                 _ => return Ok(node),
             },
@@ -112,6 +113,29 @@ where
         }
     }
     Ok(node)
+}
+
+pub fn unary<T>(iter: &mut Peekable<T>) -> Result<Node, AstError>
+where
+    T: Iterator<Item = Token>,
+{
+    while let Some(token) = iter.peek() {
+        match token.kind {
+            TokenKind::Reserved(op) => match op {
+                Operator::Plus => {
+                    iter.next();
+                    return primary(iter);
+                }
+                Operator::Minus => {
+                    iter.next();
+                    return Ok(Node::new(Sub, Node::new_num(0), primary(iter)?));
+                }
+                _ => return primary(iter),
+            },
+            _ => return primary(iter),
+        }
+    }
+    Err(AstError::Unary)
 }
 
 pub fn primary<T>(iter: &mut Peekable<T>) -> Result<Node, AstError>
