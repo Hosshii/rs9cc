@@ -128,11 +128,14 @@ fn split_digit(s: &str) -> (&str, &str, usize) {
 /// 入力の先頭から空白がなくなるところを探して
 /// 最初に出てくる空白ではない文字の位置を返す
 fn calc_space_len(s: &str) -> usize {
-    let mut begin = s.char_indices();
+    let mut begin = s.char_indices().peekable();
 
     while let Some((pos, chars)) = begin.next() {
         if chars != ' ' {
             return pos;
+        }
+        if begin.peek() == None {
+            return pos + 1;
         }
     }
     0
