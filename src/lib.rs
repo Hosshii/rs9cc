@@ -15,7 +15,7 @@ pub enum Operator {
 }
 
 impl Operator {
-    pub fn as_str(&self) -> char {
+    pub fn as_char(&self) -> char {
         match self {
             Plus => '+',
             Minus => '-',
@@ -32,11 +32,16 @@ pub struct Token {
 /// token iterator
 pub struct TokenIter<'a> {
     s: &'a str,
-    pos: usize,
+    tk_pos: usize,
+    bytes_pos: usize,
 }
 
 pub fn tokenize<'a>(s: &'a str) -> TokenIter {
-    TokenIter { s, pos: 0 }
+    TokenIter {
+        s,
+        tk_pos: 0,
+        bytes_pos: 0,
+    }
 }
 
 impl Token {
@@ -48,52 +53,87 @@ impl Token {
     }
 }
 
+impl<'a> TokenIter<'a> {
+    fn error_at(&self, msg: &str) -> ! {
+        eprintln!("{}", self.s);
+        eprintln!(
+            "{number:>width$} {msg}",
+            number = '^',
+            width = self.bytes_pos + 1,
+            msg = msg
+        );
+        panic!()
+    }
+
+    /// ## warn
+    /// you cannot change self.bytes_pos after using this method
+    fn cur_str(&self) -> &str {
+        let a = self.bytes_pos;
+        &self.s[a..]
+    }
+}
+
 impl<'a> Iterator for TokenIter<'a> {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
-        self.s = self.s.trim_start();
-
-        if self.s.is_empty() {
+        let sp = calc_space_len(self.cur_str());
+        self.bytes_pos += sp;
+        let s = self.cur_str();
+        if s.is_empty() {
             return None;
         }
 
-        if self.s.as_bytes()[0] == Plus.as_str() as u8 {
-            self.s = self.s.split_at(1).1;
+        if s.as_bytes()[0] == Plus.as_char() as u8 {
             let tk = Some(Self::Item {
                 kind: Reserved(Plus),
-                pos: self.pos,
+                pos: self.tk_pos,
             });
-            self.pos += 1;
+            self.bytes_pos += 1;
+            self.tk_pos += 1;
             return tk;
         }
 
-        if self.s.as_bytes()[0] == Minus.as_str() as u8 {
-            self.s = self.s.split_at(1).1;
+        if s.as_bytes()[0] == Minus.as_char() as u8 {
             let tk = Some(Self::Item {
                 kind: Reserved(Minus),
-                pos: self.pos,
+                pos: self.tk_pos,
             });
-            self.pos += 1;
+            self.bytes_pos += 1;
+            self.tk_pos += 1;
             return tk;
         }
 
-        let (digit, remain) = split_digit(self.s);
+        let (digit, _, first_non_num_idx) = split_digit(s);
         if !digit.is_empty() {
-            self.s = remain;
             let tk = Some(Self::Item {
                 kind: Num(u64::from_str_radix(digit, 10).unwrap()),
-                pos: self.pos,
+                pos: self.tk_pos,
             });
-            self.pos += 1;
+            self.bytes_pos += first_non_num_idx;
+            self.tk_pos += 1;
             return tk;
         }
 
-        None
+        self.error_at("トークナイズできません")
     }
 }
 
 /// Rustにstrtol関数がないので同じような挙動をする関数を定義する。
-fn split_digit(s: &str) -> (&str, &str) {
+fn split_digit(s: &str) -> (&str, &str, usize) {
     let first_non_num_idx = s.find(|c| !char::is_numeric(c)).unwrap_or(s.len());
-    s.split_at(first_non_num_idx)
+    let (f, s) = s.split_at(first_non_num_idx);
+    (f, s, first_non_num_idx)
+}
+
+/// 入力の先頭から空白がなくなるところを探して
+/// 最初に出てくる空白ではない文字の位置を返す
+fn calc_space_len(s: &str) -> usize {
+    let mut begin = s.char_indices();
+
+    while let Some((pos, chars)) = begin.next() {
+        if chars != ' ' {
+            return pos;
+        }
+    }
+    0
 }
