@@ -1,5 +1,8 @@
+extern crate rs9cc;
+
+use rs9cc::asm::gen;
 use rs9cc::ast::expr;
-use rs9cc::token::{tokenize, Operator, TokenKind};
+use rs9cc::token::tokenize;
 use std::env;
 
 fn main() {
@@ -13,20 +16,17 @@ fn main() {
     println!(".globl main");
     println!("main:");
 
+    // token生成
     let mut iter = tokenize(&s).peekable();
-    // println!("    mov rax, {}", iter.next().unwrap().expect_num());
-    // while let Some(token) = iter.next() {
-    //     let n = iter.next().unwrap().expect_num();
-    //     match token.kind {
-    //         TokenKind::Reserved(op) => match op {
-    //             Operator::Plus => println!("    add rax, {}", n),
-    //             Operator::Minus => println!("    sub rax, {}", n),
-    //         },
-    //         x => panic!("unexpected operator: {:?}", x),
-    //     }
-    // }
+
+    // ast生成
     let node = expr(&mut iter).unwrap();
-    println!("{:#?}", node);
+
+    // asm生成
+    gen(&node);
+
+    // スタックトップに乗っているはずの式全体の答えをとりだして返り値にする
+    println!("    pop rax");
     println!("    ret");
 }
 

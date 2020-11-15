@@ -42,9 +42,9 @@ impl NodeKind {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Node {
-    kind: NodeKind,
-    lhs: Option<Box<Node>>,
-    rhs: Option<Box<Node>>,
+    pub kind: NodeKind,
+    pub lhs: Option<Box<Node>>,
+    pub rhs: Option<Box<Node>>,
 }
 
 impl Node {
@@ -118,7 +118,6 @@ pub fn primary<T>(iter: &mut Peekable<T>) -> Result<Node, AstError>
 where
     T: Iterator<Item = Token>,
 {
-    // Node::new_num(1)
     while let Some(token) = iter.peek() {
         match token.kind {
             TokenKind::Reserved(op) => match op {
