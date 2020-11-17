@@ -1,6 +1,5 @@
 #!/bin/bash
 assert() {
-    set -eux
     expected="$1"
     input="$2"
 
