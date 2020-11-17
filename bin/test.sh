@@ -26,4 +26,29 @@ assert 4 ' (  3 +  5 )/2  '
 assert 10 '  -10 + 20 '
 assert 100 ' -(-  40) + 60'
 
+assert 1 '0==0'
+assert 1 ' -39 == -39'
+assert 0 '-210 == 932'
+
+assert 1 '321!=4442'
+assert 0 '33!=33'
+
+assert 1 ' 2 >   1   '
+assert 0 ' 40 > 200'
+assert 0 '40>40'
+
+assert 1 '4<200'
+assert 0 ' 4000 < 500'
+assert 0 '-40<-40'
+
+assert 1 '0<=1'
+assert 1 '0 <= 0'
+assert 0 '4<= 0'
+
+assert 1 '0>=0'
+assert 1 '-11>=-11'
+assert 1 '100 >= 3'
+assert 0 '3 >= 100'
+assert 0 '-100 >= 30'
+
 echo OK

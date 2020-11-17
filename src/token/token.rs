@@ -197,7 +197,7 @@ impl<'a> Iterator for TokenIter<'a> {
                 kind: Reserved(op),
                 pos: self.pos,
             });
-            self.pos.bytes += 1;
+            self.pos.bytes += op.as_str().len();
             self.pos.tk += 1;
             return tk;
         }
