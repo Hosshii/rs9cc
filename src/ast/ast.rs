@@ -107,7 +107,7 @@ fn consume(iter: &mut TokenIter, op: Operator) -> bool {
     if let Some(x) = iter.peek() {
         if let TokenKind::Reserved(x) = x.kind {
             if x == op {
-                let x = iter.next();
+                iter.next();
                 return true;
             }
         }

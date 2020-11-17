@@ -92,7 +92,6 @@ impl FromStr for Operator {
 pub struct Token {
     pub kind: TokenKind,
     pub pos: TokenPos,
-    pub len: usize,
 }
 
 impl Token {
@@ -149,17 +148,15 @@ impl<'a> TokenIter<'a> {
             let tk = Some(Token {
                 kind: Reserved(op),
                 pos: self.pos,
-                len: op.as_str().chars().count(),
             });
             return tk;
         }
 
-        let (digit, _, first_non_num_idx) = split_digit(s);
+        let (digit, _, _) = split_digit(s);
         if !digit.is_empty() {
             let tk = Some(Token {
                 kind: Num(u64::from_str_radix(digit, 10).unwrap()),
                 pos: self.pos,
-                len: digit.chars().count(),
             });
             return tk;
         }
@@ -199,7 +196,6 @@ impl<'a> Iterator for TokenIter<'a> {
             let tk = Some(Self::Item {
                 kind: Reserved(op),
                 pos: self.pos,
-                len: op.as_str().chars().count(),
             });
             self.pos.bytes += 1;
             self.pos.tk += 1;
@@ -211,7 +207,6 @@ impl<'a> Iterator for TokenIter<'a> {
             let tk = Some(Self::Item {
                 kind: Num(u64::from_str_radix(digit, 10).unwrap()),
                 pos: self.pos,
-                len: digit.chars().count(),
             });
             self.pos.bytes += first_non_num_idx;
             self.pos.tk += 1;

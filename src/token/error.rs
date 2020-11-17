@@ -20,7 +20,7 @@ pub struct Error {
 impl StdError for Error {}
 
 impl Error {
-    pub(crate) fn invalid(
+    pub(crate) fn _invalid(
         input: impl Into<String>,
         s: impl Into<String>,
         pos: TokenPos,
@@ -39,7 +39,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
             Invalid(x) => {
-                writeln!(f, "{}", self.input);
+                writeln!(f, "{}", self.input)?;
                 let result = writeln!(
                     f,
                     "{number:>width$} {err_msg}",

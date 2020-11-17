@@ -65,7 +65,7 @@ impl<'a> fmt::Display for Error {
                     TokenKind::Num(_) => "number".to_string(),
                     x => x.as_string(),
                 };
-                writeln!(f, "{}", self.input);
+                writeln!(f, "{}", self.input)?;
                 let result = writeln!(
                     f,
                     "{number:>width$} {err_msg}",
