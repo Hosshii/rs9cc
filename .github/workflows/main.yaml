@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    # branches:
+    #   - 'master'
+  pull_request:
+
+jobs:
+  build:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Update rustup
+        run: rustup self update
+      - name: Build
+        run: cargo build --release
+      - name: run tests
+        run: RS9CC_ON_WORKFLOW=1 ./bin/test.sh
+        continue-on-error: true

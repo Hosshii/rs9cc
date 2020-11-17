@@ -3,7 +3,11 @@ assert() {
     expected="$1"
     input="$2"
 
-    ./target/x86_64-unknown-linux-musl/debug/rs9cc "$input" >tmp.s
+    local bin="./target/x86_64-unknown-linux-musl/debug/rs9cc"
+    if [ -n "$RS9CC_ON_WORKFLOW" ]; then
+        bin="./target/release/rs9cc"
+    fi
+    $bin "$input" >tmp.s
     cc -o tmp tmp.s
     ./tmp
     actual="$?"
