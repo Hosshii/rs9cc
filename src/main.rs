@@ -17,10 +17,18 @@ fn main() {
     println!("main:");
 
     // token生成
-    let mut iter = tokenize(&s).peekable();
+    let mut iter = tokenize(&s);
 
     // ast生成
-    let node = expr(&mut iter).unwrap();
+    // let node = expr(&mut iter).unwrap();
+    let node = match expr(&mut iter) {
+        Ok(x) => x,
+        Err(err) => {
+            eprintln!("{}", err);
+            panic!()
+        }
+    };
+    // println!("{:#?}", node);
 
     // asm生成
     gen(&node);
