@@ -130,7 +130,7 @@ fn expect(iter: &mut TokenIter, op: Operator) -> Result<(), Error> {
             }
         }
     }
-    return Err(Error::eof(iter.s, iter.pos, None));
+    return Err(Error::eof(iter.s, iter.pos, TokenKind::Num(0), None));
 }
 
 fn expect_num(iter: &mut TokenIter) -> Result<u64, Error> {
@@ -146,5 +146,5 @@ fn expect_num(iter: &mut TokenIter) -> Result<u64, Error> {
             ));
         }
     }
-    Err(Error::eof(iter.s, iter.pos, None))
+    Err(Error::eof(iter.s, iter.pos, TokenKind::Num(0), None))
 }

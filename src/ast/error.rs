@@ -8,7 +8,7 @@ pub enum ErrorKind {
         expected: TokenKind,
         actual: TokenKind,
     },
-    Eof,
+    EOF(TokenKind),
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
@@ -47,9 +47,14 @@ impl Error {
         }
     }
 
-    pub fn eof(input: impl Into<String>, pos: TokenPos, msg: Option<String>) -> Error {
+    pub fn eof(
+        input: impl Into<String>,
+        pos: TokenPos,
+        expected: TokenKind,
+        msg: Option<String>,
+    ) -> Error {
         Error {
-            kind: Eof,
+            kind: EOF(expected),
             pos,
             input: input.into(),
             msg,
@@ -61,29 +66,59 @@ impl<'a> fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.kind {
             UnexpectedToken { expected, actual } => {
-                let expected_string = match expected {
-                    TokenKind::Num(_) => "number".to_string(),
-                    x => x.as_string(),
-                };
-                writeln!(f, "{}", self.input)?;
-                let result = writeln!(
-                    f,
-                    "{number:>width$} {err_msg}",
-                    number = '^',
-                    width = self.pos.bytes + 1,
-                    err_msg = format!(
-                        "unexpected token. expected: {}, got: {}",
-                        expected_string,
-                        actual.as_string()
-                    )
-                );
-                if let Some(x) = &self.msg {
-                    writeln!(f, "{}", x)
-                } else {
-                    result
-                }
+                // let expected_string = match expected {
+                //     TokenKind::Num(_) => "number".to_string(),
+                //     x => x.as_string(),
+                // };
+                // writeln!(f, "{}", self.input)?;
+                // let result = writeln!(
+                //     f,
+                //     "{number:>width$} {err_msg}",
+                //     number = '^',
+                //     width = self.pos.bytes + 1,
+                //     err_msg = format!(
+                //         "unexpected token. expected: {}, got: {}",
+                //         expected_string,
+                //         actual.as_string()
+                //     )
+                // );
+                // if let Some(x) = &self.msg {
+                //     writeln!(f, "{}", x)
+                // } else {
+                //     result
+                // }
+                err_format(expected, actual, &self, f)
             }
-            Eof => writeln!(f, "reached EOF"),
+            EOF(expected) => err_format(expected, TokenKind::EOF, &self, f),
         }
+    }
+}
+
+fn err_format(
+    expected: TokenKind,
+    actual: TokenKind,
+    err: &Error,
+    f: &mut fmt::Formatter,
+) -> fmt::Result {
+    let expected_string = match expected {
+        TokenKind::Num(_) => "number".to_string(),
+        x => x.as_string(),
+    };
+    writeln!(f, "{}", err.input)?;
+    let result = writeln!(
+        f,
+        "{number:>width$} {err_msg}",
+        number = '^',
+        width = err.pos.bytes + 1,
+        err_msg = format!(
+            "unexpected token. expected: {}, got: {}",
+            expected_string,
+            actual.as_string()
+        )
+    );
+    if let Some(x) = &err.msg {
+        writeln!(f, "{}", x)
+    } else {
+        result
     }
 }

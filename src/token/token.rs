@@ -7,7 +7,7 @@ use std::str::FromStr;
 pub enum TokenKind {
     Reserved(Operator),
     Num(u64),
-    TkEOF,
+    EOF,
 }
 
 impl TokenKind {
@@ -15,7 +15,7 @@ impl TokenKind {
         match self {
             Reserved(op) => op.as_str().to_string(),
             Num(x) => x.to_string(),
-            TkEOF => "EOF".to_string(),
+            EOF => "EOF".to_string(),
         }
     }
 }
