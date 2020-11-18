@@ -7,8 +7,8 @@ on:
   pull_request:
 
 jobs:
-  build:
-    name: Run tests
+  asm_test:
+    name: Run integrated_test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -19,3 +19,12 @@ jobs:
       - name: run tests
         run: RS9CC_ON_WORKFLOW=1 ./bin/test.sh
         continue-on-error: true
+  cargo_test:
+    name: Run cargo test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Update rustup
+        run: rustup self update
+      - name: run tests
+        run: cargo test

@@ -239,3 +239,59 @@ fn calc_space_len(s: &str) -> usize {
     }
     0
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_operator_from_starts() {
+        use Operator::*;
+        let tests = [
+            ("==", Ok(Equal)),
+            ("===", Ok(Equal)),
+            ("!=", Ok(Neq)),
+            ("!==", Ok(Neq)),
+            ("<", Ok(Lesser)),
+            ("<1", Ok(Lesser)),
+            ("<=", Ok(Leq)),
+            ("<==", Ok(Leq)),
+            (">", Ok(Greater)),
+            (">>", Ok(Greater)),
+            (">=", Ok(Geq)),
+            (">=>", Ok(Geq)),
+            ("+", Ok(Plus)),
+            ("++", Ok(Plus)),
+            ("-", Ok(Minus)),
+            ("-=", Ok(Minus)),
+            ("*", Ok(Mul)),
+            ("*=", Ok(Mul)),
+            ("/", Ok(Div)),
+            ("//", Ok(Div)),
+            ("(", Ok(LParen)),
+            ("(=", Ok(LParen)),
+            (")", Ok(RParen)),
+            ("))", Ok(RParen)),
+            ("foo", Err(())),
+        ];
+        for &(s, ref expected) in &tests {
+            assert_eq!(expected, &Operator::from_starts(s));
+        }
+    }
+
+    #[test]
+    fn test_calc_space_len() {
+        let tests = [("    a", 4), ("a", 0)];
+        for (s, expected) in &tests {
+            assert_eq!(expected, &calc_space_len(s));
+        }
+    }
+
+    #[test]
+    fn test_split_digit() {
+        let tests = [("fff", ("", "fff", 0)), ("11fff", ("11", "fff", 2))];
+        for (s, expected) in &tests {
+            assert_eq!(expected, &split_digit(s));
+        }
+    }
+}
