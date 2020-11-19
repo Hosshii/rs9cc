@@ -75,6 +75,14 @@ impl Node {
             rhs: None,
         }
     }
+
+    pub fn new_leaf(kind: NodeKind) -> Node {
+        Node {
+            kind,
+            lhs: None,
+            rhs: None,
+        }
+    }
 }
 
 pub fn expr(iter: &mut TokenIter) -> Result<Node, Error> {
@@ -201,4 +209,46 @@ fn expect_num(iter: &mut TokenIter) -> Result<u64, Error> {
         }
     }
     Err(Error::eof(iter.s, iter.pos, TokenKind::Num(0), None))
+}
+
+// #[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ast() {
+        use crate::token;
+        use NodeKind::*;
+        // use TokenIter;
+        let tests = [
+            ("1==10", make_test_node(Equal, 1, 10)),
+            ("1 != 10", make_test_node(Neq, 1, 10)),
+            ("1  <10", make_test_node(Lesser, 1, 10)),
+            ("1<=10", make_test_node(Leq, 1, 10)),
+            ("1>10", make_test_node(Lesser, 10, 1)), // Lesser,LeqはGreater.Geqを使って実装されてる
+            ("1>=10", make_test_node(Leq, 10, 1)),
+            ("1+10", make_test_node(Add, 1, 10)),
+            ("1-10", make_test_node(Sub, 1, 10)),
+            ("1*10", make_test_node(Mul, 1, 10)),
+            ("1/10", make_test_node(Div, 1, 10)),
+            ("+1", Node::new_num(1)),
+            ("-1", make_test_node(Sub, 0, 1)),
+            (
+                "2 * ( 3 + 4)",
+                Node::new(Mul, Node::new_num(2), make_test_node(Add, 3, 4)),
+            ),
+        ];
+
+        for (s, expected) in &tests {
+            assert_eq!(expected, &expr(&mut token::tokenize(s)).unwrap())
+        }
+    }
+
+    fn make_test_node(kind: NodeKind, lhs_num: u64, rhs_num: u64) -> Node {
+        Node {
+            kind,
+            lhs: Some(Box::new(Node::new_num(lhs_num))),
+            rhs: Some(Box::new(Node::new_num(rhs_num))),
+        }
+    }
 }
