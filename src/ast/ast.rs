@@ -344,19 +344,15 @@ mod tests {
                 "a=b=1",
                 Node::new(
                     Assign,
-                    Node::new_leaf(Ident(super::Ident::new("a"))),
-                    make_test_assign_node("b", 1),
+                    Node::new_leaf(Lvar(8)),
+                    make_test_assign_node('b', 1),
                 ),
             ),
             (
                 "a+1=5",
                 Node::new(
                     Assign,
-                    Node::new(
-                        Add,
-                        Node::new_leaf(Ident(super::Ident::new("a"))),
-                        Node::new_num(1),
-                    ),
+                    Node::new(Add, Node::new_leaf(Lvar(8)), Node::new_num(1)),
                     Node::new_num(5),
                 ),
             ),
@@ -370,7 +366,7 @@ mod tests {
     #[test]
     fn test_program() {
         use crate::token;
-        let tests = [("a=10;", make_test_assign_node("a", 10))];
+        let tests = [("a=10;", make_test_assign_node('a', 10))];
 
         for (s, expected) in &tests {
             assert_eq!(expected, &program(&mut token::tokenize(s)).unwrap()[0])
@@ -385,10 +381,12 @@ mod tests {
         }
     }
 
-    fn make_test_assign_node(lhs: impl Into<String>, rhs: u64) -> Node {
+    fn make_test_assign_node(lhs: char, rhs: u64) -> Node {
         Node {
             kind: Assign,
-            lhs: Some(Box::new(Node::new_leaf(Ident(super::Ident::new(lhs))))),
+            lhs: Some(Box::new(Node::new_leaf(Lvar(
+                (lhs as u8 - 'a' as u8 + 1) as usize * 8,
+            )))),
             rhs: Some(Box::new(Node::new_num(rhs))),
         }
     }
