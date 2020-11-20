@@ -3,10 +3,12 @@ use self::TokenKind::*;
 use super::error::{Error, ErrorKind};
 use std::str::FromStr;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum TokenKind {
     Reserved(Operator),
+    Ident(Ident),
     Num(u64),
+    SemiColon,
     EOF,
 }
 
@@ -14,7 +16,9 @@ impl TokenKind {
     pub fn as_string(&self) -> String {
         match self {
             Reserved(op) => op.as_str().to_string(),
+            Ident(ident) => ident.name.to_string(),
             Num(x) => x.to_string(),
+            SemiColon => ";".to_string(),
             EOF => "EOF".to_string(),
         }
     }
@@ -22,6 +26,7 @@ impl TokenKind {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
 pub enum Operator {
+    Assign,
     Equal,
     Neq,
     Lesser,
@@ -39,6 +44,7 @@ pub enum Operator {
 impl Operator {
     pub fn as_str(&self) -> &'static str {
         match self {
+            Assign => "=",
             Equal => "==",
             Neq => "!=",
             Lesser => "<",
@@ -77,6 +83,7 @@ impl FromStr for Operator {
             x if x == Geq.as_str() => Ok(Geq),
             x if x == Lesser.as_str() => Ok(Lesser),
             x if x == Greater.as_str() => Ok(Greater),
+            x if x == Assign.as_str() => Ok(Assign),
             x if x == Plus.as_str() => Ok(Plus),
             x if x == Minus.as_str() => Ok(Minus),
             x if x == Mul.as_str() => Ok(Mul),
@@ -85,6 +92,17 @@ impl FromStr for Operator {
             x if x == RParen.as_str() => Ok(RParen),
             _ => Err(()),
         }
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+pub struct Ident {
+    pub name: String,
+}
+
+impl Ident {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self { name: name.into() }
     }
 }
 
@@ -160,6 +178,20 @@ impl<'a> TokenIter<'a> {
             });
             return tk;
         }
+        let ss = s.chars().nth(0).unwrap();
+        if ss.is_ascii_lowercase() {
+            let tk = Some(Token {
+                kind: Ident(Ident::new(ss)),
+                pos: self.pos,
+            });
+            return tk;
+        } else if ss.to_string() == SemiColon.as_string() {
+            let tk = Some(Token {
+                kind: SemiColon,
+                pos: self.pos,
+            });
+            return tk;
+        }
         None
     }
 
@@ -209,6 +241,27 @@ impl<'a> Iterator for TokenIter<'a> {
                 pos: self.pos,
             });
             self.pos.bytes += first_non_num_idx;
+            self.pos.tk += 1;
+            return tk;
+        }
+
+        let ss = s.chars().nth(0).unwrap();
+        if ss.is_ascii_lowercase() {
+            let tk = Some(Self::Item {
+                kind: Ident(Ident {
+                    name: ss.to_string(),
+                }),
+                pos: self.pos,
+            });
+            self.pos.bytes += 1;
+            self.pos.tk += 1;
+            return tk;
+        } else if ss.to_string() == SemiColon.as_string() {
+            let tk = Some(Self::Item {
+                kind: SemiColon,
+                pos: self.pos,
+            });
+            self.pos.bytes += 1;
             self.pos.tk += 1;
             return tk;
         }

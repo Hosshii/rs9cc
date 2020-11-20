@@ -2,8 +2,9 @@ use self::NodeKind::*;
 use super::error::Error;
 use crate::token::{Operator, TokenIter, TokenKind};
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum NodeKind {
+    Assign,
     Equal,
     Neq,
     Lesser,
@@ -15,12 +16,14 @@ pub enum NodeKind {
     Mul,
     Div,
     Num(u64),
+    Ident(Ident),
 }
 
 impl NodeKind {
     /// convert NodeKind to token::Operator
     pub fn as_op(&self) -> Result<Operator, ()> {
         match self {
+            Assign => Ok(Operator::Assign),
             Equal => Ok(Operator::Equal),
             Neq => Ok(Operator::Neq),
             Lesser => Ok(Operator::Lesser),
@@ -37,6 +40,7 @@ impl NodeKind {
 
     pub fn from_op(op: Operator) -> Result<NodeKind, ()> {
         match op {
+            x if x == Assign.as_op().unwrap() => Ok(Assign),
             x if x == Equal.as_op().unwrap() => Ok(Equal),
             x if x == Neq.as_op().unwrap() => Ok(Neq),
             x if x == Lesser.as_op().unwrap() => Ok(Lesser),
@@ -49,6 +53,17 @@ impl NodeKind {
             x if x == Div.as_op().unwrap() => Ok(Div),
             _ => Err(()),
         }
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+pub struct Ident {
+    name: String,
+}
+
+impl Ident {
+    fn new(name: impl Into<String>) -> Self {
+        Self { name: name.into() }
     }
 }
 
@@ -85,8 +100,32 @@ impl Node {
     }
 }
 
+pub type Program = Vec<Node>;
+
+pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
+    let mut program = Program::new();
+    while iter.peek() != None {
+        program.push(stmt(iter)?);
+    }
+    Ok(program)
+}
+
+pub fn stmt(iter: &mut TokenIter) -> Result<Node, Error> {
+    let node = expr(iter);
+    expect_semi(iter)?;
+    node
+}
+
 pub fn expr(iter: &mut TokenIter) -> Result<Node, Error> {
-    equality(iter)
+    assign(iter)
+}
+
+pub fn assign(iter: &mut TokenIter) -> Result<Node, Error> {
+    let mut node = equality(iter)?;
+    if consume(iter, Operator::Assign) {
+        node = Node::new(Assign, node, assign(iter)?);
+    }
+    return Ok(node);
 }
 
 pub fn equality(iter: &mut TokenIter) -> Result<Node, Error> {
@@ -162,6 +201,10 @@ pub fn primary(iter: &mut TokenIter) -> Result<Node, Error> {
         expect(iter, Operator::RParen)?;
         return node;
     }
+
+    if let Some(x) = consume_ident(iter) {
+        return Ok(Node::new_leaf(Ident(x)));
+    }
     return Ok(Node::new_num(expect_num(iter)?));
 }
 
@@ -175,6 +218,26 @@ fn consume(iter: &mut TokenIter, op: Operator) -> bool {
         }
     }
     return false;
+}
+
+fn consume_semi(iter: &mut TokenIter) -> bool {
+    if let Some(x) = iter.peek() {
+        if x.kind == TokenKind::SemiColon {
+            iter.next();
+            return true;
+        }
+    }
+    return false;
+}
+
+fn consume_ident(iter: &mut TokenIter) -> Option<Ident> {
+    if let Some(x) = iter.peek() {
+        if let TokenKind::Ident(x) = x.kind {
+            iter.next();
+            return Some(Ident::new(x.name));
+        }
+    }
+    return None;
 }
 
 fn expect(iter: &mut TokenIter, op: Operator) -> Result<(), Error> {
@@ -211,12 +274,49 @@ fn expect_num(iter: &mut TokenIter) -> Result<u64, Error> {
     Err(Error::eof(iter.s, iter.pos, TokenKind::Num(0), None))
 }
 
-// #[cfg(test)]
+fn expect_semi(iter: &mut TokenIter) -> Result<(), Error> {
+    if let Some(x) = iter.peek() {
+        if x.kind == TokenKind::SemiColon {
+            iter.next();
+            return Ok(());
+        } else {
+            return Err(Error::unexpected_token(
+                iter.s,
+                x.clone(),
+                TokenKind::SemiColon,
+            ));
+        }
+    }
+    Err(Error::eof(iter.s, iter.pos, TokenKind::SemiColon, None))
+}
+
+fn expect_ident(iter: &mut TokenIter) -> Result<Ident, Error> {
+    if let Some(x) = iter.peek() {
+        if let TokenKind::Ident(id) = x.kind {
+            iter.next();
+            return Ok(Ident::new(id.name));
+        } else {
+            return Err(Error::unexpected_token(
+                iter.s,
+                x.clone(),
+                TokenKind::Ident(crate::token::Ident::new("")),
+            ));
+        }
+    }
+    Err(Error::eof(
+        iter.s,
+        iter.pos,
+        TokenKind::Ident(crate::token::Ident::new("")),
+        None,
+    ))
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_ast() {
+    fn test_expr() {
         use crate::token;
         use NodeKind::*;
         // use TokenIter;
@@ -237,10 +337,41 @@ mod tests {
                 "2 * ( 3 + 4)",
                 Node::new(Mul, Node::new_num(2), make_test_node(Add, 3, 4)),
             ),
+            ("42", Node::new_num(42)),
+            (
+                "a=b=1",
+                Node::new(
+                    Assign,
+                    Node::new_leaf(Ident(super::Ident::new("a"))),
+                    make_test_assign_node("b", 1),
+                ),
+            ),
+            (
+                "a+1=5",
+                Node::new(
+                    Assign,
+                    Node::new(
+                        Add,
+                        Node::new_leaf(Ident(super::Ident::new("a"))),
+                        Node::new_num(1),
+                    ),
+                    Node::new_num(5),
+                ),
+            ),
         ];
 
         for (s, expected) in &tests {
             assert_eq!(expected, &expr(&mut token::tokenize(s)).unwrap())
+        }
+    }
+
+    #[test]
+    fn test_program() {
+        use crate::token;
+        let tests = [("a=10;", make_test_assign_node("a", 10))];
+
+        for (s, expected) in &tests {
+            assert_eq!(expected, &program(&mut token::tokenize(s)).unwrap()[0])
         }
     }
 
@@ -249,6 +380,14 @@ mod tests {
             kind,
             lhs: Some(Box::new(Node::new_num(lhs_num))),
             rhs: Some(Box::new(Node::new_num(rhs_num))),
+        }
+    }
+
+    fn make_test_assign_node(lhs: impl Into<String>, rhs: u64) -> Node {
+        Node {
+            kind: Assign,
+            lhs: Some(Box::new(Node::new_leaf(Ident(super::Ident::new(lhs))))),
+            rhs: Some(Box::new(Node::new_num(rhs))),
         }
     }
 }

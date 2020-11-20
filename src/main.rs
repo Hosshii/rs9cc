@@ -1,7 +1,7 @@
 extern crate rs9cc;
 
 use rs9cc::asm::gen;
-use rs9cc::ast::expr;
+use rs9cc::ast::program;
 use rs9cc::token::tokenize;
 use std::env;
 
@@ -21,7 +21,7 @@ fn main() {
 
     // ast生成
     // let node = expr(&mut iter).unwrap();
-    let node = match expr(&mut iter) {
+    let program = match program(&mut iter) {
         Ok(x) => x,
         Err(err) => {
             eprintln!("{}", err);
@@ -31,7 +31,9 @@ fn main() {
     // println!("{:#?}", node);
 
     // asm生成
-    gen(&node);
+    for i in program {
+        gen(&i);
+    }
 
     // スタックトップに乗っているはずの式全体の答えをとりだして返り値にする
     println!("    pop rax");

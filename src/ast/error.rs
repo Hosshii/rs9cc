@@ -2,7 +2,7 @@ use self::ErrorKind::*;
 use crate::token::{Token, TokenKind, TokenPos};
 use std::fmt;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum ErrorKind {
     UnexpectedToken {
         expected: TokenKind,
@@ -64,7 +64,7 @@ impl Error {
 
 impl<'a> fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.kind {
+        match &self.kind {
             UnexpectedToken { expected, actual } => {
                 // let expected_string = match expected {
                 //     TokenKind::Num(_) => "number".to_string(),
@@ -87,9 +87,9 @@ impl<'a> fmt::Display for Error {
                 // } else {
                 //     result
                 // }
-                err_format(expected, actual, &self, f)
+                err_format(expected.clone(), actual.clone(), &self, f)
             }
-            EOF(expected) => err_format(expected, TokenKind::EOF, &self, f),
+            EOF(expected) => err_format(expected.clone(), TokenKind::EOF, &self, f),
         }
     }
 }
