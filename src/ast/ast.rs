@@ -17,6 +17,7 @@ pub enum NodeKind {
     Div,
     Num(u64),
     Ident(Ident),
+    Lvar(usize), // usize はベースポインタからのオフセット
 }
 
 impl NodeKind {
@@ -203,7 +204,8 @@ pub fn primary(iter: &mut TokenIter) -> Result<Node, Error> {
     }
 
     if let Some(x) = consume_ident(iter) {
-        return Ok(Node::new_leaf(Ident(x)));
+        let offset = (x.name.chars().nth(0).unwrap() as u8 - 'a' as u8 + 1) as usize * 8;
+        return Ok(Node::new_leaf(Lvar(offset)));
     }
     return Ok(Node::new_num(expect_num(iter)?));
 }
@@ -220,7 +222,7 @@ fn consume(iter: &mut TokenIter, op: Operator) -> bool {
     return false;
 }
 
-fn consume_semi(iter: &mut TokenIter) -> bool {
+fn _consume_semi(iter: &mut TokenIter) -> bool {
     if let Some(x) = iter.peek() {
         if x.kind == TokenKind::SemiColon {
             iter.next();
@@ -290,7 +292,7 @@ fn expect_semi(iter: &mut TokenIter) -> Result<(), Error> {
     Err(Error::eof(iter.s, iter.pos, TokenKind::SemiColon, None))
 }
 
-fn expect_ident(iter: &mut TokenIter) -> Result<Ident, Error> {
+fn _expect_ident(iter: &mut TokenIter) -> Result<Ident, Error> {
     if let Some(x) = iter.peek() {
         if let TokenKind::Ident(id) = x.kind {
             iter.next();

@@ -12,9 +12,16 @@ fn main() {
         return;
     }
 
+    // アセンブリの前半部分を出力
     println!(".intel_syntax noprefix");
-    println!(".globl main");
+    println!(".global main");
     println!("main:");
+
+    // プロローグ
+    // 変数26個分の領域を確保する
+    println!("    push rbp");
+    println!("    mov rbp, rsp");
+    println!("    sub rsp, 208");
 
     // token生成
     let mut iter = tokenize(&s);
@@ -32,11 +39,17 @@ fn main() {
 
     // asm生成
     for i in program {
-        gen(&i);
+        if let Err(x) = gen(&i) {
+            eprintln!("{}", x);
+            panic!()
+        }
+        println!("    pop rax");
     }
 
-    // スタックトップに乗っているはずの式全体の答えをとりだして返り値にする
-    println!("    pop rax");
+    // エピローグ
+    // 最後の式の結果がRAXに残っているのでそれが返り値になる
+    println!("    mov rsp, rbp");
+    println!("    pop rbp");
     println!("    ret");
 }
 
