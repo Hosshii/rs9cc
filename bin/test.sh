@@ -55,7 +55,14 @@ assert 1 '100 >= 3;'
 assert 0 '3 >= 100;'
 assert 0 '-100 >= 30;'
 
+assert 3 'a=3;'
+assert 1 'a = -4; b= 5; a+b;'
+assert 2 'a=1;b=1;a+b;'
 assert 14 'a =3 ; b = 5*6-8; a+b/2;'
 assert 2 'z=h=s=1;z*(h+s);'
+
+assert 2 'foo=1;bar=1;foo+bar;'
+assert 63 ' foo  = 13 ; bar = 50 ; foo + bar ;'
+assert 10 'foo = -1 ; bar = 9; foo*bar+bar*2+foo*-1;'
 
 echo OK

@@ -16,8 +16,8 @@ pub enum NodeKind {
     Mul,
     Div,
     Num(u64),
-    Ident(Ident),
-    Lvar(usize), // usize はベースポインタからのオフセット
+    // Ident(Ident),
+    Lvar(Lvar), // usize はベースポインタからのオフセット
 }
 
 impl NodeKind {
@@ -101,111 +101,172 @@ impl Node {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+pub struct Lvar {
+    next: Option<Box<Lvar>>,
+    name: String,
+    pub offset: usize,
+}
+
+impl Lvar {
+    pub fn new(next: Lvar, name: impl Into<String>, offset: usize) -> Self {
+        Self {
+            next: Some(Box::new(next)),
+            name: name.into(),
+            offset,
+        }
+    }
+
+    pub fn new_leaf(name: impl Into<String>, offset: usize) -> Self {
+        Self {
+            next: None,
+            name: name.into(),
+            offset,
+        }
+    }
+
+    pub fn find_lvar(&self, name: &str) -> Option<&Lvar> {
+        let name = name.into();
+        if self.name == name {
+            return Some(self);
+        } else {
+            if let Some(x) = &self.next {
+                return x.find_lvar(name);
+            } else {
+                None
+            }
+        }
+    }
+}
+
+pub struct Context {
+    lvar: Option<Lvar>,
+}
+
+impl Context {
+    pub fn new() -> Self {
+        Self { lvar: None }
+    }
+}
+
 pub type Program = Vec<Node>;
 
-pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
+pub fn program(iter: &mut TokenIter, ctx: &mut Context) -> Result<Program, Error> {
     let mut program = Program::new();
     while iter.peek() != None {
-        program.push(stmt(iter)?);
+        program.push(stmt(iter, ctx)?);
     }
     Ok(program)
 }
 
-pub fn stmt(iter: &mut TokenIter) -> Result<Node, Error> {
-    let node = expr(iter);
+pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let node = expr(iter, ctx);
     expect_semi(iter)?;
     node
 }
 
-pub fn expr(iter: &mut TokenIter) -> Result<Node, Error> {
-    assign(iter)
+pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    assign(iter, ctx)
 }
 
-pub fn assign(iter: &mut TokenIter) -> Result<Node, Error> {
-    let mut node = equality(iter)?;
+pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let mut node = equality(iter, ctx)?;
     if consume(iter, Operator::Assign) {
-        node = Node::new(Assign, node, assign(iter)?);
+        node = Node::new(Assign, node, assign(iter, ctx)?);
     }
     return Ok(node);
 }
 
-pub fn equality(iter: &mut TokenIter) -> Result<Node, Error> {
-    let mut node = relational(iter)?;
+pub fn equality(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let mut node = relational(iter, ctx)?;
     loop {
         if consume(iter, Operator::Equal) {
-            node = Node::new(Equal, node, relational(iter)?);
+            node = Node::new(Equal, node, relational(iter, ctx)?);
         } else if consume(iter, Operator::Neq) {
-            node = Node::new(Neq, node, relational(iter)?);
+            node = Node::new(Neq, node, relational(iter, ctx)?);
         } else {
             return Ok(node);
         }
     }
 }
 
-pub fn relational(iter: &mut TokenIter) -> Result<Node, Error> {
-    let mut node = add(iter)?;
+pub fn relational(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let mut node = add(iter, ctx)?;
     loop {
         if consume(iter, Operator::Lesser) {
-            node = Node::new(Lesser, node, add(iter)?);
+            node = Node::new(Lesser, node, add(iter, ctx)?);
         } else if consume(iter, Operator::Leq) {
-            node = Node::new(Leq, node, add(iter)?);
+            node = Node::new(Leq, node, add(iter, ctx)?);
         } else if consume(iter, Operator::Greater) {
             // 左右を入れ替えて読み変える
-            node = Node::new(Lesser, add(iter)?, node);
+            node = Node::new(Lesser, add(iter, ctx)?, node);
         } else if consume(iter, Operator::Geq) {
             // 左右を入れ替えて読み変える
-            node = Node::new(Leq, add(iter)?, node);
+            node = Node::new(Leq, add(iter, ctx)?, node);
         } else {
             return Ok(node);
         }
     }
 }
 
-pub fn add(iter: &mut TokenIter) -> Result<Node, Error> {
-    let mut node = mul(iter)?;
+pub fn add(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let mut node = mul(iter, ctx)?;
     loop {
         if consume(iter, Operator::Plus) {
-            node = Node::new(Add, node, mul(iter)?)
+            node = Node::new(Add, node, mul(iter, ctx)?)
         } else if consume(iter, Operator::Minus) {
-            node = Node::new(Sub, node, mul(iter)?)
+            node = Node::new(Sub, node, mul(iter, ctx)?)
         } else {
             return Ok(node);
         }
     }
 }
 
-pub fn mul(iter: &mut TokenIter) -> Result<Node, Error> {
-    let mut node = unary(iter)?;
+pub fn mul(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let mut node = unary(iter, ctx)?;
     loop {
         if consume(iter, Operator::Mul) {
-            node = Node::new(Mul, node, unary(iter)?)
+            node = Node::new(Mul, node, unary(iter, ctx)?)
         } else if consume(iter, Operator::Div) {
-            node = Node::new(Div, node, unary(iter)?)
+            node = Node::new(Div, node, unary(iter, ctx)?)
         } else {
             return Ok(node);
         }
     }
 }
 
-pub fn unary(iter: &mut TokenIter) -> Result<Node, Error> {
+pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::Plus) {
-        return primary(iter);
+        return primary(iter, ctx);
     } else if consume(iter, Operator::Minus) {
-        return Ok(Node::new(Sub, Node::new_num(0), primary(iter)?));
+        return Ok(Node::new(Sub, Node::new_num(0), primary(iter, ctx)?));
     }
-    return primary(iter);
+    return primary(iter, ctx);
 }
 
-pub fn primary(iter: &mut TokenIter) -> Result<Node, Error> {
+pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::LParen) {
-        let node = expr(iter);
+        let node = expr(iter, ctx);
         expect(iter, Operator::RParen)?;
         return node;
     }
 
     if let Some(x) = consume_ident(iter) {
-        let offset = (x.name.chars().nth(0).unwrap() as u8 - 'a' as u8 + 1) as usize * 8;
-        return Ok(Node::new_leaf(Lvar(offset)));
+        if ctx.lvar == None {
+            let lvar = Lvar::new_leaf(x.name.clone(), 8);
+            ctx.lvar = Some(lvar)
+        }
+        if let Some(lvar) = ctx.lvar.as_ref().unwrap().find_lvar(&x.name) {
+            return Ok(Node::new_leaf(Lvar(lvar.clone())));
+        } else {
+            let lvar = Lvar::new(
+                ctx.lvar.as_ref().unwrap().clone(),
+                x.name,
+                ctx.lvar.as_ref().unwrap().offset + 8,
+            );
+            ctx.lvar = Some(lvar.clone());
+            return Ok(Node::new_leaf(Lvar(lvar)));
+        }
     }
     return Ok(Node::new_num(expect_num(iter)?));
 }
@@ -341,35 +402,47 @@ mod tests {
             ),
             ("42", Node::new_num(42)),
             (
-                "a=b=1",
-                Node::new(
-                    Assign,
-                    Node::new_leaf(Lvar(8)),
-                    make_test_assign_node('b', 1),
-                ),
-            ),
-            (
                 "a+1=5",
                 Node::new(
                     Assign,
-                    Node::new(Add, Node::new_leaf(Lvar(8)), Node::new_num(1)),
+                    Node::new(
+                        Add,
+                        Node::new_leaf(Lvar(super::Lvar::new_leaf("a", 8))),
+                        Node::new_num(1),
+                    ),
                     Node::new_num(5),
                 ),
             ),
         ];
 
         for (s, expected) in &tests {
-            assert_eq!(expected, &expr(&mut token::tokenize(s)).unwrap())
+            assert_eq!(
+                expected,
+                &expr(&mut token::tokenize(s), &mut Context::new()).unwrap()
+            )
         }
     }
 
     #[test]
     fn test_program() {
         use crate::token;
-        let tests = [("a=10;", make_test_assign_node('a', 10))];
+
+        let lvar = Lvar::new_leaf("foo", 8);
+        let lhs_f_node = Node::new_leaf(Lvar(lvar.clone()));
+        let f_node = Node::new(Assign, lhs_f_node, Node::new_num(10));
+        let lhs_s_node = Node::new_leaf(Lvar(Lvar::new(lvar, "bar", 16)));
+        let s_node = Node::new(Assign, lhs_s_node, Node::new_num(20));
+        let tests = [
+            ("a=10;", vec![make_test_assign_node('a', 10, 8)]),
+            ("foo=10;bar=20;", vec![f_node, s_node]),
+        ];
 
         for (s, expected) in &tests {
-            assert_eq!(expected, &program(&mut token::tokenize(s)).unwrap()[0])
+            let actual = &program(&mut token::tokenize(s), &mut Context::new()).unwrap();
+            assert_eq!(expected, actual);
+            // for i in 0..expected.len() {
+            //     assert_eq!()
+            // }
         }
     }
 
@@ -381,12 +454,13 @@ mod tests {
         }
     }
 
-    fn make_test_assign_node(lhs: char, rhs: u64) -> Node {
+    fn make_test_assign_node(lhs: impl Into<String>, rhs: u64, offset: usize) -> Node {
         Node {
             kind: Assign,
-            lhs: Some(Box::new(Node::new_leaf(Lvar(
-                (lhs as u8 - 'a' as u8 + 1) as usize * 8,
-            )))),
+            lhs: Some(Box::new(Node::new_leaf(Lvar(super::Lvar::new_leaf(
+                lhs.into(),
+                offset,
+            ))))),
             rhs: Some(Box::new(Node::new_num(rhs))),
         }
     }

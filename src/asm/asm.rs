@@ -81,9 +81,9 @@ pub fn gen(node: &Node) -> Result<(), Error> {
 }
 
 fn gen_lval(node: &Node) -> Result<(), Error> {
-    if let NodeKind::Lvar(x) = node.kind {
+    if let NodeKind::Lvar(x) = &node.kind {
         println!("    mov rax, rbp");
-        println!("    sub rax, {}", x);
+        println!("    sub rax, {}", x.offset);
         println!("    push rax");
         Ok(())
     } else {

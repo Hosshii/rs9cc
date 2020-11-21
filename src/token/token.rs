@@ -178,16 +178,20 @@ impl<'a> TokenIter<'a> {
             });
             return tk;
         }
+
         let ss = s.chars().nth(0).unwrap();
-        if ss.is_ascii_lowercase() {
+        if ss.to_string() == SemiColon.as_string() {
             let tk = Some(Token {
-                kind: Ident(Ident::new(ss)),
+                kind: SemiColon,
                 pos: self.pos,
             });
             return tk;
-        } else if ss.to_string() == SemiColon.as_string() {
+        }
+
+        let (ident, _, _) = split_ident(s);
+        if !ident.is_empty() {
             let tk = Some(Token {
-                kind: SemiColon,
+                kind: Ident(Ident::new(ident)),
                 pos: self.pos,
             });
             return tk;
@@ -246,22 +250,23 @@ impl<'a> Iterator for TokenIter<'a> {
         }
 
         let ss = s.chars().nth(0).unwrap();
-        if ss.is_ascii_lowercase() {
-            let tk = Some(Self::Item {
-                kind: Ident(Ident {
-                    name: ss.to_string(),
-                }),
-                pos: self.pos,
-            });
-            self.pos.bytes += 1;
-            self.pos.tk += 1;
-            return tk;
-        } else if ss.to_string() == SemiColon.as_string() {
+        if ss.to_string() == SemiColon.as_string() {
             let tk = Some(Self::Item {
                 kind: SemiColon,
                 pos: self.pos,
             });
             self.pos.bytes += 1;
+            self.pos.tk += 1;
+            return tk;
+        }
+
+        let (ident, _, first_non_num_idx) = split_ident(s);
+        if !ident.is_empty() {
+            let tk = Some(Self::Item {
+                kind: Ident(Ident::new(ident)),
+                pos: self.pos,
+            });
+            self.pos.bytes += first_non_num_idx;
             self.pos.tk += 1;
             return tk;
         }
@@ -275,6 +280,22 @@ fn split_digit(s: &str) -> (&str, &str, usize) {
     let first_non_num_idx = s.find(|c| !char::is_numeric(c)).unwrap_or(s.len());
     let (f, s) = s.split_at(first_non_num_idx);
     (f, s, first_non_num_idx)
+}
+
+// fooo=1 のfoooをidentとして返す
+fn split_ident(s: &str) -> (&str, &str, usize) {
+    let mut first_non_ident_idx = 0;
+    for (i, _) in s.char_indices() {
+        if let Ok(_) = Operator::from_starts(&s[i..]) {
+            break;
+        }
+        if s[i..].starts_with(&TokenKind::SemiColon.as_string()) || s[i..].starts_with(" ") {
+            break;
+        }
+        first_non_ident_idx += 1;
+    }
+    let (f, s) = s.split_at(first_non_ident_idx);
+    (f, s, first_non_ident_idx)
 }
 
 /// 入力の先頭から空白がなくなるところを探して
@@ -296,6 +317,36 @@ fn calc_space_len(s: &str) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_token_iter() {
+        let input = "== != = < <= > >= + - * / ( ) ";
+        let expected = vec![
+            Equal, Neq, Assign, Lesser, Leq, Greater, Geq, Plus, Minus, Mul, Div, LParen, RParen,
+        ];
+        let mut iter = tokenize(input);
+        for i in expected {
+            assert_eq!(Reserved(i), iter.next().unwrap().kind);
+        }
+        assert_eq!(None, iter.next());
+
+        let input = "foo=1;bar=20;";
+        let expected = vec![
+            Ident(Ident::new("foo")),
+            Reserved(Assign),
+            Num(1),
+            SemiColon,
+            Ident(Ident::new("bar")),
+            Reserved(Assign),
+            Num(20),
+            SemiColon,
+        ];
+        let mut iter = tokenize(input);
+        for i in expected {
+            assert_eq!(i, iter.next().unwrap().kind);
+        }
+        assert_eq!(None, iter.next());
+    }
 
     #[test]
     fn test_operator_from_starts() {
@@ -345,6 +396,22 @@ mod tests {
         let tests = [("fff", ("", "fff", 0)), ("11fff", ("11", "fff", 2))];
         for (s, expected) in &tests {
             assert_eq!(expected, &split_digit(s));
+        }
+    }
+
+    #[test]
+    fn test_split_ident() {
+        let tests = [
+            ("foo1=", ("foo1", "=", 4)),
+            ("=foo", ("", "=foo", 0)),
+            ("bar;", ("bar", ";", 3)),
+            ("a =1;", ("a", " =1", 1)),
+        ];
+        for (s, expected) in &tests {
+            let (f, s, n) = split_ident(s);
+            assert_eq!(expected.0, f);
+            assert_eq!(expected.1, s);
+            assert_eq!(expected.2, n);
         }
     }
 }
