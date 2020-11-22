@@ -1,5 +1,3 @@
-use self::Operator::*;
-use self::TokenKind::*;
 use super::error::{Error, ErrorKind};
 use std::str::FromStr;
 
@@ -7,6 +5,7 @@ use std::str::FromStr;
 pub enum TokenKind {
     Reserved(Operator),
     Ident(Ident),
+    KeyWord(KeyWord),
     Num(u64),
     SemiColon,
     EOF,
@@ -14,9 +13,11 @@ pub enum TokenKind {
 
 impl TokenKind {
     pub fn as_string(&self) -> String {
+        use self::TokenKind::*;
         match self {
             Reserved(op) => op.as_str().to_string(),
             Ident(ident) => ident.name.to_string(),
+            KeyWord(keyword) => keyword.as_str().to_string(),
             Num(x) => x.to_string(),
             SemiColon => ";".to_string(),
             EOF => "EOF".to_string(),
@@ -43,6 +44,7 @@ pub enum Operator {
 
 impl Operator {
     pub fn as_str(&self) -> &'static str {
+        use self::Operator::*;
         match self {
             Assign => "=",
             Equal => "==",
@@ -76,6 +78,7 @@ impl Operator {
 impl FromStr for Operator {
     type Err = ();
     fn from_str(s: &str) -> Result<Operator, Self::Err> {
+        use self::Operator::*;
         match s {
             x if x == Equal.as_str() => Ok(Equal),
             x if x == Neq.as_str() => Ok(Neq),
@@ -103,6 +106,20 @@ pub struct Ident {
 impl Ident {
     pub fn new(name: impl Into<String>) -> Self {
         Self { name: name.into() }
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+pub enum KeyWord {
+    Return,
+}
+
+impl KeyWord {
+    fn as_str(&self) -> &'static str {
+        use KeyWord::*;
+        match self {
+            Return => "return",
+        }
     }
 }
 
@@ -156,6 +173,7 @@ pub fn tokenize<'a>(s: &'a str) -> TokenIter {
 impl<'a> TokenIter<'a> {
     /// std::iter::Peekable.peek()に似てるけど、nextを内部で呼ばない
     pub fn peek(&self) -> Option<Token> {
+        use self::TokenKind::{Num, Reserved, SemiColon};
         let sp = calc_space_len(self.cur_str());
         let s = &self.s[self.pos.bytes + sp..];
         if s.is_empty() {
@@ -191,7 +209,7 @@ impl<'a> TokenIter<'a> {
         let (ident, _, _) = split_ident(s);
         if !ident.is_empty() {
             let tk = Some(Token {
-                kind: Ident(Ident::new(ident)),
+                kind: TokenKind::Ident(Ident::new(ident)),
                 pos: self.pos,
             });
             return tk;
@@ -221,6 +239,7 @@ impl<'a> TokenIter<'a> {
 impl<'a> Iterator for TokenIter<'a> {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
+        use self::TokenKind::{Num, Reserved, SemiColon};
         let sp = calc_space_len(self.cur_str());
         self.pos.bytes += sp;
         let s = self.cur_str();
@@ -263,7 +282,7 @@ impl<'a> Iterator for TokenIter<'a> {
         let (ident, _, first_non_num_idx) = split_ident(s);
         if !ident.is_empty() {
             let tk = Some(Self::Item {
-                kind: Ident(Ident::new(ident)),
+                kind: TokenKind::Ident(Ident::new(ident)),
                 pos: self.pos,
             });
             self.pos.bytes += first_non_num_idx;
@@ -320,6 +339,8 @@ mod tests {
 
     #[test]
     fn test_token_iter() {
+        use self::Operator::*;
+        use self::TokenKind::{Num, Reserved, SemiColon};
         let input = "== != = < <= > >= + - * / ( ) ";
         let expected = vec![
             Equal, Neq, Assign, Lesser, Leq, Greater, Geq, Plus, Minus, Mul, Div, LParen, RParen,
@@ -332,11 +353,11 @@ mod tests {
 
         let input = "foo=1;bar=20;";
         let expected = vec![
-            Ident(Ident::new("foo")),
+            TokenKind::Ident(Ident::new("foo")),
             Reserved(Assign),
             Num(1),
             SemiColon,
-            Ident(Ident::new("bar")),
+            TokenKind::Ident(Ident::new("bar")),
             Reserved(Assign),
             Num(20),
             SemiColon,
@@ -405,7 +426,7 @@ mod tests {
             ("foo1=", ("foo1", "=", 4)),
             ("=foo", ("", "=foo", 0)),
             ("bar;", ("bar", ";", 3)),
-            ("a =1;", ("a", " =1", 1)),
+            ("a =1;", ("a", " =1;", 1)),
         ];
         for (s, expected) in &tests {
             let (f, s, n) = split_ident(s);
