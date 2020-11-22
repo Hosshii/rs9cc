@@ -32,6 +32,17 @@ pub fn gen(node: &Node) -> Result<(), Error> {
             println!("    push rdi");
             return Ok(());
         }
+        NodeKind::Return => {
+            if let Some(lhs) = &node.lhs {
+                gen(&lhs)?;
+            } else {
+                return Err(Error::not_found());
+            }
+            println!("    pop rax");
+            println!("    mov rsp, rbp");
+            println!("    pop rbp");
+            println!("    ret");
+        }
         _ => (),
     }
 

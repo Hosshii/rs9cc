@@ -1,6 +1,6 @@
 use self::NodeKind::*;
 use super::error::Error;
-use crate::token::{Operator, TokenIter, TokenKind};
+use crate::token::{KeyWord, Operator, TokenIter, TokenKind};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum NodeKind {
@@ -15,6 +15,7 @@ pub enum NodeKind {
     Sub,
     Mul,
     Div,
+    Return,
     Num(u64),
     // Ident(Ident),
     Lvar(Lvar), // usize はベースポインタからのオフセット
@@ -82,6 +83,10 @@ impl Node {
             lhs: Some(Box::new(lhs)),
             rhs: Some(Box::new(rhs)),
         }
+    }
+
+    pub fn _new(kind: NodeKind, lhs: Option<Box<Node>>, rhs: Option<Box<Node>>) -> Node {
+        Node { kind, lhs, rhs }
     }
 
     pub fn new_num(val: u64) -> Node {
@@ -160,7 +165,13 @@ pub fn program(iter: &mut TokenIter, ctx: &mut Context) -> Result<Program, Error
 }
 
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
-    let node = expr(iter, ctx);
+    // let node = expr(iter, ctx);
+
+    let node = if consume_keyword(iter, KeyWord::Return) {
+        Ok(Node::_new(Return, Some(Box::new(expr(iter, ctx)?)), None))
+    } else {
+        expr(iter, ctx)
+    };
     expect_semi(iter)?;
     node
 }
@@ -281,6 +292,18 @@ fn consume(iter: &mut TokenIter, op: Operator) -> bool {
         }
     }
     return false;
+}
+
+fn consume_keyword(iter: &mut TokenIter, key: KeyWord) -> bool {
+    if let Some(x) = iter.peek() {
+        if let TokenKind::KeyWord(x) = x.kind {
+            if x == key {
+                iter.next();
+                return true;
+            }
+        }
+    }
+    false
 }
 
 fn _consume_semi(iter: &mut TokenIter) -> bool {

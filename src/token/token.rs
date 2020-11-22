@@ -1,4 +1,5 @@
 use super::error::{Error, ErrorKind};
+use std::ops::{Add, AddAssign};
 use std::str::FromStr;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
@@ -121,7 +122,36 @@ impl KeyWord {
             Return => "return",
         }
     }
+
+    fn from_starts(s: &str) -> Result<KeyWord, ()> {
+        use self::KeyWord::*;
+        match s {
+            x if x.starts_with(Return.as_str()) => Ok(Return),
+            _ => Err(()),
+        }
+    }
 }
+
+impl FromStr for KeyWord {
+    type Err = ();
+    fn from_str(s: &str) -> Result<KeyWord, Self::Err> {
+        use self::KeyWord::*;
+        match s {
+            x if x == Return.as_str() => Ok(Return),
+            _ => Err(()),
+        }
+    }
+}
+
+// impl Iterator for KeyWord {
+//     type Item = Self;
+//     fn next(&mut self) -> Option<Self::Item> {
+//         use self::KeyWord::*;
+//         match self {
+//             Return => None,
+//         }
+//     }
+// }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Token {
@@ -156,6 +186,23 @@ pub struct TokenPos {
     pub bytes: usize,
 }
 
+impl Add for TokenPos {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self {
+            bytes: self.bytes + other.bytes,
+            tk: self.tk + other.tk,
+        }
+    }
+}
+
+impl AddAssign for TokenPos {
+    fn add_assign(&mut self, other: Self) {
+        *self = *self + other
+    }
+}
+
 /// token iterator
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
 pub struct TokenIter<'a> {
@@ -173,37 +220,26 @@ pub fn tokenize<'a>(s: &'a str) -> TokenIter {
 impl<'a> TokenIter<'a> {
     /// std::iter::Peekable.peek()に似てるけど、nextを内部で呼ばない
     pub fn peek(&self) -> Option<Token> {
-        use self::TokenKind::{Num, Reserved, SemiColon};
         let sp = calc_space_len(self.cur_str());
         let s = &self.s[self.pos.bytes + sp..];
         if s.is_empty() {
             return None;
         }
 
-        if let Ok(op) = Operator::from_starts(s) {
-            let tk = Some(Token {
-                kind: Reserved(op),
-                pos: self.pos,
-            });
-            return tk;
+        if let Some((tk, _)) = self.is_op(s) {
+            return Some(tk);
         }
 
-        let (digit, _, _) = split_digit(s);
-        if !digit.is_empty() {
-            let tk = Some(Token {
-                kind: Num(u64::from_str_radix(digit, 10).unwrap()),
-                pos: self.pos,
-            });
-            return tk;
+        if let Some((tk, _)) = self.is_keyword(s) {
+            return Some(tk);
         }
 
-        let ss = s.chars().nth(0).unwrap();
-        if ss.to_string() == SemiColon.as_string() {
-            let tk = Some(Token {
-                kind: SemiColon,
-                pos: self.pos,
-            });
-            return tk;
+        if let Some((tk, _)) = self.is_num(s) {
+            return Some(tk);
+        }
+
+        if let Some((tk, _)) = self.is_semi(s) {
+            return Some(tk);
         }
 
         let (ident, _, _) = split_ident(s);
@@ -213,6 +249,78 @@ impl<'a> TokenIter<'a> {
                 pos: self.pos,
             });
             return tk;
+        }
+        None
+    }
+
+    fn is_op(&self, s: &str) -> Option<(Token, TokenPos)> {
+        if let Ok(op) = Operator::from_starts(s) {
+            let tk = Token {
+                kind: TokenKind::Reserved(op),
+                pos: self.pos,
+            };
+            let pos = TokenPos {
+                bytes: op.as_str().len(),
+                tk: 1,
+            };
+            return Some((tk, pos));
+        }
+        None
+    }
+
+    fn is_keyword(&self, s: &str) -> Option<(Token, TokenPos)> {
+        if let Ok(keyword) = KeyWord::from_starts(s) {
+            let len = keyword.as_str().len();
+            if !is_alnum(s.chars().nth(len).unwrap_or_else(|| '1')) && keyword == KeyWord::Return {
+                let tk = Token {
+                    kind: TokenKind::KeyWord(KeyWord::Return),
+                    pos: self.pos,
+                };
+                let pos = TokenPos { bytes: len, tk: 1 };
+                return Some((tk, pos));
+            }
+        }
+        None
+    }
+
+    fn is_num(&self, s: &str) -> Option<(Token, TokenPos)> {
+        let (digit, _, bytes) = split_digit(s);
+        if !digit.is_empty() {
+            let tk = Token {
+                kind: TokenKind::Num(u64::from_str_radix(digit, 10).unwrap()),
+                pos: self.pos,
+            };
+            let pos = TokenPos { bytes, tk: 1 };
+            return Some((tk, pos));
+        }
+        return None;
+    }
+
+    fn is_semi(&self, s: &str) -> Option<(Token, TokenPos)> {
+        let ss = s.chars().nth(0).unwrap();
+        if ss.to_string() == TokenKind::SemiColon.as_string() {
+            let tk = Token {
+                kind: TokenKind::SemiColon,
+                pos: self.pos,
+            };
+            let pos = TokenPos { bytes: 1, tk: 1 };
+            return Some((tk, pos));
+        }
+        None
+    }
+
+    fn is_ident(&self, s: &str) -> Option<(Token, TokenPos)> {
+        let (ident, _, first_non_num_idx) = split_ident(s);
+        if !ident.is_empty() {
+            let tk = Token {
+                kind: TokenKind::Ident(Ident::new(ident)),
+                pos: self.pos,
+            };
+            let pos = TokenPos {
+                bytes: first_non_num_idx,
+                tk: 1,
+            };
+            return Some((tk, pos));
         }
         None
     }
@@ -239,7 +347,6 @@ impl<'a> TokenIter<'a> {
 impl<'a> Iterator for TokenIter<'a> {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
-        use self::TokenKind::{Num, Reserved, SemiColon};
         let sp = calc_space_len(self.cur_str());
         self.pos.bytes += sp;
         let s = self.cur_str();
@@ -247,49 +354,30 @@ impl<'a> Iterator for TokenIter<'a> {
             return None;
         }
 
-        if let Ok(op) = Operator::from_starts(s) {
-            let tk = Some(Self::Item {
-                kind: Reserved(op),
-                pos: self.pos,
-            });
-            self.pos.bytes += op.as_str().len();
-            self.pos.tk += 1;
-            return tk;
+        if let Some((tk, pos)) = self.is_op(s) {
+            self.pos += pos;
+            return Some(tk);
         }
 
-        let (digit, _, first_non_num_idx) = split_digit(s);
-        if !digit.is_empty() {
-            let tk = Some(Self::Item {
-                kind: Num(u64::from_str_radix(digit, 10).unwrap()),
-                pos: self.pos,
-            });
-            self.pos.bytes += first_non_num_idx;
-            self.pos.tk += 1;
-            return tk;
+        if let Some((tk, pos)) = self.is_keyword(s) {
+            self.pos += pos;
+            return Some(tk);
         }
 
-        let ss = s.chars().nth(0).unwrap();
-        if ss.to_string() == SemiColon.as_string() {
-            let tk = Some(Self::Item {
-                kind: SemiColon,
-                pos: self.pos,
-            });
-            self.pos.bytes += 1;
-            self.pos.tk += 1;
-            return tk;
+        if let Some((tk, pos)) = self.is_num(s) {
+            self.pos += pos;
+            return Some(tk);
         }
 
-        let (ident, _, first_non_num_idx) = split_ident(s);
-        if !ident.is_empty() {
-            let tk = Some(Self::Item {
-                kind: TokenKind::Ident(Ident::new(ident)),
-                pos: self.pos,
-            });
-            self.pos.bytes += first_non_num_idx;
-            self.pos.tk += 1;
-            return tk;
+        if let Some((tk, pos)) = self.is_semi(s) {
+            self.pos += pos;
+            return Some(tk);
         }
 
+        if let Some((tk, pos)) = self.is_ident(s) {
+            self.pos += pos;
+            return Some(tk);
+        }
         self.error_at("トークナイズできません")
     }
 }
@@ -333,12 +421,17 @@ fn calc_space_len(s: &str) -> usize {
     0
 }
 
+fn is_alnum(c: char) -> bool {
+    c.is_alphanumeric() || c == '_'
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_token_iter() {
+        use self::KeyWord::*;
         use self::Operator::*;
         use self::TokenKind::{Num, Reserved, SemiColon};
         let input = "== != = < <= > >= + - * / ( ) ";
@@ -361,6 +454,21 @@ mod tests {
             Reserved(Assign),
             Num(20),
             SemiColon,
+        ];
+        let mut iter = tokenize(input);
+        for i in expected {
+            assert_eq!(i, iter.next().unwrap().kind);
+        }
+        assert_eq!(None, iter.next());
+
+        let input = "return; returnx return1 return 1";
+        let expected = vec![
+            TokenKind::KeyWord(Return),
+            SemiColon,
+            TokenKind::Ident(Ident::new("returnx")),
+            TokenKind::Ident(Ident::new("return1")),
+            TokenKind::KeyWord(Return),
+            Num(1),
         ];
         let mut iter = tokenize(input);
         for i in expected {
@@ -401,6 +509,16 @@ mod tests {
         ];
         for &(s, ref expected) in &tests {
             assert_eq!(expected, &Operator::from_starts(s));
+        }
+    }
+
+    #[test]
+    fn test_keyword_from_starts() {
+        use self::KeyWord::*;
+        let tests = [("return", Ok(Return)), ("noreturn", Err(()))];
+
+        for (s, expected) in &tests {
+            assert_eq!(expected, &KeyWord::from_starts(s));
         }
     }
 

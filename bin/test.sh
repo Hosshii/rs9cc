@@ -65,4 +65,8 @@ assert 2 'foo=1;bar=1;foo+bar;'
 assert 63 ' foo  = 13 ; bar = 50 ; foo + bar ;'
 assert 10 'foo = -1 ; bar = 9; foo*bar+bar*2+foo*-1;'
 
+assert 1 'return 1;'
+assert 11 'foo = 1; bar = 10  ; return foo + bar;'
+assert 11 'foo = 1; bar = 10  ; return foo + bar; hoge = 20;'
+
 echo OK
