@@ -4,6 +4,24 @@ mini C compiler written in Rust.
 
 **Note**: This project is work in progress.
 
+## EBNF
+```
+program     = stmt*
+stmt        = expr ";"
+            | "return" expr ";"
+            | "if" "(" expr ")" stmt
+            | "while" "(" expr ")" stmt
+            | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+expr        = assign
+assign      = equality ("=" assign)?
+equality    = relational ("==" relational | "!=" relational)*
+relational  = add ("<" add | "<=" | ">" add | ">=" add)*
+add         = mul ("+" mul | "-" mul)*
+mul         = unary ("*" unary | "/" unary)*
+unary       = ("+" | "-")? primary
+primary     = num | ident | "(" expr ")"
+```
+
 ## build 
 ```
 $ cargo build
