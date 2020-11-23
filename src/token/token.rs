@@ -176,6 +176,10 @@ pub struct Token {
 }
 
 impl Token {
+    pub fn new(kind: TokenKind, pos: TokenPos) -> Self {
+        Self { kind, pos }
+    }
+
     pub fn new_error(
         &self,
         input: impl Into<String>,
@@ -200,6 +204,17 @@ pub struct TokenPos {
 
     // 文字列のどこに位置しているか
     pub bytes: usize,
+}
+
+impl TokenPos {
+    fn new(tk: usize, bytes: usize) -> Self {
+        Self { tk, bytes }
+    }
+
+    // TokenPos { tk: 1, bytes }
+    fn new_bytes(bytes: usize) -> Self {
+        Self { tk: 1, bytes }
+    }
 }
 
 impl Add for TokenPos {
@@ -258,28 +273,19 @@ impl<'a> TokenIter<'a> {
             return Some(tk);
         }
 
-        let (ident, _, _) = split_ident(s);
-        if !ident.is_empty() {
-            let tk = Some(Token {
-                kind: TokenKind::Ident(Ident::new(ident)),
-                pos: self.pos,
-            });
-            return tk;
+        if let Some((tk, _)) = self.is_ident(s) {
+            return Some(tk);
         }
         None
     }
 
     fn is_op(&self, s: &str) -> Option<(Token, TokenPos)> {
+        use self::TokenKind::*;
         if let Ok(op) = Operator::from_starts(s) {
-            let tk = Token {
-                kind: TokenKind::Reserved(op),
-                pos: self.pos,
-            };
-            let pos = TokenPos {
-                bytes: op.as_str().len(),
-                tk: 1,
-            };
-            return Some((tk, pos));
+            return Some((
+                Token::new(Reserved(op), self.pos),
+                TokenPos::new_bytes(op.as_str().len()),
+            ));
         }
         None
     }
@@ -296,39 +302,29 @@ impl<'a> TokenIter<'a> {
                     While => TokenKind::KeyWord(While),
                     For => TokenKind::KeyWord(For),
                 };
-                let tk = Token {
-                    kind,
-                    pos: self.pos,
-                };
-                let pos = TokenPos { bytes: len, tk: 1 };
-                return Some((tk, pos));
+                return Some((Token::new(kind, self.pos), TokenPos::new_bytes(len)));
             }
         }
         None
     }
 
     fn is_num(&self, s: &str) -> Option<(Token, TokenPos)> {
+        use self::TokenKind::*;
         let (digit, _, bytes) = split_digit(s);
         if !digit.is_empty() {
-            let tk = Token {
-                kind: TokenKind::Num(u64::from_str_radix(digit, 10).unwrap()),
-                pos: self.pos,
-            };
-            let pos = TokenPos { bytes, tk: 1 };
-            return Some((tk, pos));
+            return Some((
+                Token::new(Num(u64::from_str_radix(digit, 10).unwrap()), self.pos),
+                TokenPos::new_bytes(bytes),
+            ));
         }
         return None;
     }
 
     fn is_semi(&self, s: &str) -> Option<(Token, TokenPos)> {
+        use self::TokenKind::*;
         let ss = s.chars().nth(0).unwrap();
-        if ss.to_string() == TokenKind::SemiColon.as_string() {
-            let tk = Token {
-                kind: TokenKind::SemiColon,
-                pos: self.pos,
-            };
-            let pos = TokenPos { bytes: 1, tk: 1 };
-            return Some((tk, pos));
+        if ss.to_string() == SemiColon.as_string() {
+            return Some((Token::new(SemiColon, self.pos), TokenPos::new_bytes(1)));
         }
         None
     }
@@ -336,15 +332,10 @@ impl<'a> TokenIter<'a> {
     fn is_ident(&self, s: &str) -> Option<(Token, TokenPos)> {
         let (ident, _, first_non_num_idx) = split_ident(s);
         if !ident.is_empty() {
-            let tk = Token {
-                kind: TokenKind::Ident(Ident::new(ident)),
-                pos: self.pos,
-            };
-            let pos = TokenPos {
-                bytes: first_non_num_idx,
-                tk: 1,
-            };
-            return Some((tk, pos));
+            return Some((
+                Token::new(TokenKind::Ident(Ident::new(ident)), self.pos),
+                TokenPos::new_bytes(first_non_num_idx),
+            ));
         }
         None
     }
