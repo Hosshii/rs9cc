@@ -1,7 +1,7 @@
 extern crate rs9cc;
 
-use rs9cc::asm::gen;
-use rs9cc::ast::{program, Context};
+use rs9cc::asm::{gen, Context as AsmContext};
+use rs9cc::ast::{program, Context as AstContext};
 use rs9cc::token::tokenize;
 use std::env;
 
@@ -28,7 +28,7 @@ fn main() {
 
     // ast生成
     // let node = expr(&mut iter).unwrap();
-    let program = match program(&mut iter, &mut Context::new()) {
+    let program = match program(&mut iter, &mut AstContext::new()) {
         Ok(x) => x,
         Err(err) => {
             eprintln!("{}", err);
@@ -38,8 +38,9 @@ fn main() {
     // println!("{:#?}", node);
 
     // asm生成
+    let mut asm_context = AsmContext::new();
     for i in program {
-        if let Err(x) = gen(&i) {
+        if let Err(x) = gen(&i, &mut asm_context) {
             eprintln!("{}", x);
             panic!()
         }

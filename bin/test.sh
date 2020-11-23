@@ -70,4 +70,11 @@ assert 1 'return 1;'
 assert 11 'foo = 1; bar = 10  ; return foo + bar;'
 assert 11 'foo = 1; bar = 10  ; return foo + bar; hoge = 20;'
 
+assert 10 'if ( 1 ==1 ) return 10;'
+assert 20 'foo = 10;bar = 20; if (foo == bar ) return foo; else return bar;'
+assert 10 'i = 0; while(i <10) i = i + 1; return i;'
+assert 8 'i = 1;  while (i <=1024) i = i + i; i/256;'
+assert 57 'foo = 12;for(i = 0;i<10;i = i+1)foo = foo+i;return foo; '
+assert 50 'result = 0;for(i=1;i<=100;i=i+1) result = result+i;return result/101;'
+
 echo OK
