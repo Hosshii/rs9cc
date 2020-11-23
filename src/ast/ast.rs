@@ -16,6 +16,10 @@ pub enum NodeKind {
     Mul,
     Div,
     Return,
+    If,
+    Else,
+    While,
+    For,
     Num(u64),
     // Ident(Ident),
     Lvar(Lvar), // usize はベースポインタからのオフセット
@@ -74,6 +78,11 @@ pub struct Node {
     pub kind: NodeKind,
     pub lhs: Option<Box<Node>>,
     pub rhs: Option<Box<Node>>,
+    pub cond: Option<Box<Node>>,
+    pub then: Option<Box<Node>>,
+    pub els: Option<Box<Node>>,
+    pub init: Option<Box<Node>>,
+    pub inc: Option<Box<Node>>,
 }
 
 impl Node {
@@ -82,11 +91,34 @@ impl Node {
             kind,
             lhs: Some(Box::new(lhs)),
             rhs: Some(Box::new(rhs)),
+            cond: None,
+            then: None,
+            els: None,
+            init: None,
+            inc: None,
         }
     }
 
-    pub fn _new(kind: NodeKind, lhs: Option<Box<Node>>, rhs: Option<Box<Node>>) -> Node {
-        Node { kind, lhs, rhs }
+    pub fn _new(
+        kind: NodeKind,
+        lhs: Option<Box<Node>>,
+        rhs: Option<Box<Node>>,
+        cond: Option<Box<Node>>,
+        then: Option<Box<Node>>,
+        els: Option<Box<Node>>,
+        init: Option<Box<Node>>,
+        inc: Option<Box<Node>>,
+    ) -> Node {
+        Node {
+            kind,
+            lhs,
+            rhs,
+            cond,
+            then,
+            els,
+            init,
+            inc,
+        }
     }
 
     pub fn new_num(val: u64) -> Node {
@@ -94,6 +126,11 @@ impl Node {
             kind: Num(val),
             lhs: None,
             rhs: None,
+            cond: None,
+            then: None,
+            els: None,
+            init: None,
+            inc: None,
         }
     }
 
@@ -102,6 +139,50 @@ impl Node {
             kind,
             lhs: None,
             rhs: None,
+            cond: None,
+            then: None,
+            els: None,
+            init: None,
+            inc: None,
+        }
+    }
+
+    pub fn new_unary(kind: NodeKind, lhs: Node) -> Node {
+        Node {
+            kind,
+            lhs: Some(Box::new(lhs)),
+            rhs: None,
+            cond: None,
+            then: None,
+            els: None,
+            init: None,
+            inc: None,
+        }
+    }
+
+    pub fn new_cond(kind: NodeKind, cond: Node) -> Node {
+        Node {
+            kind,
+            lhs: None,
+            rhs: None,
+            cond: Some(Box::new(cond)),
+            then: None,
+            els: None,
+            init: None,
+            inc: None,
+        }
+    }
+
+    pub fn new_none(kind: NodeKind) -> Node {
+        Node {
+            kind,
+            lhs: None,
+            rhs: None,
+            cond: None,
+            then: None,
+            els: None,
+            init: None,
+            inc: None,
         }
     }
 }
@@ -165,13 +246,64 @@ pub fn program(iter: &mut TokenIter, ctx: &mut Context) -> Result<Program, Error
 }
 
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
-    // let node = expr(iter, ctx);
-
-    let node = if consume_keyword(iter, KeyWord::Return) {
-        Ok(Node::_new(Return, Some(Box::new(expr(iter, ctx)?)), None))
-    } else {
-        expr(iter, ctx)
-    };
+    if let Some(x) = iter.peek() {
+        if let TokenKind::KeyWord(key) = x.kind {
+            match key {
+                KeyWord::Return => {
+                    iter.next();
+                    let node = Node::new_unary(Return, expr(iter, ctx)?);
+                    expect_semi(iter)?;
+                    return Ok(node);
+                }
+                KeyWord::If => {
+                    iter.next();
+                    expect(iter, Operator::LParen)?;
+                    let mut node = Node::new_cond(If, expr(iter, ctx)?);
+                    expect(iter, Operator::RParen)?;
+                    node.then = Some(Box::new(stmt(iter, ctx)?));
+                    if let Some(x) = iter.peek() {
+                        if x.kind == TokenKind::KeyWord(KeyWord::Else) {
+                            iter.next();
+                            node.els = Some(Box::new(stmt(iter, ctx)?));
+                        }
+                    }
+                    return Ok(node);
+                }
+                // KeyWord::Else => {
+                //     expr(iter, ctx);
+                // }
+                KeyWord::While => {
+                    iter.next();
+                    expect(iter, Operator::LParen)?;
+                    let mut node = Node::new_cond(While, expr(iter, ctx)?);
+                    expect(iter, Operator::RParen)?;
+                    node.then = Some(Box::new(stmt(iter, ctx)?));
+                    return Ok(node);
+                }
+                KeyWord::For => {
+                    iter.next();
+                    expect(iter, Operator::LParen)?;
+                    let mut node = Node::new_none(For);
+                    if !consume_semi(iter) {
+                        node.init = Some(Box::new(expr(iter, ctx)?));
+                        expect_semi(iter)?;
+                    }
+                    if !consume_semi(iter) {
+                        node.cond = Some(Box::new(expr(iter, ctx)?));
+                        expect_semi(iter)?;
+                    }
+                    if !consume_semi(iter) {
+                        node.inc = Some(Box::new(expr(iter, ctx)?));
+                    }
+                    expect(iter, Operator::RParen)?;
+                    node.then = Some(Box::new(stmt(iter, ctx)?));
+                    return Ok(node);
+                }
+                _ => (),
+            }
+        }
+    }
+    let node = expr(iter, ctx);
     expect_semi(iter)?;
     node
 }
@@ -294,7 +426,7 @@ fn consume(iter: &mut TokenIter, op: Operator) -> bool {
     return false;
 }
 
-fn consume_keyword(iter: &mut TokenIter, key: KeyWord) -> bool {
+fn _consume_keyword(iter: &mut TokenIter, key: KeyWord) -> bool {
     if let Some(x) = iter.peek() {
         if let TokenKind::KeyWord(x) = x.kind {
             if x == key {
@@ -306,7 +438,7 @@ fn consume_keyword(iter: &mut TokenIter, key: KeyWord) -> bool {
     false
 }
 
-fn _consume_semi(iter: &mut TokenIter) -> bool {
+fn consume_semi(iter: &mut TokenIter) -> bool {
     if let Some(x) = iter.peek() {
         if x.kind == TokenKind::SemiColon {
             iter.next();
@@ -341,7 +473,7 @@ fn expect(iter: &mut TokenIter, op: Operator) -> Result<(), Error> {
             }
         }
     }
-    return Err(Error::eof(iter.s, iter.pos, TokenKind::Num(0), None));
+    return Err(Error::eof(iter.s, iter.pos, TokenKind::Reserved(op), None));
 }
 
 fn expect_num(iter: &mut TokenIter) -> Result<u64, Error> {
@@ -456,7 +588,7 @@ mod tests {
         let lhs_s_node = Node::new_leaf(Lvar(Lvar::new(lvar, "bar", 16)));
         let s_node = Node::new(Assign, lhs_s_node, Node::new_num(20));
         let tests = [
-            ("a=10;", vec![make_test_assign_node('a', 10, 8)]),
+            ("a=10;", vec![make_assign_node('a', 10, 8)]),
             ("foo=10;bar=20;", vec![f_node, s_node]),
         ];
 
@@ -469,15 +601,97 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_if() {
+        use crate::token;
+        let cond = Node::new(Equal, Node::new_num(10), Node::new_num(20));
+        let then = Node::new_unary(Return, Node::new_num(15));
+        let expected = vec![make_if_node(cond, then)];
+
+        let input = "if ( 10 ==20 ) return 15;";
+        let actual = program(&mut token::tokenize(input), &mut Context::new()).unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_if_else() {
+        use crate::token;
+        let cond = Node::new(Equal, Node::new_num(10), Node::new_num(20));
+        let then = Node::new_unary(Return, Node::new_num(15));
+        let els = Node::new_unary(Return, Node::new(Add, Node::new_num(10), Node::new_num(30)));
+        let expected = vec![make_if_else_node(cond, then, els)];
+
+        let input = "if ( 10 ==20 ) return 15; else return 10+30;";
+        let actual = program(&mut token::tokenize(input), &mut Context::new()).unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_while() {
+        use crate::token;
+        // Geqは左右を入れ替えてLeq
+        let cond = Node::new(Leq, Node::new_num(20), Node::new_num(32));
+        let then = Node::new_unary(Return, Node::new_num(10));
+        let expected = vec![make_while_node(cond, then)];
+
+        let input = "while (32 >= 20 ) return 10;";
+        let actual = program(&mut token::tokenize(input), &mut Context::new()).unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_for() {
+        use crate::token;
+
+        let init = make_assign_node("i", 0, 8);
+        let cond = Node::new(
+            Lesser,
+            Node::new_leaf(Lvar(Lvar::new_leaf("i", 8))),
+            Node::new_num(10),
+        );
+        let tmp_inc = Node::new(
+            Add,
+            Node::new_leaf(Lvar(Lvar::new_leaf("i", 8))),
+            Node::new_num(1),
+        );
+        let inc = Node::new(
+            Assign,
+            Node::new_leaf(Lvar(Lvar::new_leaf("i", 8))),
+            tmp_inc,
+        );
+
+        let ret = Node::new(
+            Add,
+            Node::new_leaf(Lvar(Lvar::new_leaf("i", 8))),
+            Node::new_num(2),
+        );
+        let then = Node::new_unary(Return, ret);
+
+        let expected = vec![make_for_node(Some(init), Some(cond), Some(inc), then)];
+
+        let input = "for(i=0;i<10;i=i+1)return i+2;";
+        let actual = program(&mut token::tokenize(input), &mut Context::new()).unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
     fn make_test_node(kind: NodeKind, lhs_num: u64, rhs_num: u64) -> Node {
         Node {
             kind,
             lhs: Some(Box::new(Node::new_num(lhs_num))),
             rhs: Some(Box::new(Node::new_num(rhs_num))),
+            cond: None,
+            then: None,
+            els: None,
+            init: None,
+            inc: None,
         }
     }
 
-    fn make_test_assign_node(lhs: impl Into<String>, rhs: u64, offset: usize) -> Node {
+    fn make_assign_node(lhs: impl Into<String>, rhs: u64, offset: usize) -> Node {
         Node {
             kind: Assign,
             lhs: Some(Box::new(Node::new_leaf(Lvar(super::Lvar::new_leaf(
@@ -485,6 +699,45 @@ mod tests {
                 offset,
             ))))),
             rhs: Some(Box::new(Node::new_num(rhs))),
+            cond: None,
+            then: None,
+            els: None,
+            init: None,
+            inc: None,
         }
+    }
+
+    fn make_if_node(cond: Node, then: Node) -> Node {
+        let mut node = Node::new_none(If);
+        node.cond = Some(Box::new(cond));
+        node.then = Some(Box::new(then));
+        node
+    }
+
+    fn make_if_else_node(cond: Node, then: Node, els: Node) -> Node {
+        let mut node = make_if_node(cond, then);
+        node.els = Some(Box::new(els));
+        node
+    }
+
+    fn make_while_node(cond: Node, then: Node) -> Node {
+        let mut node = Node::new_none(While);
+        node.cond = Some(Box::new(cond));
+        node.then = Some(Box::new(then));
+        node
+    }
+
+    fn make_for_node(
+        init: Option<Node>,
+        cond: Option<Node>,
+        inc: Option<Node>,
+        then: Node,
+    ) -> Node {
+        let mut node = Node::new_none(For);
+        node.init = init.map(|c| Box::new(c));
+        node.cond = cond.map(|c| Box::new(c));
+        node.inc = inc.map(|c| Box::new(c));
+        node.then = Some(Box::new(then));
+        node
     }
 }

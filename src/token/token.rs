@@ -113,6 +113,10 @@ impl Ident {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
 pub enum KeyWord {
     Return,
+    If,
+    Else,
+    While,
+    For,
 }
 
 impl KeyWord {
@@ -120,6 +124,10 @@ impl KeyWord {
         use KeyWord::*;
         match self {
             Return => "return",
+            If => "if",
+            Else => "else",
+            While => "while",
+            For => "for",
         }
     }
 
@@ -127,6 +135,10 @@ impl KeyWord {
         use self::KeyWord::*;
         match s {
             x if x.starts_with(Return.as_str()) => Ok(Return),
+            x if x.starts_with(If.as_str()) => Ok(If),
+            x if x.starts_with(Else.as_str()) => Ok(Else),
+            x if x.starts_with(While.as_str()) => Ok(While),
+            x if x.starts_with(For.as_str()) => Ok(For),
             _ => Err(()),
         }
     }
@@ -138,6 +150,10 @@ impl FromStr for KeyWord {
         use self::KeyWord::*;
         match s {
             x if x == Return.as_str() => Ok(Return),
+            x if x == If.as_str() => Ok(If),
+            x if x == Else.as_str() => Ok(Else),
+            x if x == While.as_str() => Ok(While),
+            x if x == For.as_str() => Ok(For),
             _ => Err(()),
         }
     }
@@ -271,9 +287,17 @@ impl<'a> TokenIter<'a> {
     fn is_keyword(&self, s: &str) -> Option<(Token, TokenPos)> {
         if let Ok(keyword) = KeyWord::from_starts(s) {
             let len = keyword.as_str().len();
-            if !is_alnum(s.chars().nth(len).unwrap_or_else(|| '1')) && keyword == KeyWord::Return {
+            if !is_alnum(s.chars().nth(len).unwrap_or_else(|| '1')) {
+                use KeyWord::*;
+                let kind = match keyword {
+                    Return => TokenKind::KeyWord(Return),
+                    If => TokenKind::KeyWord(If),
+                    Else => TokenKind::KeyWord(Else),
+                    While => TokenKind::KeyWord(While),
+                    For => TokenKind::KeyWord(For),
+                };
                 let tk = Token {
-                    kind: TokenKind::KeyWord(KeyWord::Return),
+                    kind,
                     pos: self.pos,
                 };
                 let pos = TokenPos { bytes: len, tk: 1 };
@@ -433,7 +457,7 @@ mod tests {
     fn test_token_iter() {
         use self::KeyWord::*;
         use self::Operator::*;
-        use self::TokenKind::{Num, Reserved, SemiColon};
+        use self::TokenKind::{KeyWord, Num, Reserved, SemiColon};
         let input = "== != = < <= > >= + - * / ( ) ";
         let expected = vec![
             Equal, Neq, Assign, Lesser, Leq, Greater, Geq, Plus, Minus, Mul, Div, LParen, RParen,
@@ -461,14 +485,22 @@ mod tests {
         }
         assert_eq!(None, iter.next());
 
-        let input = "return; returnx return1 return 1";
+        let input = "return; returnx return1 return 1 for while if else force whilet ifelse elseif";
         let expected = vec![
             TokenKind::KeyWord(Return),
             SemiColon,
             TokenKind::Ident(Ident::new("returnx")),
             TokenKind::Ident(Ident::new("return1")),
-            TokenKind::KeyWord(Return),
+            KeyWord(Return),
             Num(1),
+            KeyWord(For),
+            KeyWord(While),
+            KeyWord(If),
+            KeyWord(Else),
+            TokenKind::Ident(Ident::new("force")),
+            TokenKind::Ident(Ident::new("whilet")),
+            TokenKind::Ident(Ident::new("ifelse")),
+            TokenKind::Ident(Ident::new("elseif")),
         ];
         let mut iter = tokenize(input);
         for i in expected {
