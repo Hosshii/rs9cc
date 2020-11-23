@@ -77,4 +77,8 @@ assert 8 'i = 1;  while (i <=1024) i = i + i; i/256;'
 assert 57 'foo = 12;for(i = 0;i<10;i = i+1)foo = foo+i;return foo; '
 assert 50 'result = 0;for(i=1;i<=100;i=i+1) result = result+i;return result/101;'
 
+assert 4 'foo=1;{foo= foo+foo;foo=foo+foo;}foo;'
+assert 233 'n=13;current = 0; next = 1; i = 0; tmp = 0; while ( i < n ) { tmp = current; current = next; next = next + tmp; i=i+1;} current;'
+assert 233 'n=13; current = 0;next = 1; for(i =0;i<n;i=i+1){tmp=current;current = next;next = next +tmp;}current;'
+
 echo OK

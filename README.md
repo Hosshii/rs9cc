@@ -12,6 +12,7 @@ stmt        = expr ";"
             | "if" "(" expr ")" stmt
             | "while" "(" expr ")" stmt
             | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+            | "{" stmt* "}"
 expr        = assign
 assign      = equality ("=" assign)?
 equality    = relational ("==" relational | "!=" relational)*

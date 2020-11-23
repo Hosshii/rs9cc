@@ -142,6 +142,11 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             println!("    jmp  .Lbegin{}", jlb_num);
             println!(".Lend{}:", jlb_num);
         }
+        NodeKind::Block(stmts) => {
+            for stmt in stmts {
+                gen(stmt, ctx)?;
+            }
+        }
         _ => (),
     }
 

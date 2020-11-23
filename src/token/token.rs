@@ -7,6 +7,7 @@ pub enum TokenKind {
     Reserved(Operator),
     Ident(Ident),
     KeyWord(KeyWord),
+    Block(Block),
     Num(u64),
     SemiColon,
     EOF,
@@ -20,6 +21,7 @@ impl TokenKind {
             Ident(ident) => ident.name.to_string(),
             KeyWord(keyword) => keyword.as_str().to_string(),
             Num(x) => x.to_string(),
+            Block(x) => x.as_str().to_string(),
             SemiColon => ";".to_string(),
             EOF => "EOF".to_string(),
         }
@@ -159,6 +161,34 @@ impl FromStr for KeyWord {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+pub enum Block {
+    LParen,
+    RParen,
+}
+
+impl Block {
+    fn as_str(&self) -> &'static str {
+        use self::Block::*;
+        match self {
+            LParen => "{",
+            RParen => "}",
+        }
+    }
+}
+
+impl FromStr for Block {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Block, Self::Err> {
+        use self::Block::*;
+        match s {
+            x if x == LParen.as_str() => Ok(LParen),
+            x if x == RParen.as_str() => Ok(RParen),
+            _ => Err(()),
+        }
+    }
+}
+
 // impl Iterator for KeyWord {
 //     type Item = Self;
 //     fn next(&mut self) -> Option<Self::Item> {
@@ -273,9 +303,15 @@ impl<'a> TokenIter<'a> {
             return Some(tk);
         }
 
+        if let Some((tk, _)) = self.is_block_paren(s) {
+            return Some(tk);
+        }
+
+        // これ最後の方がいい
         if let Some((tk, _)) = self.is_ident(s) {
             return Some(tk);
         }
+
         None
     }
 
@@ -340,6 +376,17 @@ impl<'a> TokenIter<'a> {
         None
     }
 
+    fn is_block_paren(&self, s: &str) -> Option<(Token, TokenPos)> {
+        let ss = s.chars().nth(0).unwrap();
+        if let Ok(x) = Block::from_str(&ss.to_string()) {
+            return Some((
+                Token::new(TokenKind::Block(x), self.pos),
+                TokenPos::new(1, 1),
+            ));
+        }
+        None
+    }
+
     fn error_at(&self, msg: &str) -> ! {
         eprintln!("{}", self.s);
         eprintln!(
@@ -389,6 +436,13 @@ impl<'a> Iterator for TokenIter<'a> {
             return Some(tk);
         }
 
+        if let Some((tk, pos)) = self.is_block_paren(s) {
+            self.pos += pos;
+            return Some(tk);
+        }
+
+        // これ最後の方がいい
+        // 最後にしないと予約後が変数として扱われちゃう
         if let Some((tk, pos)) = self.is_ident(s) {
             self.pos += pos;
             return Some(tk);
@@ -492,6 +546,18 @@ mod tests {
             TokenKind::Ident(Ident::new("whilet")),
             TokenKind::Ident(Ident::new("ifelse")),
             TokenKind::Ident(Ident::new("elseif")),
+        ];
+        let mut iter = tokenize(input);
+        for i in expected {
+            assert_eq!(i, iter.next().unwrap().kind);
+        }
+        assert_eq!(None, iter.next());
+
+        let input = "{ { }";
+        let expected = vec![
+            TokenKind::Block(Block::LParen),
+            TokenKind::Block(Block::LParen),
+            TokenKind::Block(Block::RParen),
         ];
         let mut iter = tokenize(input);
         for i in expected {
