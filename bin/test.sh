@@ -64,6 +64,7 @@ assert 2 'z=h=s=1;z*(h+s);'
 assert 2 'foo=1;bar=1;foo+bar;'
 assert 63 ' foo  = 13 ; bar = 50 ; foo + bar ;'
 assert 10 'foo = -1 ; bar = 9; foo*bar+bar*2+foo*-1;'
+assert 18 ' foo = -1 ; bar = 9; foo = foo +bar; foo +10;'
 
 assert 1 'return 1;'
 assert 11 'foo = 1; bar = 10  ; return foo + bar;'

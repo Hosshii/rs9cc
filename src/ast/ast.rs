@@ -394,6 +394,8 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         return node;
     }
 
+    // todo
+    // 綺麗じゃないのでいいやり方思いついたら書き直す
     if let Some(x) = consume_ident(iter) {
         if ctx.lvar == None {
             let lvar = Lvar::new_leaf(x.name.clone(), 8);
