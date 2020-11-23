@@ -52,10 +52,10 @@ $ RS9CC_ON_WORKFLOW=1 ./bin/test.sh
 - local variable
 - return statement
 - control statement(`if`, `else`, `for`, `while`)
+- block statement(`{...}`)
 
 
 ## todo
-- block statement
 - function call
 - function definition
 - integer
