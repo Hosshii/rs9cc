@@ -283,9 +283,9 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             _ => (),
         }
     }
-    let node = expr(iter, ctx);
+    let node = expr(iter, ctx)?;
     expect_semi(iter)?;
-    node
+    Ok(node)
 }
 
 pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
@@ -369,9 +369,9 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 
 pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::LParen) {
-        let node = expr(iter, ctx);
+        let node = expr(iter, ctx)?;
         expect(iter, Operator::RParen)?;
-        return node;
+        return Ok(node);
     }
 
     // todo
