@@ -189,12 +189,20 @@ impl Lvar {
 }
 
 pub struct Context {
-    lvar: Option<Lvar>,
+    lvar: Option<Box<Lvar>>,
 }
 
 impl Context {
     pub fn new() -> Self {
         Self { lvar: None }
+    }
+
+    pub fn push_front(&mut self, name: impl Into<String>, offset: usize) {
+        self.lvar = Some(Box::new(Lvar {
+            next: self.lvar.take(),
+            name: name.into(),
+            offset: offset + 8,
+        }))
     }
 }
 
@@ -376,21 +384,16 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 
     // todo
     // 綺麗じゃないのでいいやり方思いついたら書き直す
+    // 書き直したけど、lvarをまだcloneしているのが綺麗じゃない
     if let Some(x) = consume_ident(iter) {
-        if ctx.lvar == None {
-            let lvar = Lvar::new_leaf(x.name.clone(), 8);
-            ctx.lvar = Some(lvar)
-        }
-        if let Some(lvar) = ctx.lvar.as_ref().unwrap().find_lvar(&x.name) {
+        if let Some(lvar) = ctx.lvar.as_ref().map(|c| c.find_lvar(&x.name)).flatten() {
             return Ok(Node::new_leaf(Lvar(lvar.clone())));
         } else {
-            let lvar = Lvar::new(
-                ctx.lvar.as_ref().unwrap().clone(),
+            ctx.push_front(
                 x.name,
-                ctx.lvar.as_ref().unwrap().offset + 8,
+                ctx.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0), // if ctx.lvar == None {return 0} else {return ctx.lvar.offset}
             );
-            ctx.lvar = Some(lvar.clone());
-            return Ok(Node::new_leaf(Lvar(lvar)));
+            return Ok(Node::new_leaf(Lvar(*ctx.lvar.as_ref().unwrap().clone())));
         }
     }
     return Ok(Node::new_num(expect_num(iter)?));
