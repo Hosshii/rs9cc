@@ -1,6 +1,7 @@
 use self::NodeKind::*;
 use super::error::Error;
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
+use std::rc::Rc;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum NodeKind {
@@ -23,7 +24,7 @@ pub enum NodeKind {
     Block(Vec<Node>),
     Num(u64),
     // Ident(Ident),
-    Lvar(Lvar), // usize はベースポインタからのオフセット
+    Lvar(Rc<Lvar>), // usize はベースポインタからのオフセット
 }
 
 impl NodeKind {
@@ -152,7 +153,7 @@ impl Node {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Lvar {
-    next: Option<Box<Lvar>>,
+    next: Option<Rc<Lvar>>,
     name: String,
     pub offset: usize,
 }
@@ -160,7 +161,7 @@ pub struct Lvar {
 impl Lvar {
     pub fn new(next: Lvar, name: impl Into<String>, offset: usize) -> Self {
         Self {
-            next: Some(Box::new(next)),
+            next: Some(Rc::new(next)),
             name: name.into(),
             offset,
         }
@@ -173,23 +174,10 @@ impl Lvar {
             offset,
         }
     }
-
-    pub fn find_lvar(&self, name: &str) -> Option<&Lvar> {
-        let name = name.into();
-        if self.name == name {
-            return Some(self);
-        } else {
-            if let Some(x) = &self.next {
-                return x.find_lvar(name);
-            } else {
-                None
-            }
-        }
-    }
 }
 
 pub struct Context {
-    lvar: Option<Box<Lvar>>,
+    lvar: Option<Rc<Lvar>>,
 }
 
 impl Context {
@@ -198,11 +186,32 @@ impl Context {
     }
 
     pub fn push_front(&mut self, name: impl Into<String>, offset: usize) {
-        self.lvar = Some(Box::new(Lvar {
+        self.lvar = Some(Rc::new(Lvar {
             next: self.lvar.take(),
             name: name.into(),
             offset: offset + 8,
         }))
+    }
+
+    pub fn find_lvar(&self, name: impl Into<String>) -> Option<Rc<Lvar>> {
+        if let Some(ref lvar) = self.lvar {
+            Self::_find_lvar(lvar, name)
+        } else {
+            None
+        }
+    }
+
+    fn _find_lvar(lvar: &Rc<Lvar>, name: impl Into<String>) -> Option<Rc<Lvar>> {
+        let name = name.into();
+        if lvar.name == name {
+            Some(lvar.clone())
+        } else {
+            if let Some(ref next) = lvar.next {
+                Self::_find_lvar(next, name)
+            } else {
+                None
+            }
+        }
     }
 }
 
@@ -382,18 +391,15 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         return Ok(node);
     }
 
-    // todo
-    // 綺麗じゃないのでいいやり方思いついたら書き直す
-    // 書き直したけど、lvarをまだcloneしているのが綺麗じゃない
     if let Some(x) = consume_ident(iter) {
-        if let Some(lvar) = ctx.lvar.as_ref().map(|c| c.find_lvar(&x.name)).flatten() {
-            return Ok(Node::new_leaf(Lvar(lvar.clone())));
+        if let Some(lvar) = ctx.find_lvar(&x.name) {
+            return Ok(Node::new_leaf(Lvar(lvar)));
         } else {
             ctx.push_front(
                 x.name,
                 ctx.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0), // if ctx.lvar == None {return 0} else {return ctx.lvar.offset}
             );
-            return Ok(Node::new_leaf(Lvar(*ctx.lvar.as_ref().unwrap().clone())));
+            return Ok(Node::new_leaf(Lvar(ctx.lvar.as_ref().unwrap().clone())));
         }
     }
     return Ok(Node::new_num(expect_num(iter)?));
@@ -574,7 +580,7 @@ mod tests {
                     Assign,
                     Node::new(
                         Add,
-                        Node::new_leaf(Lvar(super::Lvar::new_leaf("a", 8))),
+                        Node::new_leaf(Lvar(Rc::new(super::Lvar::new_leaf("a", 8)))),
                         Node::new_num(1),
                     ),
                     Node::new_num(5),
@@ -595,9 +601,9 @@ mod tests {
         use crate::token;
 
         let lvar = Lvar::new_leaf("foo", 8);
-        let lhs_f_node = Node::new_leaf(Lvar(lvar.clone()));
+        let lhs_f_node = Node::new_leaf(Lvar(Rc::new(lvar.clone())));
         let f_node = Node::new(Assign, lhs_f_node, Node::new_num(10));
-        let lhs_s_node = Node::new_leaf(Lvar(Lvar::new(lvar, "bar", 16)));
+        let lhs_s_node = Node::new_leaf(Lvar(Rc::new(Lvar::new(lvar, "bar", 16))));
         let s_node = Node::new(Assign, lhs_s_node, Node::new_num(20));
         let tests = [
             ("a=10;", vec![make_assign_node('a', 10, 8)]),
@@ -658,23 +664,23 @@ mod tests {
         let init = make_assign_node("i", 0, 8);
         let cond = Node::new(
             Lesser,
-            Node::new_leaf(Lvar(Lvar::new_leaf("i", 8))),
+            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("i", 8)))),
             Node::new_num(10),
         );
         let tmp_inc = Node::new(
             Add,
-            Node::new_leaf(Lvar(Lvar::new_leaf("i", 8))),
+            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("i", 8)))),
             Node::new_num(1),
         );
         let inc = Node::new(
             Assign,
-            Node::new_leaf(Lvar(Lvar::new_leaf("i", 8))),
+            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("i", 8)))),
             tmp_inc,
         );
 
         let ret = Node::new(
             Add,
-            Node::new_leaf(Lvar(Lvar::new_leaf("i", 8))),
+            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("i", 8)))),
             Node::new_num(2),
         );
         let then = Node::new_unary(Return, ret);
@@ -708,9 +714,8 @@ mod tests {
 
     fn make_assign_node(lhs: impl Into<String>, rhs: u64, offset: usize) -> Node {
         let mut node = Node::new_none(Assign);
-        node.lhs = Some(Box::new(Node::new_leaf(Lvar(super::Lvar::new_leaf(
-            lhs.into(),
-            offset,
+        node.lhs = Some(Box::new(Node::new_leaf(Lvar(Rc::new(
+            super::Lvar::new_leaf(lhs.into(), offset),
         )))));
         node.rhs = Some(Box::new(Node::new_num(rhs)));
         node
