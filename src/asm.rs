@@ -1,4 +1,4 @@
 pub mod asm;
 pub mod error;
 
-pub use asm::{gen, Context};
+pub use asm::{code_gen, gen, Context};

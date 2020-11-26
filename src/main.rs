@@ -1,6 +1,6 @@
 extern crate rs9cc;
 
-use rs9cc::asm::{gen, Context as AsmContext};
+use rs9cc::asm::code_gen;
 use rs9cc::ast::{program, Context as AstContext};
 use rs9cc::token::tokenize;
 use std::env;
@@ -11,17 +11,6 @@ fn main() {
         help();
         return;
     }
-
-    // アセンブリの前半部分を出力
-    println!(".intel_syntax noprefix");
-    println!(".global main");
-    println!("main:");
-
-    // プロローグ
-    // 変数26個分の領域を確保する
-    println!("    push rbp");
-    println!("    mov rbp, rsp");
-    println!("    sub rsp, 208");
 
     // token生成
     let mut iter = tokenize(&s);
@@ -35,23 +24,14 @@ fn main() {
             panic!()
         }
     };
-    // println!("{:#?}", node);
 
-    // asm生成
-    let mut asm_context = AsmContext::new();
-    for i in program {
-        if let Err(x) = gen(&i, &mut asm_context) {
-            eprintln!("{}", x);
+    match code_gen(program) {
+        Err(err) => {
+            eprintln!("{}", err);
             panic!()
         }
-        println!("    pop rax");
+        Ok(_) => (),
     }
-
-    // エピローグ
-    // 最後の式の結果がRAXに残っているのでそれが返り値になる
-    println!("    mov rsp, rbp");
-    println!("    pop rbp");
-    println!("    ret");
 }
 
 fn help() {

@@ -1,5 +1,5 @@
 use super::error::Error;
-use crate::ast::{Node, NodeKind};
+use crate::ast::{Node, NodeKind, Program};
 
 // jump の連番とかを格納しておく
 pub struct Context {
@@ -12,6 +12,32 @@ impl Context {
     }
 }
 
+pub fn code_gen(program: Program) -> Result<(), Error> {
+    // アセンブリの前半部分を出力
+    println!(".intel_syntax noprefix");
+    println!(".global main");
+    println!("main:");
+
+    // プロローグ
+    // 変数26個分の領域を確保する
+    println!("    push rbp");
+    println!("    mov rbp, rsp");
+    println!("    sub rsp, 208");
+    let mut ctx = Context::new();
+    // asm生成
+    for i in program {
+        gen(&i, &mut ctx)?;
+        println!("    pop rax");
+    }
+
+    // エピローグ
+    // 最後の式の結果がRAXに残っているのでそれが返り値になる
+    println!("    mov rsp, rbp");
+    println!("    pop rbp");
+    println!("    ret");
+    Ok(())
+}
+
 pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     match &node.kind {
         NodeKind::Num(x) => {
@@ -20,9 +46,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         }
         NodeKind::Lvar(_) => {
             gen_lval(&node)?;
-            println!("    pop rax");
-            println!("    mov rax, [rax]");
-            println!("    push rax");
+            load();
             return Ok(());
         }
         NodeKind::Assign => {
@@ -37,10 +61,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 return Err(Error::not_found());
             }
 
-            println!("    pop rdi");
-            println!("    pop rax");
-            println!("    mov [rax], rdi");
-            println!("    push rdi");
+            store();
             return Ok(());
         }
         NodeKind::Return => {
@@ -204,4 +225,17 @@ fn gen_lval(node: &Node) -> Result<(), Error> {
     } else {
         Err(Error::not_lvar())
     }
+}
+
+fn load() {
+    println!("    pop rax");
+    println!("    mov rax, [rax]");
+    println!("    push rax");
+}
+
+fn store() {
+    println!("    pop rdi");
+    println!("    pop rax");
+    println!("    mov [rax], rdi");
+    println!("    push rdi");
 }
