@@ -22,6 +22,7 @@ pub enum NodeKind {
     While,
     For,
     Block(Vec<Node>),
+    Func(String),
     Num(u64),
     // Ident(Ident),
     Lvar(Rc<Lvar>), // usize はベースポインタからのオフセット
@@ -177,15 +178,20 @@ impl Lvar {
 }
 
 pub struct Context {
-    lvar: Option<Rc<Lvar>>,
+    pub lvar: Option<Rc<Lvar>>,
+    count: usize,
 }
 
 impl Context {
     pub fn new() -> Self {
-        Self { lvar: None }
+        Self {
+            lvar: None,
+            count: 0,
+        }
     }
 
     pub fn push_front(&mut self, name: impl Into<String>, offset: usize) {
+        self.count += 1;
         self.lvar = Some(Rc::new(Lvar {
             next: self.lvar.take(),
             name: name.into(),
@@ -215,13 +221,29 @@ impl Context {
     }
 }
 
-pub type Program = Vec<Node>;
+pub struct Program {
+    pub nodes: Vec<Node>,
+    pub lvar: Option<Rc<Lvar>>,
+    pub count: usize,
+}
+
+impl Program {
+    fn new() -> Self {
+        Self {
+            nodes: Vec::new(),
+            lvar: None,
+            count: 0,
+        }
+    }
+}
 
 pub fn program(iter: &mut TokenIter, ctx: &mut Context) -> Result<Program, Error> {
     let mut program = Program::new();
     while iter.peek() != None {
-        program.push(stmt(iter, ctx)?);
+        program.nodes.push(stmt(iter, ctx)?);
     }
+    program.count = ctx.count;
+    program.lvar = ctx.lvar.take();
     Ok(program)
 }
 
@@ -392,6 +414,10 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     }
 
     if let Some(x) = consume_ident(iter) {
+        if consume(iter, Operator::LParen) {
+            expect(iter, Operator::RParen)?;
+            return Ok(Node::new_leaf(Func(x.name)));
+        }
         if let Some(lvar) = ctx.find_lvar(&x.name) {
             return Ok(Node::new_leaf(Lvar(lvar)));
         } else {
@@ -611,7 +637,9 @@ mod tests {
         ];
 
         for (s, expected) in &tests {
-            let actual = &program(&mut token::tokenize(s), &mut Context::new()).unwrap();
+            let actual = &program(&mut token::tokenize(s), &mut Context::new())
+                .unwrap()
+                .nodes;
             assert_eq!(expected, actual);
         }
     }
@@ -624,7 +652,9 @@ mod tests {
         let expected = vec![make_if_node(cond, then)];
 
         let input = "if ( 10 ==20 ) return 15;";
-        let actual = program(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        let actual = program(&mut token::tokenize(input), &mut Context::new())
+            .unwrap()
+            .nodes;
 
         assert_eq!(expected, actual);
     }
@@ -638,7 +668,9 @@ mod tests {
         let expected = vec![make_if_else_node(cond, then, els)];
 
         let input = "if ( 10 ==20 ) return 15; else return 10+30;";
-        let actual = program(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        let actual = program(&mut token::tokenize(input), &mut Context::new())
+            .unwrap()
+            .nodes;
 
         assert_eq!(expected, actual);
     }
@@ -652,7 +684,9 @@ mod tests {
         let expected = vec![make_while_node(cond, then)];
 
         let input = "while (32 >= 20 ) return 10;";
-        let actual = program(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        let actual = program(&mut token::tokenize(input), &mut Context::new())
+            .unwrap()
+            .nodes;
 
         assert_eq!(expected, actual);
     }
@@ -688,7 +722,9 @@ mod tests {
         let expected = vec![make_for_node(Some(init), Some(cond), Some(inc), then)];
 
         let input = "for(i=0;i<10;i=i+1)return i+2;";
-        let actual = program(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        let actual = program(&mut token::tokenize(input), &mut Context::new())
+            .unwrap()
+            .nodes;
 
         assert_eq!(expected, actual);
     }
@@ -704,7 +740,7 @@ mod tests {
         ];
         let expected = vec![Node::new_none(Block(expected))];
         let mut iter = token::tokenize(input);
-        let actual = program(&mut iter, &mut Context::new()).unwrap();
+        let actual = program(&mut iter, &mut Context::new()).unwrap().nodes;
         assert_eq!(expected, actual);
     }
 

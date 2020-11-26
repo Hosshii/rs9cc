@@ -1,4 +1,9 @@
 #!/bin/bash
+cat <<EOF | gcc -xc -c -o tmp2.o -
+int ret3() { return 3; }
+int ret5() { return 5; }
+EOF
+
 assert() {
     expected="$1"
     input="$2"
@@ -8,7 +13,7 @@ assert() {
         bin="./target/release/rs9cc"
     fi
     $bin "$input" >tmp.s
-    cc -o tmp tmp.s
+    cc -o tmp tmp.s tmp2.o
     ./tmp
     actual="$?"
 
@@ -80,5 +85,8 @@ assert 50 'result = 0;for(i=1;i<=100;i=i+1) result = result+i;return result/101;
 assert 4 'foo=1;{foo= foo+foo;foo=foo+foo;}foo;'
 assert 233 'n=13;current = 0; next = 1; i = 0; tmp = 0; while ( i < n ) { tmp = current; current = next; next = next + tmp; i=i+1;} current;'
 assert 233 'n=13; current = 0;next = 1; for(i =0;i<n;i=i+1){tmp=current;current = next;next = next +tmp;}current;'
+
+assert 3 'return ret3();'
+assert 5 'return ret5();'
 
 echo OK

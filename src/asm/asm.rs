@@ -25,7 +25,7 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
     println!("    sub rsp, 208");
     let mut ctx = Context::new();
     // asm生成
-    for i in program {
+    for i in program.nodes {
         gen(&i, &mut ctx)?;
         println!("    pop rax");
     }
@@ -74,6 +74,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             println!("    mov rsp, rbp");
             println!("    pop rbp");
             println!("    ret");
+            return Ok(());
         }
         NodeKind::If => {
             if let Some(cond) = &node.cond {
@@ -108,6 +109,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 }
                 println!(".Lend{}:", jlb_num);
             }
+            return Ok(());
         }
         NodeKind::While => {
             let jlb_num = ctx.jump_label;
@@ -129,6 +131,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             }
             println!("    jmp  .Lbegin{}", jlb_num);
             println!(".Lend{}:", jlb_num);
+            return Ok(());
         }
         NodeKind::For => {
             let jlb_num = ctx.jump_label;
@@ -136,16 +139,11 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             if let Some(init) = &node.init {
                 gen(init, ctx)?;
             }
-            //  else {
-            //     return Err(Error::not_found());
-            // }
+
             println!(".Lbegin{}:", jlb_num);
             if let Some(cond) = &node.cond {
                 gen(cond, ctx)?;
             }
-            // else {
-            //     return Err(Error::not_found());
-            // }
 
             println!("    pop rax");
             println!("    cmp rax, 0");
@@ -162,11 +160,18 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 
             println!("    jmp  .Lbegin{}", jlb_num);
             println!(".Lend{}:", jlb_num);
+            return Ok(());
         }
         NodeKind::Block(stmts) => {
             for stmt in stmts {
                 gen(stmt, ctx)?;
             }
+            return Ok(());
+        }
+        NodeKind::Func(name) => {
+            println!("    call {}", name);
+            println!("    push rax");
+            return Ok(());
         }
         _ => (),
     }
