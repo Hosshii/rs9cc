@@ -22,7 +22,7 @@ pub enum NodeKind {
     While,
     For,
     Block(Vec<Node>),
-    Func(String),
+    Func(String, Vec<Node>), // (func_name,args)
     Num(u64),
     // Ident(Ident),
     Lvar(Rc<Lvar>), // usize はベースポインタからのオフセット
@@ -413,22 +413,33 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         return Ok(node);
     }
 
-    if let Some(x) = consume_ident(iter) {
+    if let Some(ident) = consume_ident(iter) {
         if consume(iter, Operator::LParen) {
-            expect(iter, Operator::RParen)?;
-            return Ok(Node::new_leaf(Func(x.name)));
+            return Ok(Node::new_leaf(Func(ident.name, func_args(iter, ctx)?)));
         }
-        if let Some(lvar) = ctx.find_lvar(&x.name) {
+        if let Some(lvar) = ctx.find_lvar(&ident.name) {
             return Ok(Node::new_leaf(Lvar(lvar)));
         } else {
             ctx.push_front(
-                x.name,
+                ident.name,
                 ctx.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0), // if ctx.lvar == None {return 0} else {return ctx.lvar.offset}
             );
             return Ok(Node::new_leaf(Lvar(ctx.lvar.as_ref().unwrap().clone())));
         }
     }
     return Ok(Node::new_num(expect_num(iter)?));
+}
+
+fn func_args(iter: &mut TokenIter, ctx: &mut Context) -> Result<Vec<Node>, Error> {
+    if consume(iter, Operator::RParen) {
+        return Ok(vec![]);
+    }
+    let mut args = vec![assign(iter, ctx)?];
+    while consume_comma(iter) {
+        args.push(assign(iter, ctx)?);
+    }
+    expect(iter, Operator::RParen)?;
+    Ok(args)
 }
 
 fn consume(iter: &mut TokenIter, op: Operator) -> bool {
@@ -487,6 +498,26 @@ fn consume_block(iter: &mut TokenIter, block: Block) -> bool {
     return false;
 }
 
+fn consume_comma(iter: &mut TokenIter) -> bool {
+    if let Some(x) = iter.peek() {
+        if x.kind == TokenKind::Comma {
+            iter.next();
+            return true;
+        }
+    }
+    false
+}
+
+fn _consume_token_kind(iter: &mut TokenIter, kind: TokenKind) -> Option<TokenKind> {
+    if let Some(x) = iter.peek() {
+        if x.kind == kind {
+            iter.next();
+            return Some(x.kind);
+        }
+    }
+    None
+}
+
 fn expect(iter: &mut TokenIter, op: Operator) -> Result<(), Error> {
     if let Some(x) = iter.peek() {
         if let TokenKind::Reserved(xx) = x.kind {
@@ -526,6 +557,27 @@ fn expect_semi(iter: &mut TokenIter) -> Result<(), Error> {
         if x.kind == TokenKind::SemiColon {
             iter.next();
             return Ok(());
+        } else {
+            return Err(Error::unexpected_token(
+                iter.s,
+                x.clone(),
+                TokenKind::SemiColon,
+            ));
+        }
+    }
+    Err(Error::eof(iter.s, iter.pos, TokenKind::SemiColon, None))
+}
+
+fn _expect_comma(iter: &mut TokenIter) -> Result<(), Error> {
+    expect_token_kind(iter, TokenKind::Comma)?;
+    Ok(())
+}
+
+fn expect_token_kind(iter: &mut TokenIter, kind: TokenKind) -> Result<TokenKind, Error> {
+    if let Some(x) = iter.peek() {
+        if x.kind == kind {
+            iter.next();
+            return Ok(x.kind);
         } else {
             return Err(Error::unexpected_token(
                 iter.s,
@@ -744,6 +796,28 @@ mod tests {
         assert_eq!(expected, actual);
     }
 
+    #[test]
+    fn test_func() {
+        use crate::token;
+        let input = "add();";
+        let expected_name = "add";
+        let expected_args = vec![];
+        let expected = vec![make_fn_node(expected_name, expected_args)];
+
+        let mut iter = token::tokenize(input);
+        let actual = program(&mut iter, &mut Context::new()).unwrap().nodes;
+        assert_eq!(expected, actual);
+
+        let input = "three(1,2,3);";
+        let expected_name = "three";
+        let expected_args = vec![Node::new_num(1), Node::new_num(2), Node::new_num(3)];
+        let expected = vec![make_fn_node(expected_name, expected_args)];
+
+        let mut iter = token::tokenize(input);
+        let actual = program(&mut iter, &mut Context::new()).unwrap().nodes;
+        assert_eq!(expected, actual);
+    }
+
     fn make_test_node(kind: NodeKind, lhs_num: u64, rhs_num: u64) -> Node {
         Node::new(kind, Node::new_num(lhs_num), Node::new_num(rhs_num))
     }
@@ -789,5 +863,9 @@ mod tests {
         node.inc = inc.map(|c| Box::new(c));
         node.then = Some(Box::new(then));
         node
+    }
+
+    fn make_fn_node(name: impl Into<String>, args: Vec<Node>) -> Node {
+        Node::new_none(Func(name.into(), args))
     }
 }

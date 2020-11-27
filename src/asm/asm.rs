@@ -12,6 +12,8 @@ impl Context {
     }
 }
 
+const ARG_REGISTER: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+
 pub fn code_gen(program: Program) -> Result<(), Error> {
     // アセンブリの前半部分を出力
     println!(".intel_syntax noprefix");
@@ -168,7 +170,13 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             }
             return Ok(());
         }
-        NodeKind::Func(name) => {
+        NodeKind::Func(name, args) => {
+            for i in args {
+                gen(i, ctx)?;
+            }
+            for i in (0..args.len()).rev() {
+                println!("    pop {}", ARG_REGISTER[i]);
+            }
             println!("    call {}", name);
             println!("    push rax");
             return Ok(());

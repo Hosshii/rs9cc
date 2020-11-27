@@ -20,8 +20,8 @@ relational  = add ("<" add | "<=" | ">" add | ">=" add)*
 add         = mul ("+" mul | "-" mul)*
 mul         = unary ("*" unary | "/" unary)*
 unary       = ("+" | "-")? primary
-primary     = num | ident args? | "(" expr ")"
-args        = "(" ")"
+primary     = num | ident func-args? | "(" expr ")"
+func-args   = "(" (assign ("," assign)*)? ")"
 ```
 
 ## build 

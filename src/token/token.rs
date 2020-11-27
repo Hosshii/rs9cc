@@ -10,6 +10,7 @@ pub enum TokenKind {
     Block(Block),
     Num(u64),
     SemiColon,
+    Comma,
     EOF,
 }
 
@@ -23,6 +24,7 @@ impl TokenKind {
             Num(x) => x.to_string(),
             Block(x) => x.as_str().to_string(),
             SemiColon => ";".to_string(),
+            Comma => ",".to_string(),
             EOF => "EOF".to_string(),
         }
     }
@@ -307,6 +309,10 @@ impl<'a> TokenIter<'a> {
             return Some(tk);
         }
 
+        if let Some((tk, _)) = self.is_comma(s) {
+            return Some(tk);
+        }
+
         // これ最後の方がいい
         if let Some((tk, _)) = self.is_ident(s) {
             return Some(tk);
@@ -387,6 +393,15 @@ impl<'a> TokenIter<'a> {
         None
     }
 
+    fn is_comma(&self, s: &str) -> Option<(Token, TokenPos)> {
+        use self::TokenKind::*;
+        let ss = s.chars().nth(0).unwrap();
+        if ss.to_string() == Comma.as_string() {
+            return Some((Token::new(Comma, self.pos), TokenPos::new_bytes(1)));
+        }
+        None
+    }
+
     fn error_at(&self, msg: &str) -> ! {
         eprintln!("{}", self.s);
         eprintln!(
@@ -437,6 +452,11 @@ impl<'a> Iterator for TokenIter<'a> {
         }
 
         if let Some((tk, pos)) = self.is_block_paren(s) {
+            self.pos += pos;
+            return Some(tk);
+        }
+
+        if let Some((tk, pos)) = self.is_comma(s) {
             self.pos += pos;
             return Some(tk);
         }
@@ -553,11 +573,12 @@ mod tests {
         }
         assert_eq!(None, iter.next());
 
-        let input = "{ { }";
+        let input = "{ { } ,";
         let expected = vec![
             TokenKind::Block(Block::LParen),
             TokenKind::Block(Block::LParen),
             TokenKind::Block(Block::RParen),
+            TokenKind::Comma,
         ];
         let mut iter = tokenize(input);
         for i in expected {
