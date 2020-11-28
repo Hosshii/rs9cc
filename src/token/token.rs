@@ -485,7 +485,12 @@ fn split_ident(s: &str) -> (&str, &str, usize) {
         if let Ok(_) = Operator::from_starts(&s[i..]) {
             break;
         }
-        if s[i..].starts_with(&TokenKind::SemiColon.as_string()) || s[i..].starts_with(" ") {
+        if s[i..].starts_with(&TokenKind::SemiColon.as_string())
+            || s[i..].starts_with(" ")
+            || s[i..].starts_with(&TokenKind::Comma.as_string())
+            || s[i..].starts_with(Block::LParen.as_str())
+            || s[i..].starts_with(Block::RParen.as_str())
+        {
             break;
         }
         first_non_ident_idx += 1;
@@ -573,11 +578,13 @@ mod tests {
         }
         assert_eq!(None, iter.next());
 
-        let input = "{ { } ,";
+        let input = "{ { } ,hoge,";
         let expected = vec![
             TokenKind::Block(Block::LParen),
             TokenKind::Block(Block::LParen),
             TokenKind::Block(Block::RParen),
+            TokenKind::Comma,
+            TokenKind::Ident(Ident::new("hoge")),
             TokenKind::Comma,
         ];
         let mut iter = tokenize(input);
