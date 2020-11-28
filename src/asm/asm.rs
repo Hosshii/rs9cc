@@ -26,6 +26,14 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
         println!("    push rbp");
         println!("    mov rbp, rsp");
         println!("    sub rsp, {}", function.var_num * 8);
+
+        // 引数をローカル変数としてスタックに載せる
+        for i in 0..function.param_num {
+            println!("    mov rax, rbp");
+            println!("    sub rax, {}", (i + 1) * 8);
+            println!("    mov [rax], {}", ARG_REGISTER[i]);
+        }
+
         for node in function.nodes {
             gen(&node, &mut ctx)?;
         }

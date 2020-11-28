@@ -110,4 +110,8 @@ assert 3 'myfunc(){3;}main(){myfunc();}'
 assert 33 'myfunc(){a = 1; b =2; return a+b;}main(){a = 10; b = 20; return a + b + myfunc();}'
 assert 8 'main(){foo = 10; bar = 20; return -1 - foo + bar + myfunc();} myfunc () {foo = -1; return foo;}'
 
+assert 11 'myfunc(x) {return x +1;} main(){return myfunc(10);}'
+assert 15 'myfunc(x,y,z){foo=10;return x*2+y+z+foo;} main(){foo = 1;return foo+myfunc(foo,foo,foo);}'
+assert 55 'fib(n){if (n == 0) {return 0;} else if (n == 1) {return 1;}else {return fib(n-1)+fib(n-2);}} main(){return fib(10);}'
+
 echo OK

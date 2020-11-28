@@ -238,7 +238,9 @@ impl Program {
 pub struct Function {
     pub name: String,
     pub lvars: Option<Rc<Lvar>>,
-    pub var_num: usize,
+    pub var_num: usize, // lvar + param
+    pub params: Vec<Ident>,
+    pub param_num: usize,
     pub nodes: Vec<Node>,
 }
 
@@ -247,12 +249,16 @@ impl Function {
         name: impl Into<String>,
         lvars: Option<Rc<Lvar>>,
         var_num: usize,
+        params: Vec<Ident>,
+        param_num: usize,
         nodes: Vec<Node>,
     ) -> Self {
         Self {
             name: name.into(),
             lvars,
             var_num,
+            params,
+            param_num,
             nodes,
         }
     }
@@ -267,21 +273,50 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
     Ok(program)
 }
 
-// function    = ident "(" ")" "{" stmt* "}"
+// function    = ident "(" params? ")" "{" stmt* "}"
 pub fn function(iter: &mut TokenIter) -> Result<Function, Error> {
     let ident = expect_ident(iter)?;
     expect(iter, Operator::LParen)?;
-    expect(iter, Operator::RParen)?;
+
+    let mut fn_params = Vec::new();
+    if !consume(iter, Operator::RParen) {
+        fn_params = params(iter)?;
+        expect(iter, Operator::RParen)?;
+    }
     expect_block(iter, Block::LParen)?;
-    // iter.next();
-    let mut stmt_vec = Vec::new();
+
+    let param_len = fn_params.len();
     let mut lvars = Context::new();
+    for fn_param in fn_params.clone() {
+        lvars.push_front(
+            fn_param.name,
+            lvars.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+        )
+    }
+
+    let mut stmt_vec = Vec::new();
     loop {
         if consume_block(iter, Block::RParen) {
-            return Ok(Function::new(ident.name, lvars.lvar, lvars.count, stmt_vec));
+            return Ok(Function::new(
+                ident.name,
+                lvars.lvar,
+                lvars.count,
+                fn_params,
+                param_len,
+                stmt_vec,
+            ));
         }
         stmt_vec.push(stmt(iter, &mut lvars)?);
     }
+}
+
+// params      = ident ("," ident)*
+pub fn params(iter: &mut TokenIter) -> Result<Vec<Ident>, Error> {
+    let mut params = vec![expect_ident(iter)?];
+    while consume_comma(iter) {
+        params.push(expect_ident(iter)?);
+    }
+    Ok(params)
 }
 
 // stmt        = expr ";"
@@ -457,7 +492,6 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // primary     = num | ident func-args? | "(" expr ")"
-// func-args   = "(" (assign ("," assign)*)? ")"
 pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::LParen) {
         let node = expr(iter, ctx)?;
@@ -482,6 +516,7 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     return Ok(Node::new_num(expect_num(iter)?));
 }
 
+// func-args   = "(" (assign ("," assign)*)? ")"
 fn func_args(iter: &mut TokenIter, ctx: &mut Context) -> Result<Vec<Node>, Error> {
     if consume(iter, Operator::RParen) {
         return Ok(vec![]);
@@ -875,7 +910,7 @@ mod tests {
         use crate::token;
         let expected_fn_name = "main";
         let expected_nodes = vec![Node::new_unary(Return, Node::new_num(1))];
-        let expected = Function::new(expected_fn_name, None, 0, expected_nodes);
+        let expected = Function::new(expected_fn_name, None, 0, Vec::new(), 0, expected_nodes);
 
         let input = "main(){return 1;}";
         let iter = &mut token::tokenize(input);
@@ -888,8 +923,11 @@ mod tests {
         let lvar2 = Lvar::new(lvar1.clone(), "bar", 16);
         let expected_lvar = Rc::new(lvar2.clone());
         let node1 = make_assign_node("foo", 1, 8);
-        let node2 =Node::new(
-            Assign, Node::new_leaf(Lvar(Rc::new(lvar2.clone()))), Node::new_num(2));
+        let node2 = Node::new(
+            Assign,
+            Node::new_leaf(Lvar(Rc::new(lvar2.clone()))),
+            Node::new_num(2),
+        );
         let node3 = Node::new_unary(
             Return,
             Node::new(
@@ -899,9 +937,98 @@ mod tests {
             ),
         );
         let expected_nodes = vec![node1, node2, node3];
-        let expected = Function::new(expected_fn_name, Some(expected_lvar), 2, expected_nodes);
+        let expected = Function::new(
+            expected_fn_name,
+            Some(expected_lvar),
+            2,
+            Vec::new(),
+            0,
+            expected_nodes,
+        );
 
         let input = "main(){foo = 1; bar = 2; return foo+bar;}";
+        let iter = &mut token::tokenize(input);
+        let actual = function(iter).unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_param() {
+        use crate::token;
+
+        let expected = vec![Ident::new("hoge")];
+
+        let input = "hoge";
+        let iter = &mut token::tokenize(input);
+        let actual = params(iter).unwrap();
+
+        assert_eq!(expected, actual);
+
+        let expected = vec![Ident::new("foo"), Ident::new("bar"), Ident::new("hoge")];
+        let input = "foo,bar,hoge";
+        let iter = &mut token::tokenize(input);
+        let actual = params(iter).unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_fn_with_args() {
+        use crate::token;
+
+        let expected_fn_name = "main";
+        let expected_nodes = vec![Node::new_unary(Return, Node::new_num(0))];
+        let expected = Function::new(expected_fn_name, None, 0, Vec::new(), 0, expected_nodes);
+
+        let input = "main(){return 0;}";
+        let iter = &mut token::tokenize(input);
+        let actual = function(iter).unwrap();
+
+        assert_eq!(expected, actual);
+
+        let expected_fn_name = "main";
+        let expected_nodes = vec![Node::new_unary(Return, Node::new_num(0))];
+        let expected_param = vec![Ident::new("foo")];
+        let expected_lvar = Lvar::new_leaf("foo", 8);
+        let expected = Function::new(
+            expected_fn_name,
+            Some(Rc::new(expected_lvar)),
+            1,
+            expected_param,
+            1,
+            expected_nodes,
+        );
+
+        let input = "main(foo){return 0;}";
+        let iter = &mut token::tokenize(input);
+        let actual = function(iter).unwrap();
+
+        assert_eq!(expected, actual);
+
+        let expected_fn_name = "main";
+        let expected_nodes = vec![Node::new_unary(Return, Node::new_num(0))];
+        let expected_param = vec![
+            Ident::new("foo"),
+            Ident::new("bar"),
+            Ident::new("hoge"),
+            Ident::new("hey"),
+        ];
+        let expected_lvar = Lvar::new(
+            Lvar::new(Lvar::new(Lvar::new_leaf("foo", 8), "bar", 16), "hoge", 24),
+            "hey",
+            32,
+        );
+        let expected = Function::new(
+            expected_fn_name,
+            Some(Rc::new(expected_lvar)),
+            4,
+            expected_param,
+            4,
+            expected_nodes,
+        );
+
+        let input = "main(foo,bar,hoge,hey){return 0;}";
         let iter = &mut token::tokenize(input);
         let actual = function(iter).unwrap();
 
