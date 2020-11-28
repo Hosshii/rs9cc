@@ -171,14 +171,28 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Func(name, args) => {
+            let jlb_num = ctx.jump_label;
+            ctx.jump_label += 1;
             for i in args {
                 gen(i, ctx)?;
             }
             for i in (0..args.len()).rev() {
                 println!("    pop {}", ARG_REGISTER[i]);
             }
+            println!("    mov rax, rsp");
+            println!("    and rax, 15");
+            println!("    jnz .Lcall{}", jlb_num);
+            println!("    mov rax, 0");
             println!("    call {}", name);
+            println!("    jmp .Lend{}", jlb_num);
+            println!(".Lcall{}:", jlb_num);
+            println!("    sub rsp, 8");
+            println!("    mov rax, 0");
+            println!("    call {}", name);
+            println!("    add rsp, 8");
+            println!(".Lend{}:", jlb_num);
             println!("    push rax");
+
             return Ok(());
         }
         _ => (),
