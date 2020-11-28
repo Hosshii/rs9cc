@@ -18,25 +18,24 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
     // アセンブリの前半部分を出力
     println!(".intel_syntax noprefix");
     println!(".global main");
-    println!("main:");
-
-    // プロローグ
-    // 変数26個分の領域を確保する
-    println!("    push rbp");
-    println!("    mov rbp, rsp");
-    println!("    sub rsp, 208");
     let mut ctx = Context::new();
     // asm生成
-    for i in program.nodes {
-        gen(&i, &mut ctx)?;
+    for function in program.functions {
+        println!("{}:", function.name);
+        // プロローグ
+        println!("    push rbp");
+        println!("    mov rbp, rsp");
+        println!("    sub rsp, {}", function.var_num * 8);
+        for node in function.nodes {
+            gen(&node, &mut ctx)?;
+        }
         println!("    pop rax");
+        // エピローグ
+        // 最後の式の結果がRAXに残っているのでそれが返り値になる
+        println!("    mov rsp, rbp");
+        println!("    pop rbp");
+        println!("    ret");
     }
-
-    // エピローグ
-    // 最後の式の結果がRAXに残っているのでそれが返り値になる
-    println!("    mov rsp, rbp");
-    println!("    pop rbp");
-    println!("    ret");
     Ok(())
 }
 

@@ -6,7 +6,8 @@ mini C compiler written in Rust.
 
 ## EBNF
 ```
-program     = stmt*
+program     = function*
+function    = ident "(" ")" "{" stmt* "}"
 stmt        = expr ";"
             | "return" expr ";"
             | "if" "(" expr ")" stmt

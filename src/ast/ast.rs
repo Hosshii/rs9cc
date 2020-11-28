@@ -221,32 +221,75 @@ impl Context {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Program {
-    pub nodes: Vec<Node>,
-    pub lvar: Option<Rc<Lvar>>,
-    pub count: usize,
+    pub functions: Vec<Function>,
 }
 
 impl Program {
     fn new() -> Self {
         Self {
-            nodes: Vec::new(),
-            lvar: None,
-            count: 0,
+            functions: Vec::new(),
         }
     }
 }
 
-pub fn program(iter: &mut TokenIter, ctx: &mut Context) -> Result<Program, Error> {
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+pub struct Function {
+    pub name: String,
+    pub lvars: Option<Rc<Lvar>>,
+    pub var_num: usize,
+    pub nodes: Vec<Node>,
+}
+
+impl Function {
+    fn new(
+        name: impl Into<String>,
+        lvars: Option<Rc<Lvar>>,
+        var_num: usize,
+        nodes: Vec<Node>,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            lvars,
+            var_num,
+            nodes,
+        }
+    }
+}
+
+// program     = function*
+pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
     let mut program = Program::new();
     while iter.peek() != None {
-        program.nodes.push(stmt(iter, ctx)?);
+        program.functions.push(function(iter)?);
     }
-    program.count = ctx.count;
-    program.lvar = ctx.lvar.take();
     Ok(program)
 }
 
+// function    = ident "(" ")" "{" stmt* "}"
+pub fn function(iter: &mut TokenIter) -> Result<Function, Error> {
+    let ident = expect_ident(iter)?;
+    expect(iter, Operator::LParen)?;
+    expect(iter, Operator::RParen)?;
+    expect_block(iter, Block::LParen)?;
+    // iter.next();
+    let mut stmt_vec = Vec::new();
+    let mut lvars = Context::new();
+    loop {
+        if consume_block(iter, Block::RParen) {
+            return Ok(Function::new(ident.name, lvars.lvar, lvars.count, stmt_vec));
+        }
+        stmt_vec.push(stmt(iter, &mut lvars)?);
+    }
+}
+
+// stmt        = expr ";"
+//             | "return" expr ";"
+//             | "if" "(" expr ")" stmt
+//             | "while" "(" expr ")" stmt
+//             | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+//             | "{" stmt* "}"
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(x) = iter.peek() {
         match x.kind {
@@ -327,10 +370,12 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     Ok(node)
 }
 
+// expr        = assig
 pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     assign(iter, ctx)
 }
 
+// assign      = equality ("=" assign)?
 pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = equality(iter, ctx)?;
     if consume(iter, Operator::Assign) {
@@ -339,6 +384,7 @@ pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     return Ok(node);
 }
 
+// equality    = relational ("==" relational | "!=" relational)*
 pub fn equality(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = relational(iter, ctx)?;
     loop {
@@ -352,6 +398,7 @@ pub fn equality(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> 
     }
 }
 
+// relational  = add ("<" add | "<=" | ">" add | ">=" add)*
 pub fn relational(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = add(iter, ctx)?;
     loop {
@@ -371,6 +418,7 @@ pub fn relational(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error
     }
 }
 
+// add         = mul ("+" mul | "-" mul)*
 pub fn add(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = mul(iter, ctx)?;
     loop {
@@ -384,6 +432,7 @@ pub fn add(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     }
 }
 
+// mul         = unary ("*" unary | "/" unary)*
 pub fn mul(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = unary(iter, ctx)?;
     loop {
@@ -397,6 +446,7 @@ pub fn mul(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     }
 }
 
+// unary       = ("+" | "-")? primary
 pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::Plus) {
         return primary(iter, ctx);
@@ -406,6 +456,8 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     return primary(iter, ctx);
 }
 
+// primary     = num | ident func-args? | "(" expr ")"
+// func-args   = "(" (assign ("," assign)*)? ")"
 pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::LParen) {
         let node = expr(iter, ctx)?;
@@ -589,7 +641,7 @@ fn expect_token_kind(iter: &mut TokenIter, kind: TokenKind) -> Result<TokenKind,
     Err(Error::eof(iter.s, iter.pos, TokenKind::SemiColon, None))
 }
 
-fn _expect_ident(iter: &mut TokenIter) -> Result<Ident, Error> {
+fn expect_ident(iter: &mut TokenIter) -> Result<Ident, Error> {
     if let Some(x) = iter.peek() {
         if let TokenKind::Ident(id) = x.kind {
             iter.next();
@@ -610,21 +662,23 @@ fn _expect_ident(iter: &mut TokenIter) -> Result<Ident, Error> {
     ))
 }
 
-// fn _expect_block(iter: &mut TokenIter, block: Block) -> Result<(), Error> {
-//     if let Some(x) = iter.peek() {
-//         if let TokenKind::Block(x) = x.kind {
-//             iter.next();
-//             return Ok(());
-//         } else {
-//             return Err(Error::unexpected_token(
-//                 iter.s,
-//                 x.clone(),
-//                 TokenKind::Block(block),
-//             ));
-//         }
-//     }
-//     Err(Error::eof(iter.s, iter.pos, TokenKind::Block(block), None))
-// }
+fn expect_block(iter: &mut TokenIter, block: Block) -> Result<(), Error> {
+    if let Some(x) = iter.peek() {
+        if let TokenKind::Block(x) = x.kind {
+            if x == block {
+                iter.next();
+                return Ok(());
+            }
+        } else {
+            return Err(Error::unexpected_token(
+                iter.s,
+                x.clone(),
+                TokenKind::Block(block),
+            ));
+        }
+    }
+    Err(Error::eof(iter.s, iter.pos, TokenKind::Block(block), None))
+}
 
 #[cfg(test)]
 mod tests {
@@ -675,7 +729,7 @@ mod tests {
     }
 
     #[test]
-    fn test_program() {
+    fn test_stmt() {
         use crate::token;
 
         let lvar = Lvar::new_leaf("foo", 8);
@@ -689,10 +743,13 @@ mod tests {
         ];
 
         for (s, expected) in &tests {
-            let actual = &program(&mut token::tokenize(s), &mut Context::new())
-                .unwrap()
-                .nodes;
-            assert_eq!(expected, actual);
+            let mut iter = token::tokenize(s);
+            let mut actual = Vec::new();
+            let ctx = &mut Context::new();
+            while iter.peek() != None {
+                actual.push(stmt(&mut iter, ctx).unwrap());
+            }
+            assert_eq!(expected, &actual);
         }
     }
 
@@ -701,12 +758,10 @@ mod tests {
         use crate::token;
         let cond = Node::new(Equal, Node::new_num(10), Node::new_num(20));
         let then = Node::new_unary(Return, Node::new_num(15));
-        let expected = vec![make_if_node(cond, then)];
+        let expected = make_if_node(cond, then);
 
         let input = "if ( 10 ==20 ) return 15;";
-        let actual = program(&mut token::tokenize(input), &mut Context::new())
-            .unwrap()
-            .nodes;
+        let actual = stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -717,12 +772,10 @@ mod tests {
         let cond = Node::new(Equal, Node::new_num(10), Node::new_num(20));
         let then = Node::new_unary(Return, Node::new_num(15));
         let els = Node::new_unary(Return, Node::new(Add, Node::new_num(10), Node::new_num(30)));
-        let expected = vec![make_if_else_node(cond, then, els)];
+        let expected = make_if_else_node(cond, then, els);
 
         let input = "if ( 10 ==20 ) return 15; else return 10+30;";
-        let actual = program(&mut token::tokenize(input), &mut Context::new())
-            .unwrap()
-            .nodes;
+        let actual = stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -733,12 +786,10 @@ mod tests {
         // Geqは左右を入れ替えてLeq
         let cond = Node::new(Leq, Node::new_num(20), Node::new_num(32));
         let then = Node::new_unary(Return, Node::new_num(10));
-        let expected = vec![make_while_node(cond, then)];
+        let expected = make_while_node(cond, then);
 
         let input = "while (32 >= 20 ) return 10;";
-        let actual = program(&mut token::tokenize(input), &mut Context::new())
-            .unwrap()
-            .nodes;
+        let actual = stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -771,12 +822,10 @@ mod tests {
         );
         let then = Node::new_unary(Return, ret);
 
-        let expected = vec![make_for_node(Some(init), Some(cond), Some(inc), then)];
+        let expected = make_for_node(Some(init), Some(cond), Some(inc), then);
 
         let input = "for(i=0;i<10;i=i+1)return i+2;";
-        let actual = program(&mut token::tokenize(input), &mut Context::new())
-            .unwrap()
-            .nodes;
+        let actual = stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -792,7 +841,10 @@ mod tests {
         ];
         let expected = vec![Node::new_none(Block(expected))];
         let mut iter = token::tokenize(input);
-        let actual = program(&mut iter, &mut Context::new()).unwrap().nodes;
+        let mut actual = Vec::new();
+        while iter.peek() != None {
+            actual.push(stmt(&mut iter, &mut Context::new()).unwrap());
+        }
         assert_eq!(expected, actual);
     }
 
@@ -802,19 +854,57 @@ mod tests {
         let input = "add();";
         let expected_name = "add";
         let expected_args = vec![];
-        let expected = vec![make_fn_node(expected_name, expected_args)];
+        let expected = make_fn_node(expected_name, expected_args);
 
         let mut iter = token::tokenize(input);
-        let actual = program(&mut iter, &mut Context::new()).unwrap().nodes;
+        let actual = stmt(&mut iter, &mut Context::new()).unwrap();
         assert_eq!(expected, actual);
 
         let input = "three(1,2,3);";
         let expected_name = "three";
         let expected_args = vec![Node::new_num(1), Node::new_num(2), Node::new_num(3)];
-        let expected = vec![make_fn_node(expected_name, expected_args)];
+        let expected = make_fn_node(expected_name, expected_args);
 
         let mut iter = token::tokenize(input);
-        let actual = program(&mut iter, &mut Context::new()).unwrap().nodes;
+        let actual = stmt(&mut iter, &mut Context::new()).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_func_def() {
+        use crate::token;
+        let expected_fn_name = "main";
+        let expected_nodes = vec![Node::new_unary(Return, Node::new_num(1))];
+        let expected = Function::new(expected_fn_name, None, 0, expected_nodes);
+
+        let input = "main(){return 1;}";
+        let iter = &mut token::tokenize(input);
+        let actual = function(iter).unwrap();
+
+        assert_eq!(expected, actual);
+
+        let expected_fn_name = "main";
+        let lvar1 = Lvar::new_leaf("foo", 8);
+        let lvar2 = Lvar::new(lvar1.clone(), "bar", 16);
+        let expected_lvar = Rc::new(lvar2.clone());
+        let node1 = make_assign_node("foo", 1, 8);
+        let node2 =Node::new(
+            Assign, Node::new_leaf(Lvar(Rc::new(lvar2.clone()))), Node::new_num(2));
+        let node3 = Node::new_unary(
+            Return,
+            Node::new(
+                Add,
+                Node::new_leaf(Lvar(Rc::new(lvar1))),
+                Node::new_leaf(Lvar(Rc::new(lvar2))),
+            ),
+        );
+        let expected_nodes = vec![node1, node2, node3];
+        let expected = Function::new(expected_fn_name, Some(expected_lvar), 2, expected_nodes);
+
+        let input = "main(){foo = 1; bar = 2; return foo+bar;}";
+        let iter = &mut token::tokenize(input);
+        let actual = function(iter).unwrap();
+
         assert_eq!(expected, actual);
     }
 
