@@ -45,6 +45,8 @@ pub enum Operator {
     Div,
     LParen,
     RParen,
+    // Asterisk,
+    Ampersand,
 }
 
 impl Operator {
@@ -64,6 +66,8 @@ impl Operator {
             Div => "/",
             LParen => "(",
             RParen => ")",
+            // Asterisk => "*",
+            Ampersand => "&",
         }
     }
 
@@ -98,6 +102,7 @@ impl FromStr for Operator {
             x if x == Div.as_str() => Ok(Div),
             x if x == LParen.as_str() => Ok(LParen),
             x if x == RParen.as_str() => Ok(RParen),
+            x if x == Ampersand.as_str() => Ok(Ampersand),
             _ => Err(()),
         }
     }
@@ -528,9 +533,10 @@ mod tests {
         use self::KeyWord::*;
         use self::Operator::*;
         use self::TokenKind::{KeyWord, Num, Reserved, SemiColon};
-        let input = "== != = < <= > >= + - * / ( ) ";
+        let input = "== != = < <= > >= + - * / ( ) &";
         let expected = vec![
             Equal, Neq, Assign, Lesser, Leq, Greater, Geq, Plus, Minus, Mul, Div, LParen, RParen,
+            Ampersand,
         ];
         let mut iter = tokenize(input);
         for i in expected {

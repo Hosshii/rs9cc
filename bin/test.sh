@@ -114,4 +114,14 @@ assert 11 'myfunc(x) {return x +1;} main(){return myfunc(10);}'
 assert 15 'myfunc(x,y,z){foo=10;return x*2+y+z+foo;} main(){foo = 1;return foo+myfunc(foo,foo,foo);}'
 assert 55 'fib(n){if (n == 0) {return 0;} else if (n == 1) {return 1;}else {return fib(n-1)+fib(n-2);}} main(){return fib(10);}'
 
+assert 1 'main(){foo=1; bar = &foo; return *bar;}'
+assert 2 'main(){foo=1; bar = &foo; return *bar+1;}'
+assert 3 'main() { x=3; return *&x; }'
+assert 3 'main() { x=3; y=&x; z=&y; return **z; }'
+assert 5 'main() { x=3; y=5; return *(&x-8); }'
+assert 3 'main() { x=3; y=5; return *(&y+8); }'
+assert 5 'main() { x=3; y=&x; *y=5; return x; }'
+assert 7 'main() { x=3; y=5; *(&x-8)=7; return y; }'
+assert 7 'main() { x=3; y=5; *(&y+8)=7; return x; }'
+
 echo OK

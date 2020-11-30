@@ -21,6 +21,8 @@ pub enum NodeKind {
     Else,
     While,
     For,
+    Addr,
+    Deref,
     Block(Vec<Node>),
     Func(String, Vec<Node>), // (func_name,args)
     Num(u64),
@@ -481,12 +483,16 @@ pub fn mul(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     }
 }
 
-// unary       = ("+" | "-")? primary
+// unary       = ("+" | "-")? primary | "*" unary | "&" unary
 pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::Plus) {
         return primary(iter, ctx);
     } else if consume(iter, Operator::Minus) {
         return Ok(Node::new(Sub, Node::new_num(0), primary(iter, ctx)?));
+    } else if consume(iter, Operator::Mul) {
+        return Ok(Node::new_unary(Deref, unary(iter, ctx)?));
+    } else if consume(iter, Operator::Ampersand) {
+        return Ok(Node::new_unary(Addr, unary(iter, ctx)?));
     }
     return primary(iter, ctx);
 }
@@ -785,6 +791,46 @@ mod tests {
                 actual.push(stmt(&mut iter, ctx).unwrap());
             }
             assert_eq!(expected, &actual);
+        }
+    }
+
+    #[test]
+    fn test_unary() {
+        use crate::token;
+        let expected = vec![
+            Node::new_num(1),
+            Node::new_num(1),
+            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("hoge", 8)))),
+            Node::new(Sub, Node::new_num(0), Node::new_num(1)),
+            // Node::new_unary(Sub, Node::new_num(1)),
+            Node::new(
+                Sub,
+                Node::new_num(0),
+                Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("hoge", 8)))),
+            ),
+            Node::new_unary(Deref, Node::new_num(1)),
+            Node::new_unary(Addr, Node::new_num(1)),
+            Node::new_unary(
+                Deref,
+                Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("hoge", 8)))),
+            ),
+            Node::new_unary(
+                Addr,
+                Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("hoge", 8)))),
+            ),
+            Node::new_unary(
+                Deref,
+                Node::new_unary(
+                    Addr,
+                    Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("hoge", 8)))),
+                ),
+            ),
+        ];
+
+        let input = "1 +1 +hoge -1 -hoge *1 &1 *hoge &hoge *&hoge";
+        let iter = &mut token::tokenize(input);
+        for i in expected {
+            assert_eq!(i, unary(iter, &mut Context::new()).unwrap());
         }
     }
 

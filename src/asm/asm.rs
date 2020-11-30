@@ -54,13 +54,13 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Lvar(_) => {
-            gen_lval(&node)?;
+            gen_lval(&node, ctx)?;
             load();
             return Ok(());
         }
         NodeKind::Assign => {
             if let Some(lhs) = &node.lhs {
-                gen_lval(&lhs)?;
+                gen_lval(&lhs, ctx)?;
             } else {
                 return Err(Error::not_found());
             }
@@ -202,6 +202,23 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 
             return Ok(());
         }
+        NodeKind::Addr => {
+            if let Some(lhs) = &node.lhs {
+                gen_lval(&lhs, ctx)?;
+            } else {
+                return Err(Error::not_found());
+            }
+            return Ok(());
+        }
+        NodeKind::Deref => {
+            if let Some(lhs) = &node.lhs {
+                gen(&lhs, ctx)?;
+            } else {
+                return Err(Error::not_found());
+            }
+            load();
+            return Ok(());
+        }
         _ => (),
     }
 
@@ -250,15 +267,31 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     Ok(())
 }
 
-fn gen_lval(node: &Node) -> Result<(), Error> {
-    if let NodeKind::Lvar(x) = &node.kind {
-        println!("    mov rax, rbp");
-        println!("    sub rax, {}", x.offset);
-        println!("    push rax");
-        Ok(())
-    } else {
-        Err(Error::not_lvar())
+fn gen_lval(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    match &node.kind {
+        NodeKind::Lvar(x) => {
+            println!("    mov rax, rbp");
+            println!("    sub rax, {}", x.offset);
+            println!("    push rax");
+            Ok(())
+        }
+        NodeKind::Deref => {
+            if let Some(lhs) = &node.lhs {
+                gen(&lhs, ctx)
+            } else {
+                Err(Error::not_found())
+            }
+        }
+        _ => Err(Error::not_lvar()),
     }
+    // if let NodeKind::Lvar(x) = &node.kind {
+    //     println!("    mov rax, rbp");
+    //     println!("    sub rax, {}", x.offset);
+    //     println!("    push rax");
+    //     Ok(())
+    // } else {
+    //     Err(Error::not_lvar())
+    // }
 }
 
 fn load() {
