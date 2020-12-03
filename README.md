@@ -7,14 +7,16 @@ mini C compiler written in Rust.
 ## EBNF
 ```
 program     = function*
-function    = ident "(" params? ")" "{" stmt* "}"
-params      = ident ("," ident)*
+basetype    = "int" "*"*
+function    = declaration "(" params? ")" "{" stmt* "}"
+params      = declaration ("," declaration)*
 stmt        = expr ";"
             | "return" expr ";"
             | "if" "(" expr ")" stmt
             | "while" "(" expr ")" stmt
             | "for" "(" expr? ";" expr? ";" expr? ")" stmt
             | "{" stmt* "}"
+            | declaration ";"
 expr        = assign
 assign      = equality ("=" assign)?
 equality    = relational ("==" relational | "!=" relational)*
@@ -22,8 +24,9 @@ relational  = add ("<" add | "<=" | ">" add | ">=" add)*
 add         = mul ("+" mul | "-" mul)*
 mul         = unary ("*" unary | "/" unary)*
 unary       = ("+" | "-")? primary | "*" unary | "&" unary
-primary     = num | ident func-args? | "(" expr ")"
+primary     = num | ident func-args? | "(" expr ")" 
 func-args   = "(" (assign ("," assign)*)? ")"
+declaration = basetype ident
 ```
 
 ## build 

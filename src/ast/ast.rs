@@ -1,5 +1,7 @@
 use self::NodeKind::*;
 use super::error::Error;
+use crate::base_types;
+use crate::base_types::TypeKind;
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::rc::Rc;
 
@@ -28,6 +30,7 @@ pub enum NodeKind {
     Num(u64),
     // Ident(Ident),
     Lvar(Rc<Lvar>), // usize はベースポインタからのオフセット
+    BaseType(base_types::BaseType),
 }
 
 impl NodeKind {
@@ -69,7 +72,7 @@ impl NodeKind {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Ident {
-    name: String,
+    pub name: String,
 }
 
 impl Ident {
@@ -157,23 +160,23 @@ impl Node {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Lvar {
     next: Option<Rc<Lvar>>,
-    name: String,
+    dec: Declaration,
     pub offset: usize,
 }
 
 impl Lvar {
-    pub fn new(next: Lvar, name: impl Into<String>, offset: usize) -> Self {
+    pub fn new(next: Lvar, dec: Declaration, offset: usize) -> Self {
         Self {
             next: Some(Rc::new(next)),
-            name: name.into(),
+            dec,
             offset,
         }
     }
 
-    pub fn new_leaf(name: impl Into<String>, offset: usize) -> Self {
+    pub fn new_leaf(dec: Declaration, offset: usize) -> Self {
         Self {
             next: None,
-            name: name.into(),
+            dec,
             offset,
         }
     }
@@ -192,11 +195,11 @@ impl Context {
         }
     }
 
-    pub fn push_front(&mut self, name: impl Into<String>, offset: usize) {
+    pub fn push_front(&mut self, dec: Declaration, offset: usize) {
         self.count += 1;
         self.lvar = Some(Rc::new(Lvar {
             next: self.lvar.take(),
-            name: name.into(),
+            dec,
             offset: offset + 8,
         }))
     }
@@ -211,7 +214,7 @@ impl Context {
 
     fn _find_lvar(lvar: &Rc<Lvar>, name: impl Into<String>) -> Option<Rc<Lvar>> {
         let name = name.into();
-        if lvar.name == name {
+        if lvar.dec.ident.name == name {
             Some(lvar.clone())
         } else {
             if let Some(ref next) = lvar.next {
@@ -238,24 +241,27 @@ impl Program {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Function {
+    pub type_kind: TypeKind,
     pub name: String,
     pub lvars: Option<Rc<Lvar>>,
     pub var_num: usize, // lvar + param
-    pub params: Vec<Ident>,
+    pub params: Vec<Declaration>,
     pub param_num: usize,
     pub nodes: Vec<Node>,
 }
 
 impl Function {
     fn new(
+        type_kind: TypeKind,
         name: impl Into<String>,
         lvars: Option<Rc<Lvar>>,
         var_num: usize,
-        params: Vec<Ident>,
+        params: Vec<Declaration>,
         param_num: usize,
         nodes: Vec<Node>,
     ) -> Self {
         Self {
+            type_kind,
             name: name.into(),
             lvars,
             var_num,
@@ -263,6 +269,18 @@ impl Function {
             param_num,
             nodes,
         }
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+pub struct Declaration {
+    base_type: base_types::BaseType,
+    ident: Ident,
+}
+
+impl Declaration {
+    fn new(base_type: base_types::BaseType, ident: Ident) -> Self {
+        Self { base_type, ident }
     }
 }
 
@@ -275,8 +293,24 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
     Ok(program)
 }
 
-// function    = ident "(" params? ")" "{" stmt* "}"
+// basetype    = "int" "*"*
+pub fn base_type(iter: &mut TokenIter) -> Result<Node, Error> {
+    let type_kind = expect_type_kind(iter)?;
+    let mut deref_num = 0;
+    loop {
+        if consume(iter, Operator::Mul) {
+            deref_num += 1;
+        } else {
+            break;
+        }
+    }
+    let base_type = base_types::BaseType::new(type_kind, deref_num);
+    Ok(Node::new_leaf(BaseType(base_type)))
+}
+
+// function    = basetype ident "(" params? ")" "{" stmt* "}"
 pub fn function(iter: &mut TokenIter) -> Result<Function, Error> {
+    let btype = expect_base_type(iter)?;
     let ident = expect_ident(iter)?;
     expect(iter, Operator::LParen)?;
 
@@ -291,7 +325,7 @@ pub fn function(iter: &mut TokenIter) -> Result<Function, Error> {
     let mut lvars = Context::new();
     for fn_param in fn_params.clone() {
         lvars.push_front(
-            fn_param.name,
+            fn_param,
             lvars.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
         )
     }
@@ -300,6 +334,7 @@ pub fn function(iter: &mut TokenIter) -> Result<Function, Error> {
     loop {
         if consume_block(iter, Block::RParen) {
             return Ok(Function::new(
+                btype.kind,
                 ident.name,
                 lvars.lvar,
                 lvars.count,
@@ -312,11 +347,11 @@ pub fn function(iter: &mut TokenIter) -> Result<Function, Error> {
     }
 }
 
-// params      = ident ("," ident)*
-pub fn params(iter: &mut TokenIter) -> Result<Vec<Ident>, Error> {
-    let mut params = vec![expect_ident(iter)?];
+// params      = declaration ("," declaration)*
+pub fn params(iter: &mut TokenIter) -> Result<Vec<Declaration>, Error> {
+    let mut params = vec![expect_declaration(iter)?];
     while consume_comma(iter) {
-        params.push(expect_ident(iter)?);
+        params.push(expect_declaration(iter)?);
     }
     Ok(params)
 }
@@ -402,12 +437,29 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             _ => (),
         }
     }
+
+    if let Some(dec) = consume_declaration(iter) {
+        if let Some(_) = ctx.find_lvar(&dec.ident.name) {
+            // consume_declaration calls iter.next();
+            // so if the variable is not defined, the error position is not correct.
+            // ex
+            // a = 3;
+            //   ^ variable a is not defined
+            // to prevent this, subtract from iter.pos.bytes.
+            // but now i dont have good solution.
+            return Err(Error::re_declare(iter.s, dec.ident, iter.pos, None));
+        } else {
+            ctx.push_front(dec, ctx.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0));
+            expect_semi(iter)?;
+            return Ok(Node::new_leaf(Lvar(ctx.lvar.as_ref().unwrap().clone())));
+        }
+    }
     let node = expr(iter, ctx)?;
     expect_semi(iter)?;
     Ok(node)
 }
 
-// expr        = assig
+// expr        = assign
 pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     assign(iter, ctx)
 }
@@ -505,6 +557,15 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         return Ok(node);
     }
 
+    // if let Some(dec) = consume_declaration(iter) {
+    //     if let Some(_) = ctx.find_lvar(&dec.ident.name) {
+    //         return Err(Error::undefined(iter.s, dec.ident, iter.pos, None));
+    //     } else {
+    //         ctx.push_front(dec, ctx.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0));
+    //         return Ok(Node::new_leaf(Lvar(ctx.lvar.as_ref().unwrap().clone())));
+    //     }
+    // }
+
     if let Some(ident) = consume_ident(iter) {
         if consume(iter, Operator::LParen) {
             return Ok(Node::new_leaf(Func(ident.name, func_args(iter, ctx)?)));
@@ -512,11 +573,7 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         if let Some(lvar) = ctx.find_lvar(&ident.name) {
             return Ok(Node::new_leaf(Lvar(lvar)));
         } else {
-            ctx.push_front(
-                ident.name,
-                ctx.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0), // if ctx.lvar == None {return 0} else {return ctx.lvar.offset}
-            );
-            return Ok(Node::new_leaf(Lvar(ctx.lvar.as_ref().unwrap().clone())));
+            return Err(Error::undefined(iter.s, ident, iter.pos, None));
         }
     }
     return Ok(Node::new_num(expect_num(iter)?));
@@ -599,6 +656,41 @@ fn consume_comma(iter: &mut TokenIter) -> bool {
         }
     }
     false
+}
+
+fn consume_type_kind(iter: &mut TokenIter) -> Option<base_types::TypeKind> {
+    if let Some(x) = iter.peek() {
+        if let TokenKind::TypeKind(bt) = x.kind {
+            iter.next();
+            return Some(bt);
+        }
+    }
+    None
+}
+
+fn consume_base_type(iter: &mut TokenIter) -> Option<base_types::BaseType> {
+    if let Some(kind) = consume_type_kind(iter) {
+        let mut deref_num = 0;
+        loop {
+            if consume(iter, Operator::Mul) {
+                deref_num += 1;
+            } else {
+                break;
+            }
+        }
+        return Some(base_types::BaseType::new(kind, deref_num));
+    }
+    None
+    // Ok(base_types::BaseType::new(kind, deref_num))
+}
+
+fn consume_declaration(iter: &mut TokenIter) -> Option<Declaration> {
+    if let Some(btype) = consume_base_type(iter) {
+        if let Some(ident) = consume_ident(iter) {
+            return Some(Declaration::new(btype, ident));
+        }
+    }
+    None
 }
 
 fn _consume_token_kind(iter: &mut TokenIter, kind: TokenKind) -> Option<TokenKind> {
@@ -721,6 +813,46 @@ fn expect_block(iter: &mut TokenIter, block: Block) -> Result<(), Error> {
     Err(Error::eof(iter.s, iter.pos, TokenKind::Block(block), None))
 }
 
+fn expect_type_kind(iter: &mut TokenIter) -> Result<base_types::TypeKind, Error> {
+    if let Some(x) = iter.peek() {
+        if let TokenKind::TypeKind(bt) = x.kind {
+            iter.next();
+            return Ok(bt);
+        } else {
+            return Err(Error::unexpected_token(
+                iter.s,
+                x.clone(),
+                TokenKind::TypeKind(base_types::TypeKind::Int),
+            ));
+        }
+    }
+    Err(Error::eof(
+        iter.s,
+        iter.pos,
+        TokenKind::TypeKind(base_types::TypeKind::Int),
+        None,
+    ))
+}
+
+fn expect_base_type(iter: &mut TokenIter) -> Result<base_types::BaseType, Error> {
+    let kind = expect_type_kind(iter)?;
+    let mut deref_num = 0;
+    loop {
+        if consume(iter, Operator::Mul) {
+            deref_num += 1;
+        } else {
+            break;
+        }
+    }
+    Ok(base_types::BaseType::new(kind, deref_num))
+}
+
+fn expect_declaration(iter: &mut TokenIter) -> Result<Declaration, Error> {
+    let btype = expect_base_type(iter)?;
+    let ident = expect_ident(iter)?;
+    Ok(Declaration::new(btype, ident))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -728,6 +860,7 @@ mod tests {
     #[test]
     fn test_expr() {
         use crate::token;
+        use base_types::BaseType;
         use NodeKind::*;
         let tests = [
             ("1==10", make_test_node(Equal, 1, 10)),
@@ -747,18 +880,6 @@ mod tests {
                 Node::new(Mul, Node::new_num(2), make_test_node(Add, 3, 4)),
             ),
             ("42", Node::new_num(42)),
-            (
-                "a+1=5",
-                Node::new(
-                    Assign,
-                    Node::new(
-                        Add,
-                        Node::new_leaf(Lvar(Rc::new(super::Lvar::new_leaf("a", 8)))),
-                        Node::new_num(1),
-                    ),
-                    Node::new_num(5),
-                ),
-            ),
         ];
 
         for (s, expected) in &tests {
@@ -773,15 +894,13 @@ mod tests {
     fn test_stmt() {
         use crate::token;
 
-        let lvar = Lvar::new_leaf("foo", 8);
-        let lhs_f_node = Node::new_leaf(Lvar(Rc::new(lvar.clone())));
-        let f_node = Node::new(Assign, lhs_f_node, Node::new_num(10));
-        let lhs_s_node = Node::new_leaf(Lvar(Rc::new(Lvar::new(lvar, "bar", 16))));
-        let s_node = Node::new(Assign, lhs_s_node, Node::new_num(20));
-        let tests = [
-            ("a=10;", vec![make_assign_node('a', 10, 8)]),
-            ("foo=10;bar=20;", vec![f_node, s_node]),
-        ];
+        let tests = [(
+            "int foo;",
+            vec![Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf(
+                make_int_dec("foo"),
+                8,
+            ))))],
+        )];
 
         for (s, expected) in &tests {
             let mut iter = token::tokenize(s);
@@ -800,29 +919,28 @@ mod tests {
         let expected = vec![
             Node::new_num(1),
             Node::new_num(1),
-            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("hoge", 8)))),
+            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf(make_int_dec("hoge"), 8)))),
             Node::new(Sub, Node::new_num(0), Node::new_num(1)),
-            // Node::new_unary(Sub, Node::new_num(1)),
             Node::new(
                 Sub,
                 Node::new_num(0),
-                Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("hoge", 8)))),
+                Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf(make_int_dec("hoge"), 8)))),
             ),
             Node::new_unary(Deref, Node::new_num(1)),
             Node::new_unary(Addr, Node::new_num(1)),
             Node::new_unary(
                 Deref,
-                Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("hoge", 8)))),
+                Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf(make_int_dec("hoge"), 8)))),
             ),
             Node::new_unary(
                 Addr,
-                Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("hoge", 8)))),
+                Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf(make_int_dec("hoge"), 8)))),
             ),
             Node::new_unary(
                 Deref,
                 Node::new_unary(
                     Addr,
-                    Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("hoge", 8)))),
+                    Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf(make_int_dec("hoge"), 8)))),
                 ),
             ),
         ];
@@ -830,7 +948,9 @@ mod tests {
         let input = "1 +1 +hoge -1 -hoge *1 &1 *hoge &hoge *&hoge";
         let iter = &mut token::tokenize(input);
         for i in expected {
-            assert_eq!(i, unary(iter, &mut Context::new()).unwrap());
+            let ctx = &mut Context::new();
+            ctx.lvar = Some(Rc::new(make_lvar("hoge", 8)));
+            assert_eq!(i, unary(iter, ctx).unwrap());
         }
     }
 
@@ -882,31 +1002,33 @@ mod tests {
         let init = make_assign_node("i", 0, 8);
         let cond = Node::new(
             Lesser,
-            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("i", 8)))),
+            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf(make_int_dec("i"), 8)))),
             Node::new_num(10),
         );
         let tmp_inc = Node::new(
             Add,
-            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("i", 8)))),
+            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf(make_int_dec("i"), 8)))),
             Node::new_num(1),
         );
         let inc = Node::new(
             Assign,
-            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("i", 8)))),
+            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf(make_int_dec("i"), 8)))),
             tmp_inc,
         );
 
         let ret = Node::new(
             Add,
-            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf("i", 8)))),
+            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf(make_int_dec("i"), 8)))),
             Node::new_num(2),
         );
         let then = Node::new_unary(Return, ret);
 
         let expected = make_for_node(Some(init), Some(cond), Some(inc), then);
 
-        let input = "for(i=0;i<10;i=i+1)return i+2;";
-        let actual = stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        let input = "for( i=0;i<10;i=i+1)return i+2;";
+        let ctx = &mut Context::new();
+        ctx.lvar = Some(Rc::new(make_lvar("i", 8)));
+        let actual = stmt(&mut token::tokenize(input), ctx).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -914,10 +1036,11 @@ mod tests {
     #[test]
     fn test_block() {
         use crate::token;
-        let input = "{1; 2; hoge=4;}";
+        let input = "{1; 2; int hoge; hoge=4;}";
         let expected = vec![
             Node::new_num(1),
             Node::new_num(2),
+            Node::new_leaf(Lvar(Rc::new(Lvar::new_leaf(make_int_dec("hoge"), 8)))),
             make_assign_node("hoge", 4, 8),
         ];
         let expected = vec![Node::new_none(Block(expected))];
@@ -954,27 +1077,39 @@ mod tests {
     #[test]
     fn test_func_def() {
         use crate::token;
+        let expected_type_kind = TypeKind::Int;
         let expected_fn_name = "main";
         let expected_nodes = vec![Node::new_unary(Return, Node::new_num(1))];
-        let expected = Function::new(expected_fn_name, None, 0, Vec::new(), 0, expected_nodes);
+        let expected = Function::new(
+            expected_type_kind,
+            expected_fn_name,
+            None,
+            0,
+            Vec::new(),
+            0,
+            expected_nodes,
+        );
 
-        let input = "main(){return 1;}";
+        let input = "int main(){return 1;}";
         let iter = &mut token::tokenize(input);
         let actual = function(iter).unwrap();
 
         assert_eq!(expected, actual);
 
+        let expected_type_kind = TypeKind::Int;
         let expected_fn_name = "main";
-        let lvar1 = Lvar::new_leaf("foo", 8);
-        let lvar2 = Lvar::new(lvar1.clone(), "bar", 16);
+        let lvar1 = Lvar::new_leaf(make_int_dec("foo"), 8);
+        let lvar2 = Lvar::new(lvar1.clone(), make_int_dec("bar"), 16);
         let expected_lvar = Rc::new(lvar2.clone());
-        let node1 = make_assign_node("foo", 1, 8);
-        let node2 = Node::new(
+        let node1 = Node::new_leaf(Lvar(Rc::new(lvar1.clone())));
+        let node2 = make_assign_node("foo", 1, 8);
+        let node3 = Node::new_leaf(Lvar(Rc::new(lvar2.clone())));
+        let node4 = Node::new(
             Assign,
             Node::new_leaf(Lvar(Rc::new(lvar2.clone()))),
             Node::new_num(2),
         );
-        let node3 = Node::new_unary(
+        let node5 = Node::new_unary(
             Return,
             Node::new(
                 Add,
@@ -982,8 +1117,9 @@ mod tests {
                 Node::new_leaf(Lvar(Rc::new(lvar2))),
             ),
         );
-        let expected_nodes = vec![node1, node2, node3];
+        let expected_nodes = vec![node1, node2, node3, node4, node5];
         let expected = Function::new(
+            expected_type_kind,
             expected_fn_name,
             Some(expected_lvar),
             2,
@@ -992,7 +1128,7 @@ mod tests {
             expected_nodes,
         );
 
-        let input = "main(){foo = 1; bar = 2; return foo+bar;}";
+        let input = "int main(){int foo;foo = 1; int bar;bar = 2; return foo+bar;}";
         let iter = &mut token::tokenize(input);
         let actual = function(iter).unwrap();
 
@@ -1003,16 +1139,20 @@ mod tests {
     fn test_param() {
         use crate::token;
 
-        let expected = vec![Ident::new("hoge")];
+        let expected = vec![make_int_dec("hoge")];
 
-        let input = "hoge";
+        let input = "int hoge";
         let iter = &mut token::tokenize(input);
         let actual = params(iter).unwrap();
 
         assert_eq!(expected, actual);
 
-        let expected = vec![Ident::new("foo"), Ident::new("bar"), Ident::new("hoge")];
-        let input = "foo,bar,hoge";
+        let expected = vec![
+            make_int_dec("foo"),
+            make_int_dec("bar"),
+            make_int_dec("hoge"),
+        ];
+        let input = "int foo,int bar,int hoge";
         let iter = &mut token::tokenize(input);
         let actual = params(iter).unwrap();
 
@@ -1023,21 +1163,32 @@ mod tests {
     fn test_fn_with_args() {
         use crate::token;
 
+        let expected_type_kind = TypeKind::Int;
         let expected_fn_name = "main";
         let expected_nodes = vec![Node::new_unary(Return, Node::new_num(0))];
-        let expected = Function::new(expected_fn_name, None, 0, Vec::new(), 0, expected_nodes);
+        let expected = Function::new(
+            expected_type_kind,
+            expected_fn_name,
+            None,
+            0,
+            Vec::new(),
+            0,
+            expected_nodes,
+        );
 
-        let input = "main(){return 0;}";
+        let input = "int main(){return 0;}";
         let iter = &mut token::tokenize(input);
         let actual = function(iter).unwrap();
 
         assert_eq!(expected, actual);
 
+        let expected_type_kind = TypeKind::Int;
         let expected_fn_name = "main";
         let expected_nodes = vec![Node::new_unary(Return, Node::new_num(0))];
-        let expected_param = vec![Ident::new("foo")];
-        let expected_lvar = Lvar::new_leaf("foo", 8);
+        let expected_param = vec![make_int_dec("foo")];
+        let expected_lvar = Lvar::new_leaf(make_int_dec("foo"), 8);
         let expected = Function::new(
+            expected_type_kind,
             expected_fn_name,
             Some(Rc::new(expected_lvar)),
             1,
@@ -1046,26 +1197,36 @@ mod tests {
             expected_nodes,
         );
 
-        let input = "main(foo){return 0;}";
+        let input = "int main(int foo){return 0;}";
         let iter = &mut token::tokenize(input);
         let actual = function(iter).unwrap();
 
         assert_eq!(expected, actual);
 
+        let expected_type_kind = TypeKind::Int;
         let expected_fn_name = "main";
         let expected_nodes = vec![Node::new_unary(Return, Node::new_num(0))];
         let expected_param = vec![
-            Ident::new("foo"),
-            Ident::new("bar"),
-            Ident::new("hoge"),
-            Ident::new("hey"),
+            make_int_dec("foo"),
+            make_int_dec("bar"),
+            make_int_dec("hoge"),
+            make_int_dec("hey"),
         ];
         let expected_lvar = Lvar::new(
-            Lvar::new(Lvar::new(Lvar::new_leaf("foo", 8), "bar", 16), "hoge", 24),
-            "hey",
+            Lvar::new(
+                Lvar::new(
+                    Lvar::new_leaf(make_int_dec("foo"), 8),
+                    make_int_dec("bar"),
+                    16,
+                ),
+                make_int_dec("hoge"),
+                24,
+            ),
+            make_int_dec("hey"),
             32,
         );
         let expected = Function::new(
+            expected_type_kind,
             expected_fn_name,
             Some(Rc::new(expected_lvar)),
             4,
@@ -1074,11 +1235,30 @@ mod tests {
             expected_nodes,
         );
 
-        let input = "main(foo,bar,hoge,hey){return 0;}";
+        let input = "int main(int foo,int bar,int hoge,int hey){return 0;}";
         let iter = &mut token::tokenize(input);
         let actual = function(iter).unwrap();
 
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_primary() {
+        use crate::token;
+        let tests = [
+            ("1", Node::new_num(1)),
+            ("foo()", make_fn_node("foo", vec![])),
+            ("foo(1)", make_fn_node("foo", vec![Node::new_num(1)])),
+            (
+                "foo(1,2)",
+                make_fn_node("foo", vec![Node::new_num(1), Node::new_num(2)]),
+            ),
+        ];
+
+        for (input, expected) in &tests {
+            let iter = &mut token::tokenize(input);
+            assert_eq!(expected, &primary(iter, &mut Context::new()).unwrap());
+        }
     }
 
     fn make_test_node(kind: NodeKind, lhs_num: u64, rhs_num: u64) -> Node {
@@ -1088,7 +1268,7 @@ mod tests {
     fn make_assign_node(lhs: impl Into<String>, rhs: u64, offset: usize) -> Node {
         let mut node = Node::new_none(Assign);
         node.lhs = Some(Box::new(Node::new_leaf(Lvar(Rc::new(
-            super::Lvar::new_leaf(lhs.into(), offset),
+            super::Lvar::new_leaf(make_int_dec(lhs.into()), offset),
         )))));
         node.rhs = Some(Box::new(Node::new_num(rhs)));
         node
@@ -1130,5 +1310,22 @@ mod tests {
 
     fn make_fn_node(name: impl Into<String>, args: Vec<Node>) -> Node {
         Node::new_none(Func(name.into(), args))
+    }
+
+    fn make_int_dec(name: impl Into<String>) -> Declaration {
+        Declaration::new(
+            base_types::BaseType::new(TypeKind::Int, 0),
+            Ident::new(name.into()),
+        )
+    }
+
+    fn make_lvar(name: impl Into<String>, offset: usize) -> Lvar {
+        Lvar::new_leaf(
+            Declaration::new(
+                base_types::BaseType::new(TypeKind::Int, 0),
+                Ident::new(name),
+            ),
+            offset,
+        )
     }
 }

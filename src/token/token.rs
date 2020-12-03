@@ -1,4 +1,5 @@
 use super::error::{Error, ErrorKind};
+use crate::base_types::TypeKind;
 use std::ops::{Add, AddAssign};
 use std::str::FromStr;
 
@@ -9,6 +10,7 @@ pub enum TokenKind {
     KeyWord(KeyWord),
     Block(Block),
     Num(u64),
+    TypeKind(TypeKind),
     SemiColon,
     Comma,
     EOF,
@@ -23,6 +25,7 @@ impl TokenKind {
             KeyWord(keyword) => keyword.as_str().to_string(),
             Num(x) => x.to_string(),
             Block(x) => x.as_str().to_string(),
+            TypeKind(x) => x.as_str().to_string(),
             SemiColon => ";".to_string(),
             Comma => ",".to_string(),
             EOF => "EOF".to_string(),
@@ -318,6 +321,10 @@ impl<'a> TokenIter<'a> {
             return Some(tk);
         }
 
+        if let Some((tk, _)) = self.is_base_type(s) {
+            return Some(tk);
+        }
+
         // これ最後の方がいい
         if let Some((tk, _)) = self.is_ident(s) {
             return Some(tk);
@@ -341,14 +348,7 @@ impl<'a> TokenIter<'a> {
         if let Ok(keyword) = KeyWord::from_starts(s) {
             let len = keyword.as_str().len();
             if !is_alnum(s.chars().nth(len).unwrap_or_else(|| '1')) {
-                use KeyWord::*;
-                let kind = match keyword {
-                    Return => TokenKind::KeyWord(Return),
-                    If => TokenKind::KeyWord(If),
-                    Else => TokenKind::KeyWord(Else),
-                    While => TokenKind::KeyWord(While),
-                    For => TokenKind::KeyWord(For),
-                };
+                let kind = TokenKind::KeyWord(keyword);
                 return Some((Token::new(kind, self.pos), TokenPos::new_bytes(len)));
             }
         }
@@ -403,6 +403,20 @@ impl<'a> TokenIter<'a> {
         let ss = s.chars().nth(0).unwrap();
         if ss.to_string() == Comma.as_string() {
             return Some((Token::new(Comma, self.pos), TokenPos::new_bytes(1)));
+        }
+        None
+    }
+
+    fn is_base_type(&self, s: &str) -> Option<(Token, TokenPos)> {
+        if let Ok(base_type) = TypeKind::from_starts(s) {
+            let len = base_type.as_str().len();
+            // specify '1' in unwrap_of_else because !is_alnum('1') is true at anytime
+            if !is_alnum(s.chars().nth(len).unwrap_or_else(|| '1')) {
+                return Some((
+                    Token::new(TokenKind::TypeKind(base_type), self.pos),
+                    TokenPos::new_bytes(len),
+                ));
+            }
         }
         None
     }
@@ -462,6 +476,11 @@ impl<'a> Iterator for TokenIter<'a> {
         }
 
         if let Some((tk, pos)) = self.is_comma(s) {
+            self.pos += pos;
+            return Some(tk);
+        }
+
+        if let Some((tk, pos)) = self.is_base_type(s) {
             self.pos += pos;
             return Some(tk);
         }
@@ -584,7 +603,7 @@ mod tests {
         }
         assert_eq!(None, iter.next());
 
-        let input = "{ { } ,hoge,";
+        let input = "{ { } ,hoge, int int1";
         let expected = vec![
             TokenKind::Block(Block::LParen),
             TokenKind::Block(Block::LParen),
@@ -592,6 +611,8 @@ mod tests {
             TokenKind::Comma,
             TokenKind::Ident(Ident::new("hoge")),
             TokenKind::Comma,
+            TokenKind::TypeKind(TypeKind::Int),
+            TokenKind::Ident(Ident::new("int1")),
         ];
         let mut iter = tokenize(input);
         for i in expected {
