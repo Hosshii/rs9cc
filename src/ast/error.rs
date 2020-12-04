@@ -78,7 +78,7 @@ impl Error {
     }
 }
 
-impl<'a> fmt::Display for Error {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
             UnexpectedToken { expected, actual } => {
