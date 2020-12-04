@@ -1,5 +1,5 @@
 use self::ErrorKind::*;
-use super::ast::Ident;
+use super::Ident;
 use crate::token::{Token, TokenKind, TokenPos};
 use std::fmt;
 
