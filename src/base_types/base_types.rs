@@ -1,26 +1,27 @@
 use self::TypeKind::*;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct BaseType {
     pub kind: TypeKind,
-    pub deref_num: usize,
 }
 
 impl BaseType {
-    pub fn new(kind: TypeKind, deref_num: usize) -> Self {
-        Self { kind, deref_num }
+    pub fn new(kind: TypeKind) -> Self {
+        Self { kind }
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum TypeKind {
     Int,
+    Ptr(Box<BaseType>),
 }
 
 impl TypeKind {
     pub fn as_str(&self) -> &'static str {
         match self {
             Int => "int",
+            Ptr(_) => "Ptr",
         }
     }
 
