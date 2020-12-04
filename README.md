@@ -59,11 +59,11 @@ $ RS9CC_ON_WORKFLOW=1 ./bin/test.sh
 - return statement
 - control statement(`if`, `else`, `for`, `while`)
 - block statement(`{...}`)
+- function call
+- function definition
 
 
 ## todo
-- function call
-- function definition
 - integer
 - pointer and String literal
 - etc...
