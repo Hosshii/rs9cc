@@ -144,4 +144,11 @@ assert 1 'int main(){int *p; alloc4(&p,1,2,4,8); int *q; q = p;return *q;}'
 assert 4 'int main(){int *p; alloc4(&p,1,2,4,8); int *q; q = p+2;return *q;}'
 assert 8 'int main(){int *p; alloc4(&p,1,2,4,8); int *q; q = p+3;return *q;}'
 
+assert 4 'int main(){return sizeof(1);}'
+assert 8 'int main(){int *p; return sizeof(p);}'
+assert 4 'int main() {return sizeof (1+2);} '
+assert 8 'int main(){int *p; int x ; x = 8; p = &x; return sizeof (p +2);}'
+assert 4 'int echo(int n){return n;} int main(){return sizeof(echo(1)); }'
+assert 4 'int main(){int *y; return sizeof *y;}'
+
 echo OK

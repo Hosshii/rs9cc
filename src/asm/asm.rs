@@ -238,14 +238,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             if let Some(ref lhs) = node.lhs {
                 if let NodeKind::Lvar(ref lvar) = lhs.kind {
                     if let TypeKind::Ptr(ref ptr) = lvar.dec.base_type.kind {
-                        match ptr.kind {
-                            TypeKind::Int => {
-                                println!("    imul rdi, 4");
-                            }
-                            TypeKind::Ptr(_) => {
-                                println!("    imul rdi, 8");
-                            }
-                        }
+                        println!("    imul rdi, {}", ptr.kind.size());
                     }
                 }
             }
@@ -301,14 +294,6 @@ fn gen_lval(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         }
         _ => Err(Error::not_lvar()),
     }
-    // if let NodeKind::Lvar(x) = &node.kind {
-    //     println!("    mov rax, rbp");
-    //     println!("    sub rax, {}", x.offset);
-    //     println!("    push rax");
-    //     Ok(())
-    // } else {
-    //     Err(Error::not_lvar())
-    // }
 }
 
 fn load() {

@@ -50,6 +50,7 @@ pub enum Operator {
     RParen,
     // Asterisk,
     Ampersand,
+    Sizeof,
 }
 
 impl Operator {
@@ -71,12 +72,13 @@ impl Operator {
             RParen => ")",
             // Asterisk => "*",
             Ampersand => "&",
+            Sizeof => "sizeof",
         }
     }
 
     /// sの最初がOperatorに一致していたらOperatorを返す
     pub fn from_starts(s: &str) -> Result<Operator, ()> {
-        let op_lens = vec![2, 1];
+        let op_lens = vec![6, 2, 1];
         for idx in op_lens {
             let x = s.chars().take(idx).collect::<String>();
             if let Ok(x) = Self::from_str(&s[..x.len()]) {
@@ -106,6 +108,7 @@ impl FromStr for Operator {
             x if x == LParen.as_str() => Ok(LParen),
             x if x == RParen.as_str() => Ok(RParen),
             x if x == Ampersand.as_str() => Ok(Ampersand),
+            x if x == Sizeof.as_str() => Ok(Sizeof),
             _ => Err(()),
         }
     }
@@ -552,10 +555,10 @@ mod tests {
         use self::KeyWord::*;
         use self::Operator::*;
         use self::TokenKind::{KeyWord, Num, Reserved, SemiColon};
-        let input = "== != = < <= > >= + - * / ( ) &";
+        let input = "== != = < <= > >= + - * / ( ) & sizeof";
         let expected = vec![
             Equal, Neq, Assign, Lesser, Leq, Greater, Geq, Plus, Minus, Mul, Div, LParen, RParen,
-            Ampersand,
+            Ampersand, Sizeof,
         ];
         let mut iter = tokenize(input);
         for i in expected {
@@ -650,6 +653,7 @@ mod tests {
             (")", Ok(RParen)),
             ("))", Ok(RParen)),
             ("&", Ok(Ampersand)),
+            ("sizeof", Ok(Sizeof)),
             ("foo", Err(())),
         ];
         for &(s, ref expected) in &tests {

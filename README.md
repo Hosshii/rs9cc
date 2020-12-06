@@ -1,6 +1,6 @@
 # rs9cc
 
-mini C compiler written in Rust. 
+mini C compiler written in Rust.
 
 **Note**: This project is work in progress.
 
@@ -23,8 +23,11 @@ equality    = relational ("==" relational | "!=" relational)*
 relational  = add ("<" add | "<=" | ">" add | ">=" add)*
 add         = mul ("+" mul | "-" mul)*
 mul         = unary ("*" unary | "/" unary)*
-unary       = ("+" | "-")? primary | "*" unary | "&" unary
-primary     = num | ident func-args? | "(" expr ")" 
+unary       = ("+" | "-")? primary
+            | "*" unary
+            | "&" unary
+            | "sizeof" unary
+primary     = num | ident func-args? | "(" expr ")"
 func-args   = "(" (assign ("," assign)*)? ")"
 declaration = basetype ident
 ```

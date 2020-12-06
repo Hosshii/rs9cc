@@ -257,7 +257,10 @@ pub fn mul(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     }
 }
 
-// unary       = ("+" | "-")? primary | "*" unary | "&" unary
+// unary       = ("+" | "-")? primary
+//             | "*" unary
+//             | "&" unary
+//             | "sizeof" unary
 pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::Plus) {
         return primary(iter, ctx);
@@ -271,6 +274,20 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         return Ok(Node::new_unary(NodeKind::Deref, unary(iter, ctx)?));
     } else if consume(iter, Operator::Ampersand) {
         return Ok(Node::new_unary(NodeKind::Addr, unary(iter, ctx)?));
+    } else if consume(iter, Operator::Sizeof) {
+        let node = unary(iter, ctx)?;
+        match node.kind {
+            NodeKind::Num(_) => return Ok(Node::new_num(4)),
+            NodeKind::Lvar(x) => return Ok(Node::new_num(x.dec.base_type.kind.size() as u64)),
+            NodeKind::Func(_, _) => return Ok(Node::new_num(4)),
+            _ => match node.lhs.unwrap().kind {
+                NodeKind::Num(_) => {
+                    return Ok(Node::new_num(4));
+                }
+                NodeKind::Lvar(x) => return Ok(Node::new_num(x.dec.base_type.kind.size() as u64)),
+                _ => unreachable!(),
+            },
+        }
     }
     return primary(iter, ctx);
 }
@@ -284,6 +301,8 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     }
 
     if let Some(ident) = consume_ident(iter) {
+        // todo
+        // 関数もローカル変数と同じように定義済みかどうか判定するようにした方がいい
         if consume(iter, Operator::LParen) {
             return Ok(Node::new_leaf(NodeKind::Func(
                 ident.name,
@@ -424,12 +443,27 @@ mod tests {
             ),
         ];
 
-        let input = "1 +1 +hoge -1 -hoge *1 &1 *hoge &hoge *&hoge";
+        let input = "1 +1 +hoge -1 -hoge *1 &1 *hoge &hoge *&hoge ";
         let iter = &mut token::tokenize(input);
         for i in expected {
             let ctx = &mut Context::new();
-            ctx.lvar = Some(Rc::new(make_lvar("hoge", 8)));
+            ctx.lvar = Some(Rc::new(make_int_lvar("hoge", 8)));
             assert_eq!(i, unary(iter, ctx).unwrap());
+        }
+
+        let expected = vec![
+            (Node::new_num(4), make_int_lvar("hoge", 8)),
+            (Node::new_num(4), make_int_lvar("hoge", 8)),
+            (Node::new_num(8), make_ptr_lvar("hoge", 8)),
+            (Node::new_num(4), make_ptr_lvar("hoge", 8)),
+        ];
+
+        let input = "sizeof 1 sizeof (hoge) sizeof (hoge) sizeof(*hoge)";
+        let iter = &mut token::tokenize(input);
+        for i in expected {
+            let ctx = &mut Context::new();
+            ctx.lvar = Some(Rc::new(i.1));
+            assert_eq!(i.0, unary(iter, ctx).unwrap());
         }
     }
 
@@ -521,7 +555,7 @@ mod tests {
 
         let input = "for( i=0;i<10;i=i+1)return i+2;";
         let ctx = &mut Context::new();
-        ctx.lvar = Some(Rc::new(make_lvar("i", 8)));
+        ctx.lvar = Some(Rc::new(make_int_lvar("i", 8)));
         let actual = stmt(&mut token::tokenize(input), ctx).unwrap();
 
         assert_eq!(expected, actual);
@@ -813,10 +847,22 @@ mod tests {
         Declaration::new(BaseType::new(TypeKind::Int), Ident::new(name.into()))
     }
 
-    fn make_lvar(name: impl Into<String>, offset: usize) -> Lvar {
+    fn make_lvar(name: impl Into<String>, offset: usize, kind: TypeKind) -> Lvar {
         Lvar::new_leaf(
-            Declaration::new(BaseType::new(TypeKind::Int), Ident::new(name)),
+            Declaration::new(BaseType::new(kind), Ident::new(name)),
             offset,
+        )
+    }
+
+    fn make_int_lvar(name: impl Into<String>, offset: usize) -> Lvar {
+        make_lvar(name, offset, TypeKind::Int)
+    }
+
+    fn make_ptr_lvar(name: impl Into<String>, offset: usize) -> Lvar {
+        make_lvar(
+            name,
+            offset,
+            TypeKind::Ptr(Box::new(BaseType::new(TypeKind::Int))),
         )
     }
 }

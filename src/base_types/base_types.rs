@@ -31,4 +31,11 @@ impl TypeKind {
             _ => Err(()),
         }
     }
+
+    pub fn size(&self) -> usize {
+        match self {
+            Int => 4,
+            Ptr(_) => 8,
+        }
+    }
 }
