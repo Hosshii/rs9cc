@@ -1,5 +1,7 @@
 #!/bin/bash
 cat <<EOF | gcc -xc -c -o tmp2.o -
+#include <stdlib.h>
+#include <stdio.h>
 int ret3() { return 3; }
 int ret5() { return 5; }
 
@@ -12,6 +14,11 @@ int add3(int a,int b, int c){
 
 int add6(int a, int b, int c, int d, int e, int f) {
   return a+b+c+d+e+f;
+}
+
+void alloc4(int **p, int x,int y,int z , int a) {
+    *p = malloc(sizeof(int)*4);
+    (*p)[0] = x; (*p)[1] = y; (*p)[2] = z; (*p)[3] = a;
 }
 EOF
 
@@ -127,5 +134,14 @@ assert 7 'int main() { int x; int y; x=3; y=5; *(&y+8)=7; return x; }'
 assert 1 'int foo(int x) {int intx; return x;} int main() { foo(1);}'
 assert 10 'int main(){int **a; int x; x = 10; a = &x; return *a; }'
 # assert 127 'int foo(int x){int x; return x;}'  this cause already defined error
+
+assert 3 'int main(){int x; int *y; y = &x; *y = 3; return x;}'
+assert 3 'int main() {int x; int *y; int z; x = 3; y = &x; z = &y; return **z;}'
+assert 11 'int main(){int x; int *y; x = 1; y = &x; return *y + 10;}'
+
+assert 1 'int main(){int *p; alloc4(&p,1,2,4,8); return *p;}'
+assert 1 'int main(){int *p; alloc4(&p,1,2,4,8); int *q; q = p;return *q;}'
+assert 4 'int main(){int *p; alloc4(&p,1,2,4,8); int *q; q = p+2;return *q;}'
+assert 8 'int main(){int *p; alloc4(&p,1,2,4,8); int *q; q = p+3;return *q;}'
 
 echo OK

@@ -649,6 +649,7 @@ mod tests {
             ("(=", Ok(LParen)),
             (")", Ok(RParen)),
             ("))", Ok(RParen)),
+            ("&", Ok(Ampersand)),
             ("foo", Err(())),
         ];
         for &(s, ref expected) in &tests {

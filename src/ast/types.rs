@@ -160,7 +160,7 @@ impl Node {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Lvar {
     next: Option<Rc<Lvar>>,
-    dec: Declaration,
+    pub dec: Declaration,
     pub offset: usize,
 }
 

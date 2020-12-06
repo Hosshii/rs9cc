@@ -283,15 +283,6 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         return Ok(node);
     }
 
-    // if let Some(dec) = consume_declaration(iter) {
-    //     if let Some(_) = ctx.find_lvar(&dec.ident.name) {
-    //         return Err(Error::undefined(iter.s, dec.ident, iter.pos, None));
-    //     } else {
-    //         ctx.push_front(dec, ctx.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0));
-    //         return Ok(Node::new_leaf(Lvar(ctx.lvar.as_ref().unwrap().clone())));
-    //     }
-    // }
-
     if let Some(ident) = consume_ident(iter) {
         if consume(iter, Operator::LParen) {
             return Ok(Node::new_leaf(NodeKind::Func(

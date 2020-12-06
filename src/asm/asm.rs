@@ -1,5 +1,6 @@
 use super::error::Error;
 use crate::ast::{Node, NodeKind, Program};
+use crate::base_types::TypeKind;
 
 // jump の連番とかを格納しておく
 pub struct Context {
@@ -233,7 +234,23 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     println!("    pop rax");
 
     match node.kind {
-        NodeKind::Add => println!("    add rax, rdi"),
+        NodeKind::Add => {
+            if let Some(ref lhs) = node.lhs {
+                if let NodeKind::Lvar(ref lvar) = lhs.kind {
+                    if let TypeKind::Ptr(ref ptr) = lvar.dec.base_type.kind {
+                        match ptr.kind {
+                            TypeKind::Int => {
+                                println!("    imul rdi, 4");
+                            }
+                            TypeKind::Ptr(_) => {
+                                println!("    imul rdi, 8");
+                            }
+                        }
+                    }
+                }
+            }
+            println!("    add rax, rdi");
+        }
         NodeKind::Sub => println!("    sub rax, rdi"),
         NodeKind::Mul => println!("    imul rax, rdi"),
         NodeKind::Div => {
