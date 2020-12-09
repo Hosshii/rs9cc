@@ -34,6 +34,36 @@ pub enum NodeKind {
 }
 
 impl NodeKind {
+    // todo
+    // String is ok?
+    pub fn as_str(&self) -> String {
+        match self {
+            Assign => "=".to_string(),
+            Equal => "==".to_string(),
+            Neq => "!=".to_string(),
+            Lesser => "<".to_string(),
+            Leq => "<=".to_string(),
+            Greater => ">".to_string(),
+            Geq => ">=".to_string(),
+            Add => "+".to_string(),
+            Sub => "-".to_string(),
+            Mul => "*".to_string(),
+            Div => "/".to_string(),
+            Return => "return".to_string(),
+            If => "if".to_string(),
+            Else => "else".to_string(),
+            While => "while".to_string(),
+            For => "for".to_string(),
+            Addr => "&".to_string(),
+            Deref => "*".to_string(),
+            Block(_) => "block".to_string(),
+            Func(name, _) => format!("function: {}", name), // (func_name,args)
+            Num(num) => format!("{}", num),
+            // Ident(Ident),
+            Lvar(lvar) => format!("{:?}", lvar), // usize はベースポインタからのオフセット
+            BaseType(b_type) => format!("{}", b_type.kind),
+        }
+    }
     /// convert NodeKind to token::Operator
     pub fn as_op(&self) -> Result<Operator, ()> {
         match self {

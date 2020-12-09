@@ -1,7 +1,8 @@
 use self::ErrorKind::*;
-use super::Ident;
+use super::{Ident, Lvar};
 use crate::token::{Token, TokenKind, TokenPos};
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum ErrorKind {
@@ -11,6 +12,8 @@ pub enum ErrorKind {
     },
     Undefined(Ident),
     ReDeclare(Ident),
+    InvalidVariableDereference(Lvar, usize),
+    InvalidValueDereference(String),
     EOF(TokenKind),
 }
 
@@ -76,6 +79,33 @@ impl Error {
             msg,
         }
     }
+
+    pub fn invalid_variable_dereference(
+        input: impl Into<String>,
+        pos: TokenPos,
+        lvar: Lvar,
+        actual_deref_count: usize,
+    ) -> Error {
+        Error {
+            kind: InvalidVariableDereference(lvar, actual_deref_count),
+            pos,
+            input: input.into(),
+            msg: None,
+        }
+    }
+
+    pub fn invalid_value_dereference(
+        input: impl Into<String>,
+        pos: TokenPos,
+        type_name: impl Into<String>,
+    ) -> Error {
+        Error {
+            kind: InvalidValueDereference(type_name.into()),
+            pos,
+            input: input.into(),
+            msg: None,
+        }
+    }
 }
 
 impl fmt::Display for Error {
@@ -89,18 +119,24 @@ impl fmt::Display for Error {
             }
             Undefined(ident) => undefined_err_format(&self, ident, f),
             ReDeclare(ident) => re_declare_err_format(&self, ident, f),
+            InvalidVariableDereference(lvar, actual_deref_count) => {
+                invalid_variable_dereference_err_format(&self, lvar, *actual_deref_count, f)
+            }
+            InvalidValueDereference(type_name) => {
+                invalid_value_dereference_err_format(&self, type_name, f)
+            }
         }
     }
 }
 
-fn err_format(err: &Error, msg: String, f: &mut fmt::Formatter) -> fmt::Result {
+fn err_format(err: &Error, msg: impl Into<String>, f: &mut fmt::Formatter) -> fmt::Result {
     writeln!(f, "{}", err.input)?;
     let result = writeln!(
         f,
         "{number:>width$} {err_msg}",
         number = '^',
         width = err.pos.bytes + 1,
-        err_msg = msg,
+        err_msg = msg.into(),
     );
     if let Some(x) = &err.msg {
         writeln!(f, "{}", x)
@@ -137,4 +173,33 @@ fn re_declare_err_format(err: &Error, ident: &Ident, f: &mut fmt::Formatter) -> 
         format!("variable {} is already defined", ident.name),
         f,
     )
+}
+
+fn invalid_variable_dereference_err_format(
+    err: &Error,
+    lvar: &Lvar,
+    count: usize,
+    f: &mut fmt::Formatter,
+) -> fmt::Result {
+    let msg = format!(
+        "invalid pointer dereference
+define: {}
+actual: {:*<width$}
+   ",
+        lvar.dec.base_type.kind,
+        width = count
+    );
+    err_format(err, msg, f)
+}
+
+fn invalid_value_dereference_err_format(
+    err: &Error,
+    type_name: impl Into<String>,
+    f: &mut fmt::Formatter,
+) -> fmt::Result {
+    let msg = format!(
+        "cannot take the address of an rvalue of type {}",
+        type_name.into()
+    );
+    err_format(err, msg, f)
 }

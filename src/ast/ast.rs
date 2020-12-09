@@ -4,6 +4,7 @@ use super::NodeKind;
 use super::{Context, Declaration, Function, Node, Program};
 use crate::base_types::{BaseType, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
+use std::rc::Rc;
 
 // program     = function*
 pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
@@ -20,7 +21,7 @@ pub fn base_type(iter: &mut TokenIter) -> Result<Node, Error> {
     let mut btype = BaseType::new(type_kind);
     loop {
         if consume(iter, Operator::Mul) {
-            btype = BaseType::new(TypeKind::Ptr(Box::new(btype)));
+            btype = BaseType::new(TypeKind::Ptr(Rc::new(btype)));
         } else {
             break;
         }
@@ -280,6 +281,32 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             NodeKind::Num(_) => return Ok(Node::new_num(4)),
             NodeKind::Lvar(x) => return Ok(Node::new_num(x.dec.base_type.kind.size() as u64)),
             NodeKind::Func(_, _) => return Ok(Node::new_num(4)),
+            NodeKind::Deref => {
+                let (deref_count, lvar) = count_deref(&node);
+                let lvar = match lvar {
+                    Ok(x) => x,
+                    Err(x) => {
+                        return Err(Error::invalid_value_dereference(
+                            iter.s,
+                            iter.pos,
+                            x.as_str(),
+                        ))
+                    }
+                };
+                let (def_count, base_type) = lvar.dec.base_type.count_deref();
+                if deref_count == def_count {
+                    return Ok(Node::new_num(base_type.kind.size() as u64));
+                } else if deref_count < def_count {
+                    return Ok(Node::new_num(8));
+                } else {
+                    return Err(Error::invalid_variable_dereference(
+                        iter.s,
+                        iter.pos,
+                        (*lvar).clone(),
+                        deref_count,
+                    ));
+                }
+            }
             _ => match node.lhs.unwrap().kind {
                 NodeKind::Num(_) => {
                     return Ok(Node::new_num(4));
@@ -862,7 +889,7 @@ mod tests {
         make_lvar(
             name,
             offset,
-            TypeKind::Ptr(Box::new(BaseType::new(TypeKind::Int))),
+            TypeKind::Ptr(Rc::new(BaseType::new(TypeKind::Int))),
         )
     }
 }

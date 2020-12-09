@@ -1,8 +1,9 @@
 use super::error::Error;
-use super::{Declaration, Ident};
+use super::{Declaration, Ident, Lvar, Node, NodeKind};
 use crate::base_types;
 use crate::base_types::{BaseType, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
+use std::rc::Rc;
 
 pub(crate) fn consume(iter: &mut TokenIter, op: Operator) -> bool {
     if let Some(x) = iter.peek() {
@@ -85,7 +86,7 @@ pub(crate) fn consume_base_type(iter: &mut TokenIter) -> Option<base_types::Base
         let mut btype = BaseType::new(kind);
         loop {
             if consume(iter, Operator::Mul) {
-                btype = BaseType::new(TypeKind::Ptr(Box::new(btype)));
+                btype = BaseType::new(TypeKind::Ptr(Rc::new(btype)));
             } else {
                 break;
             }
@@ -250,7 +251,7 @@ pub(crate) fn expect_base_type(iter: &mut TokenIter) -> Result<base_types::BaseT
     let mut btype = BaseType::new(kind);
     loop {
         if consume(iter, Operator::Mul) {
-            btype = BaseType::new(TypeKind::Ptr(Box::new(btype)));
+            btype = BaseType::new(TypeKind::Ptr(Rc::new(btype)));
         } else {
             break;
         }
@@ -262,4 +263,30 @@ pub(crate) fn expect_declaration(iter: &mut TokenIter) -> Result<Declaration, Er
     let btype = expect_base_type(iter)?;
     let ident = expect_ident(iter)?;
     Ok(Declaration::new(btype, ident))
+}
+
+/// `**x` returns 2
+/// `*&x` returns 0
+/// `&&x` returns -2
+pub(crate) fn count_deref(node: &Node) -> (usize, Result<Rc<Lvar>, NodeKind>) {
+    let mut count = 0;
+    let mut ref_node = node;
+
+    loop {
+        if ref_node.kind == NodeKind::Deref {
+            count += 1;
+            ref_node = ref_node.lhs.as_ref().unwrap();
+        }
+        if ref_node.kind == NodeKind::Addr {
+            count -= 1;
+            ref_node = ref_node.lhs.as_ref().unwrap();
+        } else {
+            break;
+        }
+    }
+
+    if let NodeKind::Lvar(ref lvar) = ref_node.kind {
+        return (count, Ok(lvar.clone()));
+    }
+    (count, Err(ref_node.kind.clone()))
 }
