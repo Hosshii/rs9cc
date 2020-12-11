@@ -70,9 +70,9 @@ pub fn function(iter: &mut TokenIter) -> Result<Function, Error> {
 
 // params      = declaration ("," declaration)*
 pub fn params(iter: &mut TokenIter) -> Result<Vec<Declaration>, Error> {
-    let mut params = vec![expect_declaration(iter)?];
+    let mut params = vec![declaration(iter)?];
     while consume_comma(iter) {
-        params.push(expect_declaration(iter)?);
+        params.push(declaration(iter)?);
     }
     Ok(params)
 }
@@ -82,7 +82,8 @@ pub fn params(iter: &mut TokenIter) -> Result<Vec<Declaration>, Error> {
 //             | "if" "(" expr ")" stmt
 //             | "while" "(" expr ")" stmt
 //             | "for" "(" expr? ";" expr? ";" expr? ")" stmt
-//             | "{" stmt* "}"
+//             | "{" stm| declaration ";"t* "}"
+//             | declaration ";"
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(x) = iter.peek() {
         match x.kind {
@@ -170,11 +171,12 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             // but now i dont have good solution.
             return Err(Error::re_declare(iter.s, dec.ident, iter.pos, None));
         } else {
-            ctx.push_front(dec, ctx.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0));
+            ctx.push_front(
+                dec.clone(),
+                ctx.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+            );
             expect_semi(iter)?;
-            return Ok(Node::new_leaf(NodeKind::Lvar(
-                ctx.lvar.as_ref().unwrap().clone(),
-            )));
+            return Ok(Node::new_leaf(NodeKind::Declaration(dec)));
         }
     }
     let node = expr(iter, ctx)?;
@@ -272,6 +274,7 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             primary(iter, ctx)?,
         ));
     } else if consume(iter, Operator::Mul) {
+        let node = unary(iter, ctx)?;
         return Ok(Node::new_unary(NodeKind::Deref, unary(iter, ctx)?));
     } else if consume(iter, Operator::Ampersand) {
         return Ok(Node::new_unary(NodeKind::Addr, unary(iter, ctx)?));
@@ -293,6 +296,17 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                         ))
                     }
                 };
+
+                // return if let Ok(type_kind) = node.get_type() {
+                //     Ok(Node::new_num(type_kind.size()))
+                // } else {
+                //     Err(Error::invalid_variable_dereference(
+                //         iter.s,
+                //         iter.pos,
+                //         (*lvar).clone(),
+                //         deref_count,
+                //     ))
+                // };
                 let (def_count, base_type) = lvar.dec.base_type.count_deref();
                 if deref_count == def_count {
                     return Ok(Node::new_num(base_type.kind.size() as u64));
@@ -356,6 +370,17 @@ fn func_args(iter: &mut TokenIter, ctx: &mut Context) -> Result<Vec<Node>, Error
     }
     expect(iter, Operator::RParen)?;
     Ok(args)
+}
+
+//declaration = basetype ident ("[" num "]")?
+pub(crate) fn declaration(iter: &mut TokenIter) -> Result<Declaration, Error> {
+    let mut b_type = expect_base_type(iter)?;
+    let ident = expect_ident(iter)?;
+    if consume(iter, Operator::LArr) {
+        b_type.kind.to_arr(expect_num(iter)?);
+        expect(iter, Operator::RArr)?;
+    }
+    Ok(Declaration::new(b_type, ident))
 }
 
 #[cfg(test)]
@@ -491,6 +516,49 @@ mod tests {
             let ctx = &mut Context::new();
             ctx.lvar = Some(Rc::new(i.1));
             assert_eq!(i.0, unary(iter, ctx).unwrap());
+        }
+    }
+
+    #[test]
+    fn test_declaration() {
+        use crate::token;
+        use TypeKind::*;
+        let tests = [
+            (
+                "int hoge",
+                Declaration::new(BaseType::new(Int), Ident::new("hoge")),
+            ),
+            ("int *hoge", make_ptr_lvar("hoge", 8).dec),
+            (
+                "int **hoge",
+                Declaration::new(
+                    BaseType::new(Ptr(Rc::new(BaseType::new(Ptr(Rc::new(BaseType::new(
+                        Int,
+                    ))))))),
+                    Ident::new("hoge"),
+                ),
+            ),
+            (
+                "int hoge[1]",
+                Declaration::new(
+                    BaseType::new(Array(1, Rc::new(BaseType::new(Int)))),
+                    Ident::new("hoge"),
+                ),
+            ),
+            (
+                "int *hoge[1]",
+                Declaration::new(
+                    BaseType::new(Array(
+                        1,
+                        Rc::new(BaseType::new(Ptr(Rc::new(BaseType::new(Int))))),
+                    )),
+                    Ident::new("hoge"),
+                ),
+            ),
+        ];
+
+        for (input, expected) in &tests {
+            assert_eq!(*expected, declaration(&mut token::tokenize(input)).unwrap());
         }
     }
 
@@ -823,7 +891,7 @@ mod tests {
         Node::new(kind, Node::new_num(lhs_num), Node::new_num(rhs_num))
     }
 
-    fn make_assign_node(lhs: impl Into<String>, rhs: u64, offset: usize) -> Node {
+    fn make_assign_node(lhs: impl Into<String>, rhs: u64, offset: u64) -> Node {
         let mut node = Node::new_none(NodeKind::Assign);
         node.lhs = Some(Box::new(Node::new_leaf(NodeKind::Lvar(Rc::new(
             Lvar::new_leaf(make_int_dec(lhs.into()), offset),
@@ -874,18 +942,18 @@ mod tests {
         Declaration::new(BaseType::new(TypeKind::Int), Ident::new(name.into()))
     }
 
-    fn make_lvar(name: impl Into<String>, offset: usize, kind: TypeKind) -> Lvar {
+    fn make_lvar(name: impl Into<String>, offset: u64, kind: TypeKind) -> Lvar {
         Lvar::new_leaf(
             Declaration::new(BaseType::new(kind), Ident::new(name)),
             offset,
         )
     }
 
-    fn make_int_lvar(name: impl Into<String>, offset: usize) -> Lvar {
+    fn make_int_lvar(name: impl Into<String>, offset: u64) -> Lvar {
         make_lvar(name, offset, TypeKind::Int)
     }
 
-    fn make_ptr_lvar(name: impl Into<String>, offset: usize) -> Lvar {
+    fn make_ptr_lvar(name: impl Into<String>, offset: u64) -> Lvar {
         make_lvar(
             name,
             offset,

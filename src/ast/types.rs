@@ -31,6 +31,7 @@ pub enum NodeKind {
     // Ident(Ident),
     Lvar(Rc<Lvar>), // usize はベースポインタからのオフセット
     BaseType(base_types::BaseType),
+    Declaration(Declaration),
 }
 
 impl NodeKind {
@@ -62,6 +63,7 @@ impl NodeKind {
             // Ident(Ident),
             Lvar(lvar) => format!("{:?}", lvar), // usize はベースポインタからのオフセット
             BaseType(b_type) => format!("{}", b_type.kind),
+            Declaration(dec) => format!("{:?}", dec),
         }
     }
     /// convert NodeKind to token::Operator
@@ -185,17 +187,46 @@ impl Node {
             inc: None,
         }
     }
+
+    pub fn get_type(&self) -> Result<TypeKind, &'static str> {
+        match &self.kind {
+            Assign | Add | Sub | Mul | Div => {
+                if let Some(ref x) = self.lhs {
+                    x.get_type()
+                } else {
+                    Err("assign add sub mul")
+                }
+            }
+            Deref => {
+                if let Some(ref lhs) = self.lhs {
+                    Ok(lhs.get_type()?.get_deref_type())
+                } else {
+                    Err("deref")
+                }
+            }
+            Addr => {
+                if let Some(ref lhs) = self.lhs {
+                    Ok(lhs.get_type()?.get_addr_type())
+                } else {
+                    Err("addr")
+                }
+            }
+            Lvar(lvar) => Ok(lvar.get_type()),
+            Num(_) => Ok(TypeKind::Int),
+            _ => Err("err"),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Lvar {
     next: Option<Rc<Lvar>>,
     pub dec: Declaration,
-    pub offset: usize,
+    pub offset: u64,
 }
 
 impl Lvar {
-    pub fn new(next: Lvar, dec: Declaration, offset: usize) -> Self {
+    pub fn new(next: Lvar, dec: Declaration, offset: u64) -> Self {
         Self {
             next: Some(Rc::new(next)),
             dec,
@@ -203,12 +234,16 @@ impl Lvar {
         }
     }
 
-    pub fn new_leaf(dec: Declaration, offset: usize) -> Self {
+    pub fn new_leaf(dec: Declaration, offset: u64) -> Self {
         Self {
             next: None,
             dec,
             offset,
         }
+    }
+
+    fn get_type(&self) -> TypeKind {
+        self.dec.get_type()
     }
 }
 
@@ -225,14 +260,25 @@ impl Context {
         }
     }
 
-    pub fn push_front(&mut self, dec: Declaration, offset: usize) {
+    pub fn push_front(&mut self, dec: Declaration, offset: u64) {
         self.count += 1;
+        let offset = offset + dec.base_type.kind.eight_size();
         self.lvar = Some(Rc::new(Lvar {
             next: self.lvar.take(),
             dec,
-            offset: offset + 8,
+            offset,
         }))
     }
+
+    // pub fn push_front_param(&mut self, dec: Declaration, offset: u64) {
+    //     self.count += 1;
+    //     let offset = offset + dec.base_type.kind.eight_size();
+    //     self.lvar = Some(Rc::new(Lvar {
+    //         next: self.lvar.take(),
+    //         dec,
+    //         offset,
+    //     }))
+    // }
 
     pub fn find_lvar(&self, name: impl Into<String>) -> Option<Rc<Lvar>> {
         if let Some(ref lvar) = self.lvar {
@@ -273,8 +319,8 @@ impl Program {
 pub struct Function {
     pub type_kind: TypeKind,
     pub name: String,
-    pub lvars: Option<Rc<Lvar>>,
-    pub var_num: usize, // lvar + param
+    pub all_vars: Option<Rc<Lvar>>,
+    pub all_var_num: usize,
     pub params: Vec<Declaration>,
     pub param_num: usize,
     pub nodes: Vec<Node>,
@@ -284,8 +330,8 @@ impl Function {
     pub fn new(
         type_kind: TypeKind,
         name: impl Into<String>,
-        lvars: Option<Rc<Lvar>>,
-        var_num: usize,
+        all_vars: Option<Rc<Lvar>>,
+        all_var_num: usize,
         params: Vec<Declaration>,
         param_num: usize,
         nodes: Vec<Node>,
@@ -293,12 +339,46 @@ impl Function {
         Self {
             type_kind,
             name: name.into(),
-            lvars,
-            var_num,
+            all_vars,
+            all_var_num,
             params,
             param_num,
             nodes,
         }
+    }
+
+    /// return all variable size  
+    /// `int: 4`  
+    /// `ptr: 8`  
+    /// `int x[10]: 4*10 = 40`
+    pub fn get_all_var_size(&self) -> u64 {
+        let mut result = 0;
+        let mut lvar_ref = &self.all_vars;
+        while let Some(ref lvar) = lvar_ref {
+            result += lvar.dec.base_type.kind.size();
+            lvar_ref = &lvar.next;
+        }
+        result
+    }
+
+    /// 配列以外は8バイト以下は8バイトにする
+    pub fn _get_all_var_size(&self) -> u64 {
+        let mut result = 0;
+        let mut lvar_ref = &self.all_vars;
+
+        while let Some(ref lvar) = lvar_ref {
+            result += lvar.dec.base_type.kind.eight_size();
+            lvar_ref = &lvar.next;
+        }
+        result
+    }
+
+    pub fn get_param_size(&self) -> u64 {
+        let mut result = 0;
+        for dec in &self.params {
+            result += dec.base_type.kind.size();
+        }
+        result
     }
 }
 
@@ -311,5 +391,38 @@ pub struct Declaration {
 impl Declaration {
     pub fn new(base_type: base_types::BaseType, ident: Ident) -> Self {
         Self { base_type, ident }
+    }
+
+    // todo: remove clone
+    fn get_type(&self) -> TypeKind {
+        self.base_type.kind.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_get_type() {
+        use crate::ast::ast;
+        use crate::base_types::{BaseType, TypeKind};
+        use crate::token;
+
+        let input = "&*1;";
+        let node = ast::stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        assert_eq!(TypeKind::Int, node.get_type().unwrap());
+
+        let input = "*(y + 1);";
+        let mut ctx = Context::new();
+        ctx.push_front(
+            Declaration::new(
+                BaseType::new(TypeKind::Ptr(Rc::new(BaseType::new(TypeKind::Int)))),
+                Ident::new("y"),
+            ),
+            8,
+        );
+        let node = ast::stmt(&mut token::tokenize(input), &mut ctx).unwrap();
+        assert_eq!(TypeKind::Int, node.get_type().unwrap())
     }
 }

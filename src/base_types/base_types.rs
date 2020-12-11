@@ -37,6 +37,9 @@ pub enum TypeKind {
     Int,
     Ptr(Rc<BaseType>),
     Array(u64, Rc<BaseType>),
+
+    /// this is virtual type for `get_deref_type`
+    _Deref(Rc<BaseType>),
 }
 
 // impl Default for TypeKind {
@@ -59,6 +62,7 @@ impl fmt::Display for TypeKind {
                 )
             }
             Array(size, ptr_type) => writeln!(f, "{} [{}]", ptr_type.kind, size),
+            _Deref(_) => unreachable!(),
         }
     }
 }
@@ -69,6 +73,7 @@ impl TypeKind {
             Int => "int",
             Ptr(_) => "Ptr",
             Array(_, _) => "Array",
+            _Deref(_) => unreachable!(),
         }
     }
 
@@ -84,18 +89,40 @@ impl TypeKind {
             Int => 4,
             Ptr(_) => 8,
             Array(size, base_type) => size * base_type.kind.size(),
+            _Deref(_) => unreachable!(),
+        }
+    }
+
+    pub fn get_deref_type(&self) -> Self {
+        match self {
+            Int => TypeKind::_Deref(Rc::new(BaseType::new(self.clone()))),
+            Ptr(b_type) => b_type.kind.clone(),
+            Array(_, b_type) => b_type.kind.clone(),
+            _Deref(b_type) => b_type.kind.clone(),
+        }
+    }
+
+    pub fn get_addr_type(&self) -> Self {
+        match self {
+            _Deref(b_type) => b_type.kind.clone(),
+            other => Ptr(Rc::new(BaseType::new(other.clone()))),
         }
     }
 
     /// return multiple of 8
     /// `int: 8 (not 4)`
     /// `ptr: 8`
-    /// `int x[10]: 8 * 10 = 80`
+    /// `int x[10]: 4 * 10 = 40`
     pub fn eight_size(&self) -> u64 {
         match self {
             Int => 8,
             Ptr(_) => 8,
-            Array(size, base_type) => size * base_type.kind.size(),
+            Array(_size, base_type) => {
+                let mut size = _size * base_type.kind.size();
+                size += (8 - size % 8) % 8; // sizeを8の倍数にする
+                size
+            }
+            _Deref(_) => unreachable!(),
         }
     }
 

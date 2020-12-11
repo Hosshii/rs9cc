@@ -97,12 +97,7 @@ pub(crate) fn consume_base_type(iter: &mut TokenIter) -> Option<base_types::Base
 }
 
 pub(crate) fn consume_declaration(iter: &mut TokenIter) -> Option<Declaration> {
-    if let Some(btype) = consume_base_type(iter) {
-        if let Some(ident) = consume_ident(iter) {
-            return Some(Declaration::new(btype, ident));
-        }
-    }
-    None
+    crate::ast::ast::declaration(iter).ok()
 }
 
 pub(crate) fn _consume_token_kind(iter: &mut TokenIter, kind: TokenKind) -> Option<TokenKind> {
@@ -257,12 +252,6 @@ pub(crate) fn expect_base_type(iter: &mut TokenIter) -> Result<base_types::BaseT
         }
     }
     Ok(btype)
-}
-
-pub(crate) fn expect_declaration(iter: &mut TokenIter) -> Result<Declaration, Error> {
-    let btype = expect_base_type(iter)?;
-    let ident = expect_ident(iter)?;
-    Ok(Declaration::new(btype, ident))
 }
 
 /// `**x` returns 2

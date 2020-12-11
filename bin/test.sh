@@ -169,7 +169,7 @@ six_arity_func_def() {
 
 # 16
 unary_deref_addr() {
-    assert 1 'int main(){int foo; int bar; foo=1; bar = &foo; return *bar;}'
+    assert 1 'int main(){int foo; int *bar; foo=1; bar = &foo; return *bar;}'
     assert 2 'int main(){int foo; int bar; foo=1; bar = &foo; return *bar+1;}'
     assert 3 'int main() {int x; x=3; return *&x; }'
     assert 3 'int main() {int x; x=3; int y;y=&x;  int z;z=&y; return **z; }'
@@ -218,6 +218,9 @@ array() {
     assert 1 'int main(){ int y[2]; *y = 10; int x; x = 1; return x;}'
     assert 10 'int main(){int x[10]; *x = 1; *(x+9) = 10; return *(x+9); }' # intのサイズは8だけどポインタ演算は4なので変になってる
     assert 2 'int main(){int a[2]; *a = 1; *(a+1) = 2; int *p ;p =a; return  *(p+1);}'
+    assert 1 'int main(){int x ; x = 1; int y[2]; *(y+1) = 10; return  x;}'
+    assert 11 'int main(){int x ; x = 1; int y[2]; *(y+1) = 10; return  *(y+1) + x;}'
+    assert 8 'int main(){int x; x = 1; int y[10]; int i; for(i =0; i<10; i = i+1){*(y+i)=i;} int z ; z = 20; return x + *(y+7) ; }'
 }
 
 if [ $# -eq 0 ]; then

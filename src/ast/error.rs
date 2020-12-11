@@ -2,7 +2,6 @@ use self::ErrorKind::*;
 use super::{Ident, Lvar};
 use crate::token::{Token, TokenKind, TokenPos};
 use std::fmt;
-use std::rc::Rc;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum ErrorKind {

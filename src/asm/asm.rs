@@ -13,7 +13,10 @@ impl Context {
     }
 }
 
-const ARG_REGISTER: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
+const _ARGREG1: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
+const _ARGREG2: [&str; 6] = ["di", "si", "dx", "cx", "r8w", "r9w"];
+const _ARGREG4: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
+const ARGREG8: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 
 pub fn code_gen(program: Program) -> Result<(), Error> {
     // アセンブリの前半部分を出力
@@ -22,18 +25,28 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
     let mut ctx = Context::new();
     // asm生成
     for function in program.functions {
+        println!("# start prologue");
+
         println!("{}:", function.name);
         // プロローグ
         println!("    push rbp");
         println!("    mov rbp, rsp");
-        println!("    sub rsp, {}", function.var_num * 8);
+        // スタックのpush popが8バイト単位なのでとりあえず引数はint とかも8バイトにする
+        // println!("    sub rsp, {}", function.get_all_var_size());
+        println!("    sub rsp, {}", function._get_all_var_size());
 
         // 引数をローカル変数としてスタックに載せる
+        let mut offset = 0;
         for i in 0..function.param_num {
+            offset += function.params[i].base_type.kind.eight_size();
             println!("    mov rax, rbp");
-            println!("    sub rax, {}", (i + 1) * 8);
-            println!("    mov [rax], {}", ARG_REGISTER[i]);
+            // スタックのpush popが8バイト単位なのでとりあえずint とかも8バイトにする
+            // println!("    sub rax, {}", function.params[i].base_type.kind.size());
+            println!("    sub rax, {}", offset);
+            println!("    mov [rax], {}", ARGREG8[i]);
         }
+
+        println!("# end prologue");
 
         for node in function.nodes {
             gen(&node, &mut ctx)?;
@@ -51,15 +64,21 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
 pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     match &node.kind {
         NodeKind::Num(x) => {
+            println!("# number");
             println!("    push {}", x);
             return Ok(());
         }
-        NodeKind::Lvar(_) => {
-            gen_lval(&node, ctx)?;
-            load();
+        NodeKind::Lvar(lvar) => {
+            println!("# NodeKind::Lvar");
+            gen_lval(node, ctx)?;
+            if let TypeKind::Array(_, _) = lvar.dec.base_type.kind {
+                return Ok(());
+            }
+            load(node);
             return Ok(());
         }
         NodeKind::Assign => {
+            println!("# NodeKind::Assign");
             if let Some(lhs) = &node.lhs {
                 gen_lval(&lhs, ctx)?;
             } else {
@@ -71,10 +90,11 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 return Err(Error::not_found());
             }
 
-            store();
+            store(node);
             return Ok(());
         }
         NodeKind::Return => {
+            println!("# NodeKind::Return");
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)?;
             } else {
@@ -87,6 +107,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::If => {
+            println!("# NodeKind::If");
             if let Some(cond) = &node.cond {
                 gen(cond, ctx)?;
             } else {
@@ -122,6 +143,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::While => {
+            println!("# NodeKind::While");
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
             println!(".Lbegin{}:", jlb_num);
@@ -144,6 +166,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::For => {
+            println!("# NodeKind::For");
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
             if let Some(init) = &node.init {
@@ -173,37 +196,69 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Block(stmts) => {
+            println!("# NodeKind::Block");
             for stmt in stmts {
                 gen(stmt, ctx)?;
             }
             return Ok(());
         }
         NodeKind::Func(name, args) => {
+            println!("# NodeKind::Func");
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
             for i in args {
                 gen(i, ctx)?;
             }
             for i in (0..args.len()).rev() {
-                println!("    pop {}", ARG_REGISTER[i]);
+                println!("    pop {}", ARGREG8[i]);
             }
+            // 8の倍数じゃなかったら8の倍数にする
             println!("    mov rax, rsp");
-            println!("    and rax, 15");
-            println!("    jnz .Lcall{}", jlb_num);
-            println!("    mov rax, 0");
-            println!("    call {}", name);
+            println!("    and rax, 7");
+            println!("    jnz .LcallFour{}", jlb_num);
+            println!("    sub rsp, 4");
+            {
+                // 16の倍数にしてcall
+                println!("    mov rax, rsp");
+                println!("    and rax, 15");
+                println!("    jnz .LcallF{}", jlb_num);
+                println!("    mov rax, 0");
+                println!("    call {}", name);
+                println!("    add rsp, 4");
+                println!("    jmp .LendF{}", jlb_num);
+                println!(".LcallF{}:", jlb_num);
+                println!("    sub rsp, 8");
+                println!("    mov rax, 0");
+                println!("    call {}", name);
+                println!("    add rsp, 12");
+                println!(".LendF{}:", jlb_num);
+                println!("    push rax");
+            }
             println!("    jmp .Lend{}", jlb_num);
-            println!(".Lcall{}:", jlb_num);
-            println!("    sub rsp, 8");
-            println!("    mov rax, 0");
-            println!("    call {}", name);
-            println!("    add rsp, 8");
-            println!(".Lend{}:", jlb_num);
-            println!("    push rax");
 
+            println!(".LcallFour{}:", jlb_num);
+            println!("    mov rax, 0");
+            {
+                // 16の倍数にしてcall
+                println!("    mov rax, rsp");
+                println!("    and rax, 15");
+                println!("    jnz .LcallFH{}", jlb_num);
+                println!("    mov rax, 0");
+                println!("    call {}", name);
+                println!("    jmp .LendFH{}", jlb_num);
+                println!(".LcallFH{}:", jlb_num);
+                println!("    sub rsp, 8");
+                println!("    mov rax, 0");
+                println!("    call {}", name);
+                println!("    add rsp, 8");
+                println!(".LendFH{}:", jlb_num);
+                println!("    push rax");
+            }
+            println!(".Lend{}:", jlb_num);
             return Ok(());
         }
         NodeKind::Addr => {
+            println!("# NodeKind::Addr");
             if let Some(lhs) = &node.lhs {
                 gen_lval(&lhs, ctx)?;
             } else {
@@ -212,60 +267,73 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Deref => {
+            println!("# NodeKind::Deref");
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)?;
+                load(lhs);
             } else {
                 return Err(Error::not_found());
             }
-            load();
             return Ok(());
         }
+        NodeKind::Declaration(_) => return Ok(()),
         _ => (),
     }
 
     if let Some(lhs) = &node.lhs {
+        println!("# lhs");
         gen(lhs, ctx)?;
     }
     if let Some(rhs) = &node.rhs {
+        println!("# rhs");
         gen(rhs, ctx)?;
     }
 
+    println!("# pop");
     println!("    pop rdi");
     println!("    pop rax");
 
     match node.kind {
         NodeKind::Add => {
-            if let Some(ref lhs) = node.lhs {
-                if let NodeKind::Lvar(ref lvar) = lhs.kind {
-                    if let TypeKind::Ptr(ref ptr) = lvar.dec.base_type.kind {
-                        println!("    imul rdi, {}", ptr.kind.size());
-                    }
-                }
-            }
+            println!("# Add");
+            ptr_op(node);
             println!("    add rax, rdi");
         }
-        NodeKind::Sub => println!("    sub rax, rdi"),
-        NodeKind::Mul => println!("    imul rax, rdi"),
+        NodeKind::Sub => {
+            println!("# Sub");
+            ptr_op(node);
+            println!("    sub rax, rdi");
+        }
+        NodeKind::Mul => {
+            println!("# Mul");
+            ptr_op(node);
+            println!("    imul rax, rdi");
+        }
         NodeKind::Div => {
+            println!("# Div");
             println!("    cqo");
             println!("    idiv rdi");
         }
         NodeKind::Equal => {
+            println!("# Equal");
             println!("    cmp rax, rdi");
             println!("    sete al");
             println!("    movzb rax, al");
         }
         NodeKind::Leq => {
+            println!("# Leq");
             println!("    cmp rax, rdi");
             println!("    setle al");
             println!("    movzb rax, al");
         }
         NodeKind::Lesser => {
+            println!("# Lesser");
             println!("    cmp rax, rdi");
             println!("    setl al");
             println!("    movzb rax, al");
         }
         NodeKind::Neq => {
+            println!("# Neq");
             println!("    cmp rax, rdi");
             println!("    setne al");
             println!("    movzb rax, al");
@@ -278,14 +346,17 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 }
 
 fn gen_lval(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    println!("# gen lval");
     match &node.kind {
         NodeKind::Lvar(x) => {
+            println!("# lvar");
             println!("    mov rax, rbp");
             println!("    sub rax, {}", x.offset);
             println!("    push rax");
             Ok(())
         }
         NodeKind::Deref => {
+            println!("# deref");
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)
             } else {
@@ -296,15 +367,71 @@ fn gen_lval(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     }
 }
 
-fn load() {
+fn load(node: &Node) {
+    println!("# load");
+    let mut word = "mov rax, [rax]";
+    // if let NodeKind::Lvar(ref lvar) = node.kind {
+    //     match &lvar.dec.base_type.kind {
+    //         TypeKind::Array(_, b_type) => match b_type.kind.size() {
+    //             4 => word = "movsxd rax, dword ptr [rax]",
+    //             _ => (),
+    //         },
+    //         _ => (),
+    //     }
+    // }
+    if let Ok(type_kind) = node.get_type() {
+        match type_kind {
+            TypeKind::Array(_, b_type) => match b_type.kind.size() {
+                4 => word = "movsxd rax, dword ptr [rax]",
+                _ => (),
+            },
+            TypeKind::Int => word = "movsxd rax, dword ptr [rax]",
+            _ => (),
+        }
+    }
     println!("    pop rax");
-    println!("    mov rax, [rax]");
+    println!("    {}", word);
     println!("    push rax");
 }
 
-fn store() {
+fn store(node: &Node) {
+    let mut word = "mov [rax], rdi";
+    // if let NodeKind::Lvar(ref lvar) = node.kind {
+    //     match &lvar.dec.base_type.kind {
+    //         TypeKind::Array(_, b_type) => match b_type.kind.size() {
+    //             4 => word = "mov [rax], edi",
+    //             _ => (),
+    //         },
+    //         _ => (),
+    //     }
+    // }
+    if let Ok(type_kind) = node.get_type() {
+        match type_kind {
+            TypeKind::Array(_, b_type) => match b_type.kind.size() {
+                4 => word = "mov [rax], edi",
+                _ => (),
+            },
+            TypeKind::Int => word = "mov [rax], edi",
+            _ => (),
+        }
+    }
+    println!("# store");
     println!("    pop rdi");
     println!("    pop rax");
-    println!("    mov [rax], rdi");
+    println!("    {}", word);
     println!("    push rdi");
+}
+
+fn ptr_op(node: &Node) {
+    println!("# ptr op");
+    if let Some(ref lhs) = node.lhs {
+        if let NodeKind::Lvar(ref lvar) = lhs.kind {
+            match &lvar.dec.base_type.kind {
+                TypeKind::Ptr(ptr) | TypeKind::Array(_, ptr) => {
+                    println!("    imul rdi, {}", ptr.kind.size());
+                }
+                _ => (),
+            }
+        }
+    }
 }
