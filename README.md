@@ -29,7 +29,7 @@ unary       = ("+" | "-")? primary
             | "sizeof" unary
 primary     = num | ident func-args? | "(" expr ")"
 func-args   = "(" (assign ("," assign)*)? ")"
-declaration = basetype ident
+declaration = basetype ident ("[" num "]")?
 ```
 
 ## build 

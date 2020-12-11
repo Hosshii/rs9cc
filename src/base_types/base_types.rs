@@ -36,7 +36,14 @@ impl BaseType {
 pub enum TypeKind {
     Int,
     Ptr(Rc<BaseType>),
+    Array(u64, Rc<BaseType>),
 }
+
+// impl Default for TypeKind {
+//     fn default() -> Self {
+//         TypeKind::Int
+//     }
+// }
 
 impl fmt::Display for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -51,6 +58,7 @@ impl fmt::Display for TypeKind {
                     width = count + 1
                 )
             }
+            Array(size, ptr_type) => writeln!(f, "{} [{}]", ptr_type.kind, size),
         }
     }
 }
@@ -60,6 +68,7 @@ impl TypeKind {
         match self {
             Int => "int",
             Ptr(_) => "Ptr",
+            Array(_, _) => "Array",
         }
     }
 
@@ -70,10 +79,39 @@ impl TypeKind {
         }
     }
 
-    pub fn size(&self) -> usize {
+    pub fn size(&self) -> u64 {
         match self {
             Int => 4,
             Ptr(_) => 8,
+            Array(size, base_type) => size * base_type.kind.size(),
         }
+    }
+
+    /// return multiple of 8
+    /// `int: 8 (not 4)`
+    /// `ptr: 8`
+    /// `int x[10]: 8 * 10 = 80`
+    pub fn eight_size(&self) -> u64 {
+        match self {
+            Int => 8,
+            Ptr(_) => 8,
+            Array(size, base_type) => size * base_type.kind.size(),
+        }
+    }
+
+    pub fn to_arr(&mut self, size: u64) {
+        // unsafeをまだよくわかってないのでmem::replaceを使ってやる
+
+        // unsafe {
+        //     std::ptr::write(
+        //         self,
+        //         Array(size, Rc::new(BaseType::new(std::ptr::read(self)))),
+        //     )
+        // }
+
+        *self = Array(size, Rc::new(BaseType::new(std::mem::replace(self, Int))));
+
+        // use std::mem::take instead of std::mem::replace
+        // *self = Array(size, Rc::new(BaseType::new(std::mem::take(self))));
     }
 }

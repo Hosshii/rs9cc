@@ -51,6 +51,8 @@ pub enum Operator {
     // Asterisk,
     Ampersand,
     Sizeof,
+    LArr,
+    RArr,
 }
 
 impl Operator {
@@ -73,6 +75,8 @@ impl Operator {
             // Asterisk => "*",
             Ampersand => "&",
             Sizeof => "sizeof",
+            LArr => "[",
+            RArr => "]",
         }
     }
 
@@ -109,6 +113,8 @@ impl FromStr for Operator {
             x if x == RParen.as_str() => Ok(RParen),
             x if x == Ampersand.as_str() => Ok(Ampersand),
             x if x == Sizeof.as_str() => Ok(Sizeof),
+            x if x == LArr.as_str() => Ok(LArr),
+            x if x == RArr.as_str() => Ok(RArr),
             _ => Err(()),
         }
     }
@@ -555,10 +561,10 @@ mod tests {
         use self::KeyWord::*;
         use self::Operator::*;
         use self::TokenKind::{KeyWord, Num, Reserved, SemiColon};
-        let input = "== != = < <= > >= + - * / ( ) & sizeof";
+        let input = "== != = < <= > >= + - * / ( ) & sizeof [ ]";
         let expected = vec![
             Equal, Neq, Assign, Lesser, Leq, Greater, Geq, Plus, Minus, Mul, Div, LParen, RParen,
-            Ampersand, Sizeof,
+            Ampersand, Sizeof, LArr, RArr,
         ];
         let mut iter = tokenize(input);
         for i in expected {
