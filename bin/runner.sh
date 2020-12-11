@@ -11,7 +11,7 @@ runner() {
     case $target in
     "test")
         build
-        docker run --rm -v $PWD:/rs9cc -w /rs9cc gcc ./bin/test.sh
+        docker run --rm -v $PWD:/rs9cc -w /rs9cc gcc ./bin/test.sh $@
         ;;
     "build") build ;;
     "execute") docker run --rm -v $PWD:/rs9cc -w /rs9cc gcc $@ ;;
