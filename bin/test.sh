@@ -170,12 +170,12 @@ six_arity_func_def() {
 # 16
 unary_deref_addr() {
     assert 1 'int main(){int foo; int *bar; foo=1; bar = &foo; return *bar;}'
-    assert 2 'int main(){int foo; int bar; foo=1; bar = &foo; return *bar+1;}'
+    assert 2 'int main(){int foo; int *bar; foo=1; bar = &foo; return *bar+1;}'
     assert 3 'int main() {int x; x=3; return *&x; }'
-    assert 3 'int main() {int x; x=3; int y;y=&x;  int z;z=&y; return **z; }'
+    assert 3 'int main() {int x; x=3; int *y;y=&x;  int **z;z=&y; return **z; }'
     assert 5 'int main() { int x; int y; x=3; y=5; return *(&x-8); }'
     assert 3 'int main() { int x; int y; x=3; y=5; return *(&y+8); }'
-    assert 5 'int main() { int x; int y; x=3; y=&x; *y=5; return x; }'
+    assert 5 'int main() { int x; int *y; x=3; y=&x; *y=5; return x; }'
     assert 7 'int main() { int x; int y; x=3; y=5; *(&x-8)=7; return y; }'
     assert 7 'int main() { int x; int y; x=3; y=5; *(&y+8)=7; return x; }'
 }
@@ -183,14 +183,14 @@ unary_deref_addr() {
 # 17
 int_keyword() {
     assert 1 'int foo(int x) {int intx; return x;} int main() { foo(1);}'
-    assert 10 'int main(){int **a; int x; x = 10; a = &x; return *a; }'
+    assert 10 'int main(){int *a; int x; x = 10; a = &x; return *a; }'
     # assert 127 'int foo(int x){int x; return x;}'  this cause already defined error
 }
 
 # 18
 pointer_type() {
     assert 3 'int main(){int x; int *y; y = &x; *y = 3; return x;}'
-    assert 3 'int main() {int x; int *y; int z; x = 3; y = &x; z = &y; return **z;}'
+    assert 3 'int main() {int x; int *y; int **z; x = 3; y = &x; z = &y; return **z;}'
     assert 11 'int main(){int x; int *y; x = 1; y = &x; return *y + 10;}'
 }
 

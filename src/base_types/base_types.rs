@@ -40,6 +40,8 @@ pub enum TypeKind {
 
     /// this is virtual type for `get_deref_type`
     _Deref(Rc<BaseType>),
+    /// this is for err msg
+    _Invalid(String),
 }
 
 // impl Default for TypeKind {
@@ -54,15 +56,12 @@ impl fmt::Display for TypeKind {
             Int => writeln!(f, "{}", self.as_str()),
             Ptr(x) => {
                 let (count, b_type) = x.count_deref();
-                writeln!(
-                    f,
-                    "{b_type} {:*<width$}",
-                    b_type = b_type.kind.as_str(),
-                    width = count + 1
-                )
+                let ptr = format!("{:*<width$}", "*", width = count + 1);
+                writeln!(f, "{} {}", b_type.kind.as_str(), ptr)
             }
             Array(size, ptr_type) => writeln!(f, "{} [{}]", ptr_type.kind, size),
             _Deref(_) => unreachable!(),
+            _Invalid(msg) => writeln!(f, "{}", msg),
         }
     }
 }
@@ -74,6 +73,7 @@ impl TypeKind {
             Ptr(_) => "Ptr",
             Array(_, _) => "Array",
             _Deref(_) => unreachable!(),
+            _Invalid(_) => unreachable!(),
         }
     }
 
@@ -90,6 +90,7 @@ impl TypeKind {
             Ptr(_) => 8,
             Array(size, base_type) => size * base_type.kind.size(),
             _Deref(_) => unreachable!(),
+            _Invalid(_) => unreachable!(),
         }
     }
 
@@ -99,6 +100,7 @@ impl TypeKind {
             Ptr(b_type) => b_type.kind.clone(),
             Array(_, b_type) => b_type.kind.clone(),
             _Deref(b_type) => b_type.kind.clone(),
+            _Invalid(msg) => _Invalid(msg.clone()),
         }
     }
 
@@ -123,6 +125,7 @@ impl TypeKind {
                 size
             }
             _Deref(_) => unreachable!(),
+            _Invalid(_) => unreachable!(),
         }
     }
 
@@ -140,5 +143,25 @@ impl TypeKind {
 
         // use std::mem::take instead of std::mem::replace
         // *self = Array(size, Rc::new(BaseType::new(std::mem::take(self))));
+    }
+
+    /// `int [] == int *`
+    /// array and pointer is same
+    /// todo
+    /// this can not compare `int **` and `int *a[]`
+    pub fn partial_comp(lhs: &TypeKind, rhs: &TypeKind) -> bool {
+        let a = if let TypeKind::Array(_, b_type) = lhs {
+            TypeKind::Ptr(b_type.clone())
+        } else {
+            lhs.clone()
+        };
+
+        let b = if let TypeKind::Array(_, b_type) = rhs {
+            TypeKind::Ptr(b_type.clone())
+        } else {
+            rhs.clone()
+        };
+
+        a == b
     }
 }

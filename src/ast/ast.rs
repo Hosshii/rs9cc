@@ -193,7 +193,21 @@ pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = equality(iter, ctx)?;
     if consume(iter, Operator::Assign) {
-        node = Node::new(NodeKind::Assign, node, assign(iter, ctx)?);
+        let rhs = assign(iter, ctx)?;
+        let lhs_type = node
+            .get_type()
+            .unwrap_or(TypeKind::_Invalid("invalid lhs".to_string()));
+        let rhs_type = rhs
+            .get_type()
+            .unwrap_or(TypeKind::_Invalid("invalid rhs".to_string()));
+
+        // 配列とポインタの比較が中途半端
+        if lhs_type != rhs_type && !TypeKind::partial_comp(&lhs_type, &rhs_type) {
+            return Err(Error::invalid_assignment(
+                iter.s, iter.pos, lhs_type, rhs_type,
+            ));
+        }
+        node = Node::new(NodeKind::Assign, node, rhs);
     }
     return Ok(node);
 }
@@ -274,7 +288,6 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             primary(iter, ctx)?,
         ));
     } else if consume(iter, Operator::Mul) {
-        let node = unary(iter, ctx)?;
         return Ok(Node::new_unary(NodeKind::Deref, unary(iter, ctx)?));
     } else if consume(iter, Operator::Ampersand) {
         return Ok(Node::new_unary(NodeKind::Addr, unary(iter, ctx)?));
@@ -297,29 +310,16 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     }
                 };
 
-                // return if let Ok(type_kind) = node.get_type() {
-                //     Ok(Node::new_num(type_kind.size()))
-                // } else {
-                //     Err(Error::invalid_variable_dereference(
-                //         iter.s,
-                //         iter.pos,
-                //         (*lvar).clone(),
-                //         deref_count,
-                //     ))
-                // };
-                let (def_count, base_type) = lvar.dec.base_type.count_deref();
-                if deref_count == def_count {
-                    return Ok(Node::new_num(base_type.kind.size() as u64));
-                } else if deref_count < def_count {
-                    return Ok(Node::new_num(8));
+                return if let Ok(type_kind) = node.get_type() {
+                    Ok(Node::new_num(type_kind.size()))
                 } else {
-                    return Err(Error::invalid_variable_dereference(
+                    Err(Error::invalid_variable_dereference(
                         iter.s,
                         iter.pos,
                         (*lvar).clone(),
                         deref_count,
-                    ));
-                }
+                    ))
+                };
             }
             _ => match node.lhs.unwrap().kind {
                 NodeKind::Num(_) => {
@@ -431,10 +431,7 @@ mod tests {
 
         let tests = [(
             "int foo;",
-            vec![Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
-                make_int_dec("foo"),
-                8,
-            ))))],
+            vec![Node::new_leaf(NodeKind::Declaration(make_int_dec("foo")))],
         )];
 
         for (s, expected) in &tests {
@@ -663,10 +660,7 @@ mod tests {
         let expected = vec![
             Node::new_num(1),
             Node::new_num(2),
-            Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
-                make_int_dec("hoge"),
-                8,
-            )))),
+            Node::new_leaf(NodeKind::Declaration(make_int_dec("hoge"))),
             make_assign_node("hoge", 4, 8),
         ];
         let expected = vec![Node::new_none(NodeKind::Block(expected))];
@@ -727,9 +721,9 @@ mod tests {
         let lvar1 = Lvar::new_leaf(make_int_dec("foo"), 8);
         let lvar2 = Lvar::new(lvar1.clone(), make_int_dec("bar"), 16);
         let expected_lvar = Rc::new(lvar2.clone());
-        let node1 = Node::new_leaf(NodeKind::Lvar(Rc::new(lvar1.clone())));
+        let node1 = Node::new_leaf(NodeKind::Declaration(make_int_dec("foo")));
         let node2 = make_assign_node("foo", 1, 8);
-        let node3 = Node::new_leaf(NodeKind::Lvar(Rc::new(lvar2.clone())));
+        let node3 = Node::new_leaf(NodeKind::Declaration(make_int_dec("bar")));
         let node4 = Node::new(
             NodeKind::Assign,
             Node::new_leaf(NodeKind::Lvar(Rc::new(lvar2.clone()))),

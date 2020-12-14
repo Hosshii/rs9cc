@@ -1,5 +1,6 @@
 use self::ErrorKind::*;
 use super::{Ident, Lvar};
+use crate::base_types::TypeKind;
 use crate::token::{Token, TokenKind, TokenPos};
 use std::fmt;
 
@@ -13,6 +14,7 @@ pub enum ErrorKind {
     ReDeclare(Ident),
     InvalidVariableDereference(Lvar, usize),
     InvalidValueDereference(String),
+    InvalidAssignment(TypeKind, TypeKind),
     EOF(TokenKind),
 }
 
@@ -105,6 +107,20 @@ impl Error {
             msg: None,
         }
     }
+
+    pub fn invalid_assignment(
+        input: impl Into<String>,
+        pos: TokenPos,
+        lhs_type: TypeKind,
+        rhs_type: TypeKind,
+    ) -> Error {
+        Error {
+            kind: InvalidAssignment(lhs_type, rhs_type),
+            pos,
+            input: input.into(),
+            msg: None,
+        }
+    }
 }
 
 impl fmt::Display for Error {
@@ -123,6 +139,9 @@ impl fmt::Display for Error {
             }
             InvalidValueDereference(type_name) => {
                 invalid_value_dereference_err_format(&self, type_name, f)
+            }
+            InvalidAssignment(lhs_type, rhs_type) => {
+                invalid_assignment_err_format(&self, lhs_type, rhs_type, f)
             }
         }
     }
@@ -180,13 +199,14 @@ fn invalid_variable_dereference_err_format(
     count: usize,
     f: &mut fmt::Formatter,
 ) -> fmt::Result {
+    let ptr = format!("{:*<width$}", "*", width = count + 1);
+    // writeln!(f, "{} {}", b_type.kind.as_str(), ptr);
     let msg = format!(
         "invalid pointer dereference
 define: {}
-actual: {:*<width$}
+actual: {}
    ",
-        lvar.dec.base_type.kind,
-        width = count
+        lvar.dec.base_type.kind, ptr
     );
     err_format(err, msg, f)
 }
@@ -200,5 +220,15 @@ fn invalid_value_dereference_err_format(
         "cannot take the address of an rvalue of type {}",
         type_name.into()
     );
+    err_format(err, msg, f)
+}
+
+fn invalid_assignment_err_format(
+    err: &Error,
+    lhs_type: &TypeKind,
+    rhs_type: &TypeKind,
+    f: &mut fmt::Formatter,
+) -> fmt::Result {
+    let msg = format!("invalid assignment. lhs: {}, rhs: {}", lhs_type, rhs_type);
     err_format(err, msg, f)
 }
