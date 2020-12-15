@@ -71,6 +71,7 @@ pub(crate) fn consume_comma(iter: &mut TokenIter) -> bool {
     false
 }
 
+#[allow(dead_code)]
 pub(crate) fn consume_type_kind(iter: &mut TokenIter) -> Option<base_types::TypeKind> {
     if let Some(x) = iter.peek() {
         if let TokenKind::TypeKind(bt) = x.kind {
@@ -81,6 +82,7 @@ pub(crate) fn consume_type_kind(iter: &mut TokenIter) -> Option<base_types::Type
     None
 }
 
+#[allow(dead_code)]
 pub(crate) fn consume_base_type(iter: &mut TokenIter) -> Option<base_types::BaseType> {
     if let Some(kind) = consume_type_kind(iter) {
         let mut btype = BaseType::new(kind);
@@ -165,6 +167,7 @@ pub(crate) fn _expect_comma(iter: &mut TokenIter) -> Result<(), Error> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub(crate) fn expect_token_kind(iter: &mut TokenIter, kind: TokenKind) -> Result<TokenKind, Error> {
     if let Some(x) = iter.peek() {
         if x.kind == kind {
