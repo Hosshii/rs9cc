@@ -333,7 +333,7 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     return primary(iter, ctx);
 }
 
-// primary     = num | ident func-args? | "(" expr ")"
+// primary     = num | ident (func-args | "[" num "]")? | "(" expr ")"
 pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::LParen) {
         let node = expr(iter, ctx)?;
@@ -351,6 +351,16 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             )));
         }
         if let Some(lvar) = ctx.find_lvar(&ident.name) {
+            if consume(iter, Operator::LArr) {
+                let cur = iter.pos;
+                let _ = expr(iter, ctx)?;
+                let end = iter.pos;
+                // let num = expect_num(iter)?;
+                expect(iter, Operator::RArr)?;
+                let ipt = format!("*({} + ({}))", &ident.name, &iter.s[cur.bytes..end.bytes]);
+                let mut tk = crate::token::tokenize(&ipt);
+                return Ok(unary(&mut tk, ctx)?);
+            }
             return Ok(Node::new_leaf(NodeKind::Lvar(lvar)));
         } else {
             return Err(Error::undefined(iter.s, ident, iter.pos, None));

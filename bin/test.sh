@@ -221,6 +221,16 @@ array() {
     assert 1 'int main(){int x ; x = 1; int y[2]; *(y+1) = 10; return  x;}'
     assert 11 'int main(){int x ; x = 1; int y[2]; *(y+1) = 10; return  *(y+1) + x;}'
     assert 8 'int main(){int x; x = 1; int y[10]; int i; for(i =0; i<10; i = i+1){*(y+i)=i;} int z ; z = 20; return x + *(y+7) ; }'
+    assert 12 'int main(){int x[3]; return sizeof x;}'
+    assert 24 'int main(){int *x[3]; return sizeof x;}'
+}
+
+# 22
+array_idx() {
+    assert 1 'int main(){int a[10]; a[1] = 1; return a[1];}'
+    assert 32 'int main(){int a[10]; int i; i = 2; a[0]= 10; a[9] = 20; return i+ a[0] + a[9]; } '
+    assert 45 'int main(){int a[10]; int i; for(i=0;i<10;i=i+1){a[i] = i;}  int result; result = 0; for (i = 0;i<10;i = i+1){result = result + a[i]; }return result    ; } '
+    assert 10 'int main(){int hoge[2]; int x; x = 2; hoge[x-1] = 10; return hoge[1];}'
 }
 
 if [ $# -eq 0 ]; then
@@ -245,6 +255,7 @@ if [ $# -eq 0 ]; then
     pointer_operation
     sizeof
     array
+    array_idx
 fi
 
 while [ $# -ne 0 ]; do
@@ -270,6 +281,7 @@ while [ $# -ne 0 ]; do
     "19") pointer_operation ;;
     "20") sizeof ;;
     "21") array ;;
+    "22") array_idx ;;
     esac
     shift
 done

@@ -27,7 +27,7 @@ unary       = ("+" | "-")? primary
             | "*" unary
             | "&" unary
             | "sizeof" unary
-primary     = num | ident func-args? | "(" expr ")"
+primary     = num | ident (func-args | "[" num "]")? | "(" expr ")"
 func-args   = "(" (assign ("," assign)*)? ")"
 declaration = basetype ident ("[" num "]")?
 ```
