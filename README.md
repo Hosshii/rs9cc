@@ -1,6 +1,6 @@
 # rs9cc
 
-mini C compiler written in Rust.
+mini C compiler written in Rust. This is my hobby project. I use [compilerbook](https://www.sigbus.info/compilerbook) as a reference for this project.
 
 **Note**: This project is work in progress.
 
