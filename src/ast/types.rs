@@ -348,43 +348,34 @@ impl Program {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Function {
-    pub type_kind: TypeKind,
-    pub ident: Ident,
+    pub def: Rc<FuncDef>,
     pub all_vars: Option<Rc<Lvar>>,
     pub all_var_num: usize,
-    pub params: Vec<Declaration>,
-    pub param_num: usize,
     pub nodes: Vec<Node>,
 }
 
 impl From<Function> for FuncDef {
     fn from(from: Function) -> FuncDef {
         FuncDef {
-            type_kind: from.type_kind,
-            ident: from.ident,
-            params: from.params,
-            param_num: from.param_num,
+            type_kind: from.def.type_kind.clone(),
+            ident: from.def.ident.clone(),
+            params: from.def.params.clone(),
+            param_num: from.def.param_num,
         }
     }
 }
 
 impl Function {
     pub fn new(
-        type_kind: TypeKind,
-        ident: Ident,
+        def: Rc<FuncDef>,
         all_vars: Option<Rc<Lvar>>,
         all_var_num: usize,
-        params: Vec<Declaration>,
-        param_num: usize,
         nodes: Vec<Node>,
     ) -> Self {
         Self {
-            type_kind,
-            ident,
+            def,
             all_vars,
             all_var_num,
-            params,
-            param_num,
             nodes,
         }
     }
@@ -417,7 +408,7 @@ impl Function {
 
     pub fn get_param_size(&self) -> u64 {
         let mut result = 0;
-        for dec in &self.params {
+        for dec in &self.def.params {
             result += dec.base_type.kind.size();
         }
         result

@@ -36,7 +36,7 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
     for function in program.functions {
         println!("# start prologue");
 
-        println!("{}:", function.ident.name);
+        println!("{}:", function.def.ident.name);
         // プロローグ
         println!("    push rbp");
         println!("    mov rbp, rsp");
@@ -46,8 +46,8 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
 
         // 引数をローカル変数としてスタックに載せる
         let mut offset = 0;
-        for i in 0..function.param_num {
-            offset += function.params[i].base_type.kind.eight_size();
+        for i in 0..function.def.param_num {
+            offset += function.def.params[i].base_type.kind.eight_size();
             println!("    mov rax, rbp");
             // スタックのpush popが8バイト単位なのでとりあえずint とかも8バイトにする
             // println!("    sub rax, {}", function.params[i].base_type.kind.size());
