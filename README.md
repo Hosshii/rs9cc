@@ -6,7 +6,7 @@ mini C compiler written in Rust.
 
 ## EBNF
 ```
-program     = function*
+program     = (function | declaration ";" )*
 basetype    = "int" "*"*
 function    = declaration "(" params? ")" "{" stmt* "}"
 params      = declaration ("," declaration)*
@@ -64,6 +64,8 @@ $ RS9CC_ON_WORKFLOW=1 ./bin/test.sh
 - block statement(`{...}`)
 - function call
 - function definition
+- array
+- global variable
 
 
 ## todo

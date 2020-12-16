@@ -1,5 +1,5 @@
 use super::error::Error;
-use super::{Declaration, Ident, Lvar, Node, NodeKind};
+use super::{Declaration, Gvar, GvarMp, Ident, Lvar, Node, NodeKind};
 use crate::base_types;
 use crate::base_types::{BaseType, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
@@ -281,4 +281,22 @@ pub(crate) fn count_deref(node: &Node) -> (usize, Result<Rc<Lvar>, NodeKind>) {
         return (count, Ok(lvar.clone()));
     }
     (count, Err(ref_node.kind.clone()))
+}
+
+/// if global var is already exist, then return error
+/// else add global bar to g_var
+pub(crate) fn check_g_var(
+    iter: &mut TokenIter,
+    g_var: &GvarMp,
+    b_type: BaseType,
+    ident: Ident,
+) -> Result<Gvar, Error> {
+    match g_var.get(&ident.name) {
+        Some(_) => return Err(Error::re_declare(iter.s, ident, iter.pos, None)),
+        None => {
+            let size = b_type.kind.eight_size();
+            let dec = Declaration::new(b_type, ident);
+            return Ok(Gvar::new(dec, size));
+        }
+    }
 }

@@ -1,16 +1,47 @@
 use super::error::Error;
 use super::util::*;
 use super::NodeKind;
-use super::{Context, Declaration, Function, Node, Program};
+use super::{Context, Declaration, Function, GvarMp, Ident, Node, Program};
 use crate::base_types::{BaseType, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::rc::Rc;
 
-// program     = function*
+// program     = (function | declaration ";" )*
 pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
     let mut program = Program::new();
     while iter.peek() != None {
-        program.functions.push(function(iter)?);
+        // to distinguish global variable and function
+        // read base type and ident
+        // then peek next token.
+        // if next token is ; or [], it is global variable
+        // if next token is ( , it is function
+        let mut b_type = expect_base_type(iter)?;
+        let ident = expect_ident(iter)?;
+        if let Some(next) = iter.next() {
+            match next.kind {
+                TokenKind::Reserved(Operator::LParen) => {
+                    program
+                        .functions
+                        .push(function(iter, b_type, ident, &program.g_var)?);
+                }
+                TokenKind::SemiColon => {
+                    program.g_var.insert(
+                        ident.name.clone(),
+                        Rc::new(check_g_var(iter, &program.g_var, b_type, ident)?),
+                    );
+                }
+                TokenKind::Reserved(Operator::LArr) => {
+                    b_type.kind.to_arr(expect_num(iter)?);
+                    expect(iter, Operator::RArr)?;
+                    expect_semi(iter)?;
+                    program.g_var.insert(
+                        ident.name.clone(),
+                        Rc::new(check_g_var(iter, &program.g_var, b_type, ident)?),
+                    );
+                }
+                _ => {}
+            }
+        }
     }
     Ok(program)
 }
@@ -30,10 +61,17 @@ pub fn base_type(iter: &mut TokenIter) -> Result<Node, Error> {
 }
 
 // function    = basetype ident "(" params? ")" "{" stmt* "}"
-pub fn function(iter: &mut TokenIter) -> Result<Function, Error> {
-    let btype = expect_base_type(iter)?;
-    let ident = expect_ident(iter)?;
-    expect(iter, Operator::LParen)?;
+pub fn function(
+    iter: &mut TokenIter,
+    btype: BaseType,
+    ident: Ident,
+    g_var: &GvarMp,
+) -> Result<Function, Error> {
+    // under three token is read in `program` func
+
+    // let btype = expect_base_type(iter)?;
+    // let ident = expect_ident(iter)?;
+    // expect(iter, Operator::LParen)?;
 
     let mut fn_params = Vec::new();
     if !consume(iter, Operator::RParen) {
@@ -43,7 +81,7 @@ pub fn function(iter: &mut TokenIter) -> Result<Function, Error> {
     expect_block(iter, Block::LParen)?;
 
     let param_len = fn_params.len();
-    let mut lvars = Context::new();
+    let mut lvars = Context::new(g_var);
     for fn_param in fn_params.clone() {
         lvars.push_front(
             fn_param,
@@ -296,6 +334,7 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         match node.kind {
             NodeKind::Num(_) => return Ok(Node::new_num(4)),
             NodeKind::Lvar(x) => return Ok(Node::new_num(x.dec.base_type.kind.size() as u64)),
+            NodeKind::Gvar(x) => return Ok(Node::new_num(x.size)),
             NodeKind::Func(_, _) => return Ok(Node::new_num(4)),
             NodeKind::Deref => {
                 let (deref_count, lvar) = count_deref(&node);
@@ -362,6 +401,18 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 return Ok(unary(&mut tk, ctx)?);
             }
             return Ok(Node::new_leaf(NodeKind::Lvar(lvar)));
+        } else if let Some(x) = ctx.gvar.get(&ident.name) {
+            if consume(iter, Operator::LArr) {
+                let cur = iter.pos;
+                let _ = expr(iter, ctx)?;
+                let end = iter.pos;
+                // let num = expect_num(iter)?;
+                expect(iter, Operator::RArr)?;
+                let ipt = format!("*({} + ({}))", &ident.name, &iter.s[cur.bytes..end.bytes]);
+                let mut tk = crate::token::tokenize(&ipt);
+                return Ok(unary(&mut tk, ctx)?);
+            }
+            return Ok(Node::new_leaf(NodeKind::Gvar(x.clone())));
         } else {
             return Err(Error::undefined(iter.s, ident, iter.pos, None));
         }
@@ -398,6 +449,7 @@ mod tests {
     use super::*;
     use crate::ast::{Ident, Lvar, NodeKind};
     use crate::base_types::TypeKind;
+    use std::collections::HashMap;
     use std::rc::Rc;
 
     #[test]
@@ -430,7 +482,7 @@ mod tests {
         for (s, expected) in &tests {
             assert_eq!(
                 expected,
-                &expr(&mut token::tokenize(s), &mut Context::new()).unwrap()
+                &expr(&mut token::tokenize(s), &mut Context::new(&HashMap::new())).unwrap()
             )
         }
     }
@@ -447,7 +499,8 @@ mod tests {
         for (s, expected) in &tests {
             let mut iter = token::tokenize(s);
             let mut actual = Vec::new();
-            let ctx = &mut Context::new();
+            let mp = HashMap::new();
+            let ctx = &mut Context::new(&mp);
             while iter.peek() != None {
                 actual.push(stmt(&mut iter, ctx).unwrap());
             }
@@ -505,7 +558,8 @@ mod tests {
         let input = "1 +1 +hoge -1 -hoge *1 &1 *hoge &hoge *&hoge ";
         let iter = &mut token::tokenize(input);
         for i in expected {
-            let ctx = &mut Context::new();
+            let mp = HashMap::new();
+            let ctx = &mut Context::new(&mp);
             ctx.lvar = Some(Rc::new(make_int_lvar("hoge", 8)));
             assert_eq!(i, unary(iter, ctx).unwrap());
         }
@@ -520,7 +574,8 @@ mod tests {
         let input = "sizeof 1 sizeof (hoge) sizeof (hoge) sizeof(*hoge)";
         let iter = &mut token::tokenize(input);
         for i in expected {
-            let ctx = &mut Context::new();
+            let mp = HashMap::new();
+            let ctx = &mut Context::new(&mp);
             ctx.lvar = Some(Rc::new(i.1));
             assert_eq!(i.0, unary(iter, ctx).unwrap());
         }
@@ -577,7 +632,11 @@ mod tests {
         let expected = make_if_node(cond, then);
 
         let input = "if ( 10 ==20 ) return 15;";
-        let actual = stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        let actual = stmt(
+            &mut token::tokenize(input),
+            &mut Context::new(&HashMap::new()),
+        )
+        .unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -594,7 +653,11 @@ mod tests {
         let expected = make_if_else_node(cond, then, els);
 
         let input = "if ( 10 ==20 ) return 15; else return 10+30;";
-        let actual = stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        let actual = stmt(
+            &mut token::tokenize(input),
+            &mut Context::new(&HashMap::new()),
+        )
+        .unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -608,7 +671,11 @@ mod tests {
         let expected = make_while_node(cond, then);
 
         let input = "while (32 >= 20 ) return 10;";
-        let actual = stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        let actual = stmt(
+            &mut token::tokenize(input),
+            &mut Context::new(&HashMap::new()),
+        )
+        .unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -656,7 +723,8 @@ mod tests {
         let expected = make_for_node(Some(init), Some(cond), Some(inc), then);
 
         let input = "for( i=0;i<10;i=i+1)return i+2;";
-        let ctx = &mut Context::new();
+        let mp = HashMap::new();
+        let ctx = &mut Context::new(&mp);
         ctx.lvar = Some(Rc::new(make_int_lvar("i", 8)));
         let actual = stmt(&mut token::tokenize(input), ctx).unwrap();
 
@@ -677,7 +745,7 @@ mod tests {
         let mut iter = token::tokenize(input);
         let mut actual = Vec::new();
         while iter.peek() != None {
-            actual.push(stmt(&mut iter, &mut Context::new()).unwrap());
+            actual.push(stmt(&mut iter, &mut Context::new(&HashMap::new())).unwrap());
         }
         assert_eq!(expected, actual);
     }
@@ -691,7 +759,7 @@ mod tests {
         let expected = make_fn_node(expected_name, expected_args);
 
         let mut iter = token::tokenize(input);
-        let actual = stmt(&mut iter, &mut Context::new()).unwrap();
+        let actual = stmt(&mut iter, &mut Context::new(&HashMap::new())).unwrap();
         assert_eq!(expected, actual);
 
         let input = "three(1,2,3);";
@@ -700,7 +768,7 @@ mod tests {
         let expected = make_fn_node(expected_name, expected_args);
 
         let mut iter = token::tokenize(input);
-        let actual = stmt(&mut iter, &mut Context::new()).unwrap();
+        let actual = stmt(&mut iter, &mut Context::new(&HashMap::new())).unwrap();
         assert_eq!(expected, actual);
     }
 
@@ -720,9 +788,11 @@ mod tests {
             expected_nodes,
         );
 
-        let input = "int main(){return 1;}";
+        let input = "){return 1;}";
+        let b_type = BaseType::new(TypeKind::Int);
+        let ident = Ident::new("main");
         let iter = &mut token::tokenize(input);
-        let actual = function(iter).unwrap();
+        let actual = function(iter, b_type, ident, &mut HashMap::new()).unwrap();
 
         assert_eq!(expected, actual);
 
@@ -758,9 +828,11 @@ mod tests {
             expected_nodes,
         );
 
-        let input = "int main(){int foo;foo = 1; int bar;bar = 2; return foo+bar;}";
+        let input = "){int foo;foo = 1; int bar;bar = 2; return foo+bar;}";
+        let b_type = BaseType::new(TypeKind::Int);
+        let ident = Ident::new("main");
         let iter = &mut token::tokenize(input);
-        let actual = function(iter).unwrap();
+        let actual = function(iter, b_type, ident, &mut HashMap::new()).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -806,9 +878,11 @@ mod tests {
             expected_nodes,
         );
 
-        let input = "int main(){return 0;}";
+        let input = "){return 0;}";
+        let b_type = BaseType::new(TypeKind::Int);
+        let ident = Ident::new("main");
         let iter = &mut token::tokenize(input);
-        let actual = function(iter).unwrap();
+        let actual = function(iter, b_type, ident, &mut HashMap::new()).unwrap();
 
         assert_eq!(expected, actual);
 
@@ -827,9 +901,11 @@ mod tests {
             expected_nodes,
         );
 
-        let input = "int main(int foo){return 0;}";
+        let input = "int foo){return 0;}";
+        let b_type = BaseType::new(TypeKind::Int);
+        let ident = Ident::new("main");
         let iter = &mut token::tokenize(input);
-        let actual = function(iter).unwrap();
+        let actual = function(iter, b_type, ident, &mut HashMap::new()).unwrap();
 
         assert_eq!(expected, actual);
 
@@ -865,9 +941,11 @@ mod tests {
             expected_nodes,
         );
 
-        let input = "int main(int foo,int bar,int hoge,int hey){return 0;}";
+        let input = "int foo,int bar,int hoge,int hey){return 0;}";
+        let b_type = BaseType::new(TypeKind::Int);
+        let ident = Ident::new("main");
         let iter = &mut token::tokenize(input);
-        let actual = function(iter).unwrap();
+        let actual = function(iter, b_type, ident, &mut HashMap::new()).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -887,7 +965,10 @@ mod tests {
 
         for (input, expected) in &tests {
             let iter = &mut token::tokenize(input);
-            assert_eq!(expected, &primary(iter, &mut Context::new()).unwrap());
+            assert_eq!(
+                expected,
+                &primary(iter, &mut Context::new(&HashMap::new())).unwrap()
+            );
         }
     }
 

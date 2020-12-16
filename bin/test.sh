@@ -233,6 +233,17 @@ array_idx() {
     assert 10 'int main(){int hoge[2]; int x; x = 2; hoge[x-1] = 10; return hoge[1];}'
 }
 
+# 23
+global_variable() {
+    assert 2 'int main(){int a; a=2; return a;}'
+    assert 1 'int a; int main(){a = 1; return 1;}'
+    assert 1 ' int a[10]; int main(){a[0] = 1; return a[0];}'
+    assert 45 'int a[10];int main(){int i; for(i=0;i<10;i=i+1){a[i] = i;}  int result; result = 0; for (i = 0;i<10;i = i+1){result = result + a[i]; }return result    ; } '
+    assert 10 'int hoge[2]; int main(){ int x; x = 2; hoge[x-1] = 10; return hoge[1];}'
+    # assert 3 'int a; int b; int add_a_b(){a = 1; b = 2; return a+b;} int main(){add_a_b(); return a + b;} '
+    # assert 5 'int a; int b; int add_a_b(){a = 1; b = 2; return a+b;} int main(){ int a ; a = add_a_b(); return a + b ;}}'
+}
+
 if [ $# -eq 0 ]; then
     four_op
     eq
@@ -256,6 +267,7 @@ if [ $# -eq 0 ]; then
     sizeof
     array
     array_idx
+    global_variable
 fi
 
 while [ $# -ne 0 ]; do
@@ -282,6 +294,7 @@ while [ $# -ne 0 ]; do
     "20") sizeof ;;
     "21") array ;;
     "22") array_idx ;;
+    "23") global_variable ;;
     esac
     shift
 done

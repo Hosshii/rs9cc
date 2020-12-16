@@ -5,4 +5,6 @@ pub mod util;
 
 pub use ast::program;
 pub use error::Error;
-pub use types::{Context, Declaration, Function, Ident, Lvar, Node, NodeKind, Program};
+pub use types::{
+    Context, Declaration, Function, Gvar, GvarMp, Ident, Lvar, Node, NodeKind, Program,
+};

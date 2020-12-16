@@ -3,6 +3,7 @@ use self::NodeKind::*;
 use crate::base_types;
 use crate::base_types::TypeKind;
 use crate::token::Operator;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
@@ -32,6 +33,7 @@ pub enum NodeKind {
     Lvar(Rc<Lvar>), // usize はベースポインタからのオフセット
     BaseType(base_types::BaseType),
     Declaration(Declaration),
+    Gvar(Rc<Gvar>),
 }
 
 impl NodeKind {
@@ -64,6 +66,7 @@ impl NodeKind {
             Lvar(lvar) => format!("{:?}", lvar), // usize はベースポインタからのオフセット
             BaseType(b_type) => format!("{}", b_type.kind),
             Declaration(dec) => format!("{:?}", dec),
+            Gvar(x) => format!("{:?}", x),
         }
     }
     /// convert NodeKind to token::Operator
@@ -212,6 +215,7 @@ impl Node {
                 }
             }
             Lvar(lvar) => Ok(lvar.get_type()),
+            Gvar(gvar) => Ok(gvar.get_type()),
             Num(_) => Ok(TypeKind::Int),
             _ => Err("err"),
         }
@@ -247,14 +251,34 @@ impl Lvar {
     }
 }
 
-pub struct Context {
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+pub struct Gvar {
+    pub dec: Declaration,
+    pub size: u64,
+}
+
+impl Gvar {
+    pub fn new(dec: Declaration, size: u64) -> Self {
+        Self { dec, size }
+    }
+
+    fn get_type(&self) -> TypeKind {
+        self.dec.get_type()
+    }
+}
+
+pub type GvarMp = HashMap<String, Rc<Gvar>>;
+
+pub struct Context<'a> {
+    pub gvar: &'a GvarMp,
     pub lvar: Option<Rc<Lvar>>,
     pub(crate) count: usize,
 }
 
-impl Context {
-    pub fn new() -> Self {
+impl<'a> Context<'a> {
+    pub fn new(gvar: &'a GvarMp) -> Self {
         Self {
+            gvar,
             lvar: None,
             count: 0,
         }
@@ -302,15 +326,17 @@ impl Context {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Program {
     pub functions: Vec<Function>,
+    pub g_var: GvarMp,
 }
 
 impl Program {
     pub fn new() -> Self {
         Self {
             functions: Vec::new(),
+            g_var: HashMap::new(),
         }
     }
 }
@@ -410,11 +436,16 @@ mod tests {
         use crate::token;
 
         let input = "&*1;";
-        let node = ast::stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        let node = ast::stmt(
+            &mut token::tokenize(input),
+            &mut Context::new(&HashMap::new()),
+        )
+        .unwrap();
         assert_eq!(TypeKind::Int, node.get_type().unwrap());
 
         let input = "*(y + 1);";
-        let mut ctx = Context::new();
+        let mp = HashMap::new();
+        let mut ctx = Context::new(&mp);
         ctx.push_front(
             Declaration::new(
                 BaseType::new(TypeKind::Ptr(Rc::new(BaseType::new(TypeKind::Int)))),

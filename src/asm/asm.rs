@@ -21,8 +21,17 @@ const ARGREG8: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 pub fn code_gen(program: Program) -> Result<(), Error> {
     // アセンブリの前半部分を出力
     println!(".intel_syntax noprefix");
-    println!(".global main");
+
+    println!(".data");
+    // define global variable
+    for (name, gvar) in program.g_var {
+        println!("{}:", name);
+        println!("    .zero {}", gvar.size);
+    }
+
     let mut ctx = Context::new();
+    println!(".text");
+    println!(".global main");
     // asm生成
     for function in program.functions {
         println!("# start prologue");
@@ -70,8 +79,17 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         }
         NodeKind::Lvar(lvar) => {
             println!("# NodeKind::Lvar");
-            gen_lval(node, ctx)?;
+            gen_val(node, ctx)?;
             if let TypeKind::Array(_, _) = lvar.dec.base_type.kind {
+                return Ok(());
+            }
+            load(node);
+            return Ok(());
+        }
+        NodeKind::Gvar(gvar) => {
+            println!("# NodeKind::Gvar");
+            gen_val(node, ctx)?;
+            if let TypeKind::Array(_, _) = gvar.dec.base_type.kind {
                 return Ok(());
             }
             load(node);
@@ -80,7 +98,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         NodeKind::Assign => {
             println!("# NodeKind::Assign");
             if let Some(lhs) = &node.lhs {
-                gen_lval(&lhs, ctx)?;
+                gen_val(&lhs, ctx)?;
             } else {
                 return Err(Error::not_found());
             }
@@ -260,7 +278,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         NodeKind::Addr => {
             println!("# NodeKind::Addr");
             if let Some(lhs) = &node.lhs {
-                gen_lval(&lhs, ctx)?;
+                gen_val(&lhs, ctx)?;
             } else {
                 return Err(Error::not_found());
             }
@@ -345,13 +363,19 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     Ok(())
 }
 
-fn gen_lval(node: &Node, ctx: &mut Context) -> Result<(), Error> {
-    println!("# gen lval");
+fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    println!("# gen val");
     match &node.kind {
         NodeKind::Lvar(x) => {
             println!("# lvar");
             println!("    mov rax, rbp");
             println!("    sub rax, {}", x.offset);
+            println!("    push rax");
+            Ok(())
+        }
+        NodeKind::Gvar(x) => {
+            println!("# gvar");
+            println!("    mov rax, OFFSET FLAT:{}", x.dec.ident.name);
             println!("    push rax");
             Ok(())
         }
@@ -366,6 +390,11 @@ fn gen_lval(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         _ => Err(Error::not_lvar()),
     }
 }
+
+// fn gen_gvar(gvar: &GvarMp) {
+//     println!("# gen gval");
+
+// }
 
 fn load(node: &Node) {
     println!("# load");
