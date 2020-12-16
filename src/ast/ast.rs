@@ -1,7 +1,7 @@
 use super::error::Error;
 use super::util::*;
 use super::NodeKind;
-use super::{Context, Declaration, Function, GvarMp, Ident, Node, Program};
+use super::{Context, Declaration, FuncDef, FuncDefMp, Function, GvarMp, Ident, Node, Program};
 use crate::base_types::{BaseType, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::rc::Rc;
@@ -20,9 +20,13 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
         if let Some(next) = iter.next() {
             match next.kind {
                 TokenKind::Reserved(Operator::LParen) => {
-                    program
-                        .functions
-                        .push(function(iter, b_type, ident, &program.g_var)?);
+                    let func = function(iter, b_type, ident, &program.g_var, &program.func_def)?;
+                    let func_def = FuncDef::from(func.clone());
+                    program.functions.push(func);
+                    program.func_def.insert(
+                        func_def.ident.name.clone(),
+                        Rc::new(check_func_def(iter, &program.func_def, func_def)?),
+                    );
                 }
                 TokenKind::SemiColon => {
                     program.g_var.insert(
@@ -66,6 +70,7 @@ pub fn function(
     btype: BaseType,
     ident: Ident,
     g_var: &GvarMp,
+    func_def: &FuncDefMp,
 ) -> Result<Function, Error> {
     // under three token is read in `program` func
 
@@ -81,11 +86,11 @@ pub fn function(
     expect_block(iter, Block::LParen)?;
 
     let param_len = fn_params.len();
-    let mut lvars = Context::new(g_var);
+    let mut ctx = Context::new(g_var, func_def);
     for fn_param in fn_params.clone() {
-        lvars.push_front(
+        ctx.push_front(
             fn_param,
-            lvars.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+            ctx.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
         )
     }
 
@@ -94,15 +99,15 @@ pub fn function(
         if consume_block(iter, Block::RParen) {
             return Ok(Function::new(
                 btype.kind,
-                ident.name,
-                lvars.lvar,
-                lvars.count,
+                ident,
+                ctx.lvar,
+                ctx.lvar_count,
                 fn_params,
                 param_len,
                 stmt_vec,
             ));
         }
-        stmt_vec.push(stmt(iter, &mut lvars)?);
+        stmt_vec.push(stmt(iter, &mut ctx)?);
     }
 }
 
@@ -335,7 +340,7 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             NodeKind::Num(_) => return Ok(Node::new_num(4)),
             NodeKind::Lvar(x) => return Ok(Node::new_num(x.dec.base_type.kind.size() as u64)),
             NodeKind::Gvar(x) => return Ok(Node::new_num(x.size)),
-            NodeKind::Func(_, _) => return Ok(Node::new_num(4)),
+            NodeKind::Func(func_def, _) => return Ok(Node::new_num(func_def.type_kind.size())),
             NodeKind::Deref => {
                 let (deref_count, lvar) = count_deref(&node);
                 let lvar = match lvar {
@@ -384,8 +389,12 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         // todo
         // 関数もローカル変数と同じように定義済みかどうか判定するようにした方がいい
         if consume(iter, Operator::LParen) {
+            let func_def = ctx
+                .func_def_mp
+                .get(&ident.name)
+                .ok_or(Error::undefined_function(iter.s, ident, iter.pos, None))?;
             return Ok(Node::new_leaf(NodeKind::Func(
-                ident.name,
+                func_def.clone(),
                 func_args(iter, ctx)?,
             )));
         }
@@ -414,7 +423,7 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             }
             return Ok(Node::new_leaf(NodeKind::Gvar(x.clone())));
         } else {
-            return Err(Error::undefined(iter.s, ident, iter.pos, None));
+            return Err(Error::undefined_variable(iter.s, ident, iter.pos, None));
         }
     }
     return Ok(Node::new_num(expect_num(iter)?));
@@ -482,7 +491,11 @@ mod tests {
         for (s, expected) in &tests {
             assert_eq!(
                 expected,
-                &expr(&mut token::tokenize(s), &mut Context::new(&HashMap::new())).unwrap()
+                &expr(
+                    &mut token::tokenize(s),
+                    &mut Context::new(&HashMap::new(), &HashMap::new())
+                )
+                .unwrap()
             )
         }
     }
@@ -499,8 +512,9 @@ mod tests {
         for (s, expected) in &tests {
             let mut iter = token::tokenize(s);
             let mut actual = Vec::new();
-            let mp = HashMap::new();
-            let ctx = &mut Context::new(&mp);
+            let mp1 = HashMap::new();
+            let mp2 = HashMap::new();
+            let ctx = &mut Context::new(&mp1, &mp2);
             while iter.peek() != None {
                 actual.push(stmt(&mut iter, ctx).unwrap());
             }
@@ -558,8 +572,9 @@ mod tests {
         let input = "1 +1 +hoge -1 -hoge *1 &1 *hoge &hoge *&hoge ";
         let iter = &mut token::tokenize(input);
         for i in expected {
-            let mp = HashMap::new();
-            let ctx = &mut Context::new(&mp);
+            let mp1 = HashMap::new();
+            let mp2 = HashMap::new();
+            let ctx = &mut Context::new(&mp1, &mp2);
             ctx.lvar = Some(Rc::new(make_int_lvar("hoge", 8)));
             assert_eq!(i, unary(iter, ctx).unwrap());
         }
@@ -574,8 +589,9 @@ mod tests {
         let input = "sizeof 1 sizeof (hoge) sizeof (hoge) sizeof(*hoge)";
         let iter = &mut token::tokenize(input);
         for i in expected {
-            let mp = HashMap::new();
-            let ctx = &mut Context::new(&mp);
+            let mp1 = HashMap::new();
+            let mp2 = HashMap::new();
+            let ctx = &mut Context::new(&mp1, &mp2);
             ctx.lvar = Some(Rc::new(i.1));
             assert_eq!(i.0, unary(iter, ctx).unwrap());
         }
@@ -634,7 +650,7 @@ mod tests {
         let input = "if ( 10 ==20 ) return 15;";
         let actual = stmt(
             &mut token::tokenize(input),
-            &mut Context::new(&HashMap::new()),
+            &mut Context::new(&HashMap::new(), &HashMap::new()),
         )
         .unwrap();
 
@@ -655,7 +671,7 @@ mod tests {
         let input = "if ( 10 ==20 ) return 15; else return 10+30;";
         let actual = stmt(
             &mut token::tokenize(input),
-            &mut Context::new(&HashMap::new()),
+            &mut Context::new(&HashMap::new(), &HashMap::new()),
         )
         .unwrap();
 
@@ -673,7 +689,7 @@ mod tests {
         let input = "while (32 >= 20 ) return 10;";
         let actual = stmt(
             &mut token::tokenize(input),
-            &mut Context::new(&HashMap::new()),
+            &mut Context::new(&HashMap::new(), &HashMap::new()),
         )
         .unwrap();
 
@@ -723,8 +739,9 @@ mod tests {
         let expected = make_for_node(Some(init), Some(cond), Some(inc), then);
 
         let input = "for( i=0;i<10;i=i+1)return i+2;";
-        let mp = HashMap::new();
-        let ctx = &mut Context::new(&mp);
+        let mp1 = HashMap::new();
+        let mp2 = HashMap::new();
+        let ctx = &mut Context::new(&mp1, &mp2);
         ctx.lvar = Some(Rc::new(make_int_lvar("i", 8)));
         let actual = stmt(&mut token::tokenize(input), ctx).unwrap();
 
@@ -745,7 +762,13 @@ mod tests {
         let mut iter = token::tokenize(input);
         let mut actual = Vec::new();
         while iter.peek() != None {
-            actual.push(stmt(&mut iter, &mut Context::new(&HashMap::new())).unwrap());
+            actual.push(
+                stmt(
+                    &mut iter,
+                    &mut Context::new(&HashMap::new(), &HashMap::new()),
+                )
+                .unwrap(),
+            );
         }
         assert_eq!(expected, actual);
     }
@@ -757,18 +780,36 @@ mod tests {
         let expected_name = "add";
         let expected_args = vec![];
         let expected = make_fn_node(expected_name, expected_args);
+        let mut mp2 = HashMap::new();
+        mp2.insert(
+            "add".to_string(),
+            Rc::new(FuncDef::new(TypeKind::Int, Ident::new("add"), Vec::new())),
+        );
 
         let mut iter = token::tokenize(input);
-        let actual = stmt(&mut iter, &mut Context::new(&HashMap::new())).unwrap();
+        let actual = stmt(&mut iter, &mut Context::new(&HashMap::new(), &mp2)).unwrap();
         assert_eq!(expected, actual);
 
         let input = "three(1,2,3);";
         let expected_name = "three";
         let expected_args = vec![Node::new_num(1), Node::new_num(2), Node::new_num(3)];
         let expected = make_fn_node(expected_name, expected_args);
+        let mut mp2 = HashMap::new();
+        mp2.insert(
+            "three".to_string(),
+            Rc::new(FuncDef::new(
+                TypeKind::Int,
+                Ident::new("three"),
+                vec![
+                    Declaration::new(BaseType::new(TypeKind::Int), Ident::new("a")),
+                    Declaration::new(BaseType::new(TypeKind::Int), Ident::new("a")),
+                    Declaration::new(BaseType::new(TypeKind::Int), Ident::new("a")),
+                ],
+            )),
+        );
 
         let mut iter = token::tokenize(input);
-        let actual = stmt(&mut iter, &mut Context::new(&HashMap::new())).unwrap();
+        let actual = stmt(&mut iter, &mut Context::new(&HashMap::new(), &mp2)).unwrap();
         assert_eq!(expected, actual);
     }
 
@@ -776,11 +817,11 @@ mod tests {
     fn test_func_def() {
         use crate::token;
         let expected_type_kind = TypeKind::Int;
-        let expected_fn_name = "main";
+        let expected_fn_ident = Ident::new("main");
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(1))];
         let expected = Function::new(
             expected_type_kind,
-            expected_fn_name,
+            expected_fn_ident,
             None,
             0,
             Vec::new(),
@@ -792,12 +833,19 @@ mod tests {
         let b_type = BaseType::new(TypeKind::Int);
         let ident = Ident::new("main");
         let iter = &mut token::tokenize(input);
-        let actual = function(iter, b_type, ident, &mut HashMap::new()).unwrap();
+        let actual = function(
+            iter,
+            b_type,
+            ident,
+            &mut HashMap::new(),
+            &mut HashMap::new(),
+        )
+        .unwrap();
 
         assert_eq!(expected, actual);
 
         let expected_type_kind = TypeKind::Int;
-        let expected_fn_name = "main";
+        let expected_fn_ident = Ident::new("main");
         let lvar1 = Lvar::new_leaf(make_int_dec("foo"), 8);
         let lvar2 = Lvar::new(lvar1.clone(), make_int_dec("bar"), 16);
         let expected_lvar = Rc::new(lvar2.clone());
@@ -820,7 +868,7 @@ mod tests {
         let expected_nodes = vec![node1, node2, node3, node4, node5];
         let expected = Function::new(
             expected_type_kind,
-            expected_fn_name,
+            expected_fn_ident,
             Some(expected_lvar),
             2,
             Vec::new(),
@@ -832,7 +880,14 @@ mod tests {
         let b_type = BaseType::new(TypeKind::Int);
         let ident = Ident::new("main");
         let iter = &mut token::tokenize(input);
-        let actual = function(iter, b_type, ident, &mut HashMap::new()).unwrap();
+        let actual = function(
+            iter,
+            b_type,
+            ident,
+            &mut HashMap::new(),
+            &mut HashMap::new(),
+        )
+        .unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -866,11 +921,11 @@ mod tests {
         use crate::token;
 
         let expected_type_kind = TypeKind::Int;
-        let expected_fn_name = "main";
+        let expected_fn_ident = Ident::new("main");
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(0))];
         let expected = Function::new(
             expected_type_kind,
-            expected_fn_name,
+            expected_fn_ident,
             None,
             0,
             Vec::new(),
@@ -882,18 +937,25 @@ mod tests {
         let b_type = BaseType::new(TypeKind::Int);
         let ident = Ident::new("main");
         let iter = &mut token::tokenize(input);
-        let actual = function(iter, b_type, ident, &mut HashMap::new()).unwrap();
+        let actual = function(
+            iter,
+            b_type,
+            ident,
+            &mut HashMap::new(),
+            &mut HashMap::new(),
+        )
+        .unwrap();
 
         assert_eq!(expected, actual);
 
         let expected_type_kind = TypeKind::Int;
-        let expected_fn_name = "main";
+        let expected_fn_ident = Ident::new("main");
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(0))];
         let expected_param = vec![make_int_dec("foo")];
         let expected_lvar = Lvar::new_leaf(make_int_dec("foo"), 8);
         let expected = Function::new(
             expected_type_kind,
-            expected_fn_name,
+            expected_fn_ident,
             Some(Rc::new(expected_lvar)),
             1,
             expected_param,
@@ -905,12 +967,19 @@ mod tests {
         let b_type = BaseType::new(TypeKind::Int);
         let ident = Ident::new("main");
         let iter = &mut token::tokenize(input);
-        let actual = function(iter, b_type, ident, &mut HashMap::new()).unwrap();
+        let actual = function(
+            iter,
+            b_type,
+            ident,
+            &mut HashMap::new(),
+            &mut HashMap::new(),
+        )
+        .unwrap();
 
         assert_eq!(expected, actual);
 
         let expected_type_kind = TypeKind::Int;
-        let expected_fn_name = "main";
+        let expected_fn_ident = Ident::new("main");
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(0))];
         let expected_param = vec![
             make_int_dec("foo"),
@@ -933,7 +1002,7 @@ mod tests {
         );
         let expected = Function::new(
             expected_type_kind,
-            expected_fn_name,
+            expected_fn_ident,
             Some(Rc::new(expected_lvar)),
             4,
             expected_param,
@@ -945,7 +1014,14 @@ mod tests {
         let b_type = BaseType::new(TypeKind::Int);
         let ident = Ident::new("main");
         let iter = &mut token::tokenize(input);
-        let actual = function(iter, b_type, ident, &mut HashMap::new()).unwrap();
+        let actual = function(
+            iter,
+            b_type,
+            ident,
+            &mut HashMap::new(),
+            &mut HashMap::new(),
+        )
+        .unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -953,21 +1029,51 @@ mod tests {
     #[test]
     fn test_primary() {
         use crate::token;
+        let mut mp1 = HashMap::new();
+        mp1.insert(
+            "foo".to_string(),
+            Rc::new(FuncDef::new(TypeKind::Int, Ident::new("foo"), Vec::new())),
+        );
+        let mut mp2 = HashMap::new();
+        mp2.insert(
+            "foo".to_string(),
+            Rc::new(FuncDef::new(
+                TypeKind::Int,
+                Ident::new("foo"),
+                vec![Declaration::new(
+                    BaseType::new(TypeKind::Int),
+                    Ident::new("a"),
+                )],
+            )),
+        );
+        let mut mp3 = HashMap::new();
+        mp3.insert(
+            "foo".to_string(),
+            Rc::new(FuncDef::new(
+                TypeKind::Int,
+                Ident::new("foo"),
+                vec![
+                    Declaration::new(BaseType::new(TypeKind::Int), Ident::new("a")),
+                    Declaration::new(BaseType::new(TypeKind::Int), Ident::new("a")),
+                ],
+            )),
+        );
         let tests = [
-            ("1", Node::new_num(1)),
-            ("foo()", make_fn_node("foo", vec![])),
-            ("foo(1)", make_fn_node("foo", vec![Node::new_num(1)])),
+            ("1", Node::new_num(1), mp1.clone()),
+            ("foo()", make_fn_node("foo", vec![]), mp1),
+            ("foo(1)", make_fn_node("foo", vec![Node::new_num(1)]), mp2),
             (
                 "foo(1,2)",
                 make_fn_node("foo", vec![Node::new_num(1), Node::new_num(2)]),
+                mp3,
             ),
         ];
 
-        for (input, expected) in &tests {
+        for (input, expected, mp) in &tests {
             let iter = &mut token::tokenize(input);
             assert_eq!(
                 expected,
-                &primary(iter, &mut Context::new(&HashMap::new())).unwrap()
+                &primary(iter, &mut Context::new(&HashMap::new(), &mp)).unwrap()
             );
         }
     }
@@ -1020,7 +1126,17 @@ mod tests {
     }
 
     fn make_fn_node(name: impl Into<String>, args: Vec<Node>) -> Node {
-        Node::new_none(NodeKind::Func(name.into(), args))
+        let mut dec = vec![];
+        for _ in 0..args.len() {
+            dec.push(Declaration::new(
+                BaseType::new(TypeKind::Int),
+                Ident::new("a"),
+            ));
+        }
+        Node::new_none(NodeKind::Func(
+            Rc::new(FuncDef::new(TypeKind::Int, Ident::new(name), dec)),
+            args,
+        ))
     }
 
     fn make_int_dec(name: impl Into<String>) -> Declaration {

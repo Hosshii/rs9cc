@@ -27,7 +27,7 @@ pub enum NodeKind {
     Addr,
     Deref,
     Block(Vec<Node>),
-    Func(String, Vec<Node>), // (func_name,args)
+    Func(Rc<FuncDef>, Vec<Node>), // (func_name,args)
     Num(u64),
     // Ident(Ident),
     Lvar(Rc<Lvar>), // usize はベースポインタからのオフセット
@@ -60,7 +60,7 @@ impl NodeKind {
             Addr => "&".to_string(),
             Deref => "*".to_string(),
             Block(_) => "block".to_string(),
-            Func(name, _) => format!("function: {}", name), // (func_name,args)
+            Func(func_def, _) => format!("function: {}", func_def.ident.name), // (func_name,args)
             Num(num) => format!("{}", num),
             // Ident(Ident),
             Lvar(lvar) => format!("{:?}", lvar), // usize はベースポインタからのオフセット
@@ -216,6 +216,7 @@ impl Node {
             }
             Lvar(lvar) => Ok(lvar.get_type()),
             Gvar(gvar) => Ok(gvar.get_type()),
+            Func(func_def, _) => Ok(func_def.type_kind.clone()),
             Num(_) => Ok(TypeKind::Int),
             _ => Err("err"),
         }
@@ -272,20 +273,22 @@ pub type GvarMp = HashMap<String, Rc<Gvar>>;
 pub struct Context<'a> {
     pub gvar: &'a GvarMp,
     pub lvar: Option<Rc<Lvar>>,
-    pub(crate) count: usize,
+    pub(crate) lvar_count: usize,
+    pub func_def_mp: &'a FuncDefMp,
 }
 
 impl<'a> Context<'a> {
-    pub fn new(gvar: &'a GvarMp) -> Self {
+    pub fn new(gvar: &'a GvarMp, func_def_mp: &'a FuncDefMp) -> Self {
         Self {
             gvar,
             lvar: None,
-            count: 0,
+            lvar_count: 0,
+            func_def_mp,
         }
     }
 
     pub fn push_front(&mut self, dec: Declaration, offset: u64) {
-        self.count += 1;
+        self.lvar_count += 1;
         let offset = offset + dec.base_type.kind.eight_size();
         self.lvar = Some(Rc::new(Lvar {
             next: self.lvar.take(),
@@ -329,6 +332,7 @@ impl<'a> Context<'a> {
 #[derive(Clone, Debug)]
 pub struct Program {
     pub functions: Vec<Function>,
+    pub func_def: FuncDefMp,
     pub g_var: GvarMp,
 }
 
@@ -336,6 +340,7 @@ impl Program {
     pub fn new() -> Self {
         Self {
             functions: Vec::new(),
+            func_def: HashMap::new(),
             g_var: HashMap::new(),
         }
     }
@@ -344,7 +349,7 @@ impl Program {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Function {
     pub type_kind: TypeKind,
-    pub name: String,
+    pub ident: Ident,
     pub all_vars: Option<Rc<Lvar>>,
     pub all_var_num: usize,
     pub params: Vec<Declaration>,
@@ -352,10 +357,21 @@ pub struct Function {
     pub nodes: Vec<Node>,
 }
 
+impl From<Function> for FuncDef {
+    fn from(from: Function) -> FuncDef {
+        FuncDef {
+            type_kind: from.type_kind,
+            ident: from.ident,
+            params: from.params,
+            param_num: from.param_num,
+        }
+    }
+}
+
 impl Function {
     pub fn new(
         type_kind: TypeKind,
-        name: impl Into<String>,
+        ident: Ident,
         all_vars: Option<Rc<Lvar>>,
         all_var_num: usize,
         params: Vec<Declaration>,
@@ -364,7 +380,7 @@ impl Function {
     ) -> Self {
         Self {
             type_kind,
-            name: name.into(),
+            ident,
             all_vars,
             all_var_num,
             params,
@@ -409,6 +425,27 @@ impl Function {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+pub struct FuncDef {
+    pub type_kind: TypeKind,
+    pub ident: Ident,
+    pub params: Vec<Declaration>,
+    pub param_num: usize,
+}
+
+impl FuncDef {
+    pub fn new(type_kind: TypeKind, ident: Ident, params: Vec<Declaration>) -> Self {
+        let param_num = params.len();
+        Self {
+            type_kind,
+            ident,
+            params,
+            param_num,
+        }
+    }
+}
+pub type FuncDefMp = HashMap<String, Rc<FuncDef>>;
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Declaration {
     pub base_type: base_types::BaseType,
     pub ident: Ident,
@@ -436,16 +473,16 @@ mod tests {
         use crate::token;
 
         let input = "&*1;";
-        let node = ast::stmt(
-            &mut token::tokenize(input),
-            &mut Context::new(&HashMap::new()),
-        )
-        .unwrap();
+        let mp1 = HashMap::new();
+        let mp2 = HashMap::new();
+        let mut ctx = Context::new(&mp1, &mp2);
+        let node = ast::stmt(&mut token::tokenize(input), &mut ctx).unwrap();
         assert_eq!(TypeKind::Int, node.get_type().unwrap());
 
         let input = "*(y + 1);";
-        let mp = HashMap::new();
-        let mut ctx = Context::new(&mp);
+        let mp1 = HashMap::new();
+        let mp2 = HashMap::new();
+        let mut ctx = Context::new(&mp1, &mp2);
         ctx.push_front(
             Declaration::new(
                 BaseType::new(TypeKind::Ptr(Rc::new(BaseType::new(TypeKind::Int)))),

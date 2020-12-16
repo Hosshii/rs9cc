@@ -10,7 +10,8 @@ pub enum ErrorKind {
         expected: TokenKind,
         actual: TokenKind,
     },
-    Undefined(Ident),
+    UndefinedVariable(Ident),
+    UndefinedFunction(Ident),
     ReDeclare(Ident),
     InvalidVariableDereference(Lvar, usize),
     InvalidValueDereference(String),
@@ -53,14 +54,28 @@ impl Error {
         }
     }
 
-    pub fn undefined(
+    pub fn undefined_variable(
         input: impl Into<String>,
         ident: Ident,
         pos: TokenPos,
         msg: Option<String>,
     ) -> Error {
         Error {
-            kind: Undefined(ident),
+            kind: UndefinedVariable(ident),
+            pos,
+            input: input.into(),
+            msg,
+        }
+    }
+
+    pub fn undefined_function(
+        input: impl Into<String>,
+        ident: Ident,
+        pos: TokenPos,
+        msg: Option<String>,
+    ) -> Error {
+        Error {
+            kind: UndefinedFunction(ident),
             pos,
             input: input.into(),
             msg,
@@ -132,7 +147,8 @@ impl fmt::Display for Error {
             EOF(expected) => {
                 unexpected_token_err_format(expected.clone(), TokenKind::EOF, &self, f)
             }
-            Undefined(ident) => undefined_err_format(&self, ident, f),
+            UndefinedVariable(ident) => undefined_variable_err_format(&self, ident, f),
+            UndefinedFunction(ident) => undefined_function_err_format(&self, ident, f),
             ReDeclare(ident) => re_declare_err_format(&self, ident, f),
             InvalidVariableDereference(lvar, actual_deref_count) => {
                 invalid_variable_dereference_err_format(&self, lvar, *actual_deref_count, f)
@@ -181,8 +197,20 @@ fn unexpected_token_err_format(
     err_format(err, msg, f)
 }
 
-fn undefined_err_format(err: &Error, ident: &Ident, f: &mut fmt::Formatter) -> fmt::Result {
+fn undefined_variable_err_format(
+    err: &Error,
+    ident: &Ident,
+    f: &mut fmt::Formatter,
+) -> fmt::Result {
     err_format(err, format!("variable {} is not defined", ident.name), f)
+}
+
+fn undefined_function_err_format(
+    err: &Error,
+    ident: &Ident,
+    f: &mut fmt::Formatter,
+) -> fmt::Result {
+    err_format(err, format!("function {} is not defined", ident.name), f)
 }
 
 fn re_declare_err_format(err: &Error, ident: &Ident, f: &mut fmt::Formatter) -> fmt::Result {

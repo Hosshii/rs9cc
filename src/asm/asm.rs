@@ -36,7 +36,7 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
     for function in program.functions {
         println!("# start prologue");
 
-        println!("{}:", function.name);
+        println!("{}:", function.ident.name);
         // プロローグ
         println!("    push rbp");
         println!("    mov rbp, rsp");
@@ -220,7 +220,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             }
             return Ok(());
         }
-        NodeKind::Func(name, args) => {
+        NodeKind::Func(func_def, args) => {
             println!("# NodeKind::Func");
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
@@ -241,13 +241,13 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 println!("    and rax, 15");
                 println!("    jnz .LcallF{}", jlb_num);
                 println!("    mov rax, 0");
-                println!("    call {}", name);
+                println!("    call {}", func_def.ident.name);
                 println!("    add rsp, 4");
                 println!("    jmp .LendF{}", jlb_num);
                 println!(".LcallF{}:", jlb_num);
                 println!("    sub rsp, 8");
                 println!("    mov rax, 0");
-                println!("    call {}", name);
+                println!("    call {}", func_def.ident.name);
                 println!("    add rsp, 12");
                 println!(".LendF{}:", jlb_num);
                 println!("    push rax");
@@ -262,12 +262,12 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 println!("    and rax, 15");
                 println!("    jnz .LcallFH{}", jlb_num);
                 println!("    mov rax, 0");
-                println!("    call {}", name);
+                println!("    call {}", func_def.ident.name);
                 println!("    jmp .LendFH{}", jlb_num);
                 println!(".LcallFH{}:", jlb_num);
                 println!("    sub rsp, 8");
                 println!("    mov rax, 0");
-                println!("    call {}", name);
+                println!("    call {}", func_def.ident.name);
                 println!("    add rsp, 8");
                 println!(".LendFH{}:", jlb_num);
                 println!("    push rax");

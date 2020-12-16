@@ -1,5 +1,5 @@
 use super::error::Error;
-use super::{Declaration, Gvar, GvarMp, Ident, Lvar, Node, NodeKind};
+use super::{Declaration, FuncDef, FuncDefMp, Gvar, GvarMp, Ident, Lvar, Node, NodeKind};
 use crate::base_types;
 use crate::base_types::{BaseType, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
@@ -284,7 +284,6 @@ pub(crate) fn count_deref(node: &Node) -> (usize, Result<Rc<Lvar>, NodeKind>) {
 }
 
 /// if global var is already exist, then return error
-/// else add global bar to g_var
 pub(crate) fn check_g_var(
     iter: &mut TokenIter,
     g_var: &GvarMp,
@@ -298,5 +297,16 @@ pub(crate) fn check_g_var(
             let dec = Declaration::new(b_type, ident);
             return Ok(Gvar::new(dec, size));
         }
+    }
+}
+
+pub(crate) fn check_func_def(
+    iter: &TokenIter,
+    func_def_mp: &FuncDefMp,
+    func_def: FuncDef,
+) -> Result<FuncDef, Error> {
+    match func_def_mp.get(&func_def.ident.name) {
+        Some(_) => return Err(Error::re_declare(iter.s, func_def.ident, iter.pos, None)),
+        None => return Ok(func_def),
     }
 }
