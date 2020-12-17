@@ -31,7 +31,8 @@ assert() {
     if [ -n "$RS9CC_ON_WORKFLOW" ]; then
         bin="./target/release/rs9cc"
     fi
-    $bin "$input" >tmp.s
+    echo "$input" >test.c
+    $bin "test.c" >tmp.s
     cc -no-pie -o tmp tmp.s tmp2.o
     ./tmp
     actual="$?"

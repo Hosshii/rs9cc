@@ -191,6 +191,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 }
                 _ => {
                     return Err(Error::unexpected_token(
+                        iter.filepath,
                         iter.s,
                         x.clone(),
                         TokenKind::Block(Block::LParen),
@@ -210,7 +211,13 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             //   ^ variable a is not defined
             // to prevent this, subtract from iter.pos.bytes.
             // but now i dont have good solution.
-            return Err(Error::re_declare(iter.s, dec.ident, iter.pos, None));
+            return Err(Error::re_declare(
+                iter.filepath,
+                iter.s,
+                dec.ident,
+                iter.pos,
+                None,
+            ));
         } else {
             ctx.l.push_front(
                 dec.clone(),
@@ -245,7 +252,11 @@ pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         // 配列とポインタの比較が中途半端
         if lhs_type != rhs_type && !TypeKind::partial_comp(&lhs_type, &rhs_type) {
             return Err(Error::invalid_assignment(
-                iter.s, iter.pos, lhs_type, rhs_type,
+                iter.filepath,
+                iter.s,
+                iter.pos,
+                lhs_type,
+                rhs_type,
             ));
         }
         node = Node::new(NodeKind::Assign, node, rhs);
@@ -347,6 +358,7 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     Ok(x) => x,
                     Err(x) => {
                         return Err(Error::invalid_value_dereference(
+                            iter.filepath,
                             iter.s,
                             iter.pos,
                             x.as_str(),
@@ -358,6 +370,7 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     Ok(Node::new_num(type_kind.size()))
                 } else {
                     Err(Error::invalid_variable_dereference(
+                        iter.filepath,
                         iter.s,
                         iter.pos,
                         (*lvar).clone(),
@@ -390,6 +403,7 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             TypeKind::Array(_, _) | TypeKind::Ptr(_) => {}
             x => {
                 return Err(Error::invalid_value_dereference(
+                    iter.filepath,
                     iter.s,
                     iter.pos,
                     x.as_str(),
@@ -419,11 +433,17 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     // ident func-args?
     if let Some(ident) = consume_ident(iter) {
         if consume(iter, Operator::LParen) {
-            let func_prototype = ctx
-                .g
-                .func_prototype_mp
-                .get(&ident.name)
-                .ok_or(Error::undefined_function(iter.s, ident, iter.pos, None))?;
+            let func_prototype =
+                ctx.g
+                    .func_prototype_mp
+                    .get(&ident.name)
+                    .ok_or(Error::undefined_function(
+                        iter.filepath,
+                        iter.s,
+                        ident,
+                        iter.pos,
+                        None,
+                    ))?;
             return Ok(Node::new_leaf(NodeKind::Func(
                 func_prototype.clone(),
                 func_args(iter, ctx)?,
@@ -434,7 +454,13 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         } else if let Some(x) = ctx.g.gvar_mp.get(&ident.name) {
             return Ok(Node::new_leaf(NodeKind::Gvar(x.clone())));
         } else {
-            return Err(Error::undefined_variable(iter.s, ident, iter.pos, None));
+            return Err(Error::undefined_variable(
+                iter.filepath,
+                iter.s,
+                ident,
+                iter.pos,
+                None,
+            ));
         }
     }
 
@@ -518,7 +544,7 @@ mod tests {
         for (s, expected) in &tests {
             assert_eq!(
                 expected,
-                &expr(&mut token::tokenize(s), &mut Context::new()).unwrap()
+                &expr(&mut token::tokenize(s, ""), &mut Context::new()).unwrap()
             )
         }
     }
@@ -533,7 +559,7 @@ mod tests {
         )];
 
         for (s, expected) in &tests {
-            let mut iter = token::tokenize(s);
+            let mut iter = token::tokenize(s, "");
             let mut actual = Vec::new();
 
             let ctx = &mut Context::new();
@@ -592,7 +618,7 @@ mod tests {
         ];
 
         let input = "1 +1 +hoge -1 -hoge *1 &1 *hoge &hoge *&hoge ";
-        let iter = &mut token::tokenize(input);
+        let iter = &mut token::tokenize(input, "");
         for i in expected {
             let ctx = &mut Context::new();
             ctx.l.lvar = Some(Rc::new(make_int_lvar("hoge", 8)));
@@ -607,7 +633,7 @@ mod tests {
         ];
 
         let input = "sizeof 1 sizeof (hoge) sizeof (hoge) sizeof(*hoge)";
-        let iter = &mut token::tokenize(input);
+        let iter = &mut token::tokenize(input, "");
         for i in expected {
             let ctx = &mut Context::new();
             ctx.l.lvar = Some(Rc::new(i.1));
@@ -685,7 +711,10 @@ mod tests {
         ];
 
         for (input, expected) in &tests {
-            assert_eq!(*expected, declaration(&mut token::tokenize(input)).unwrap());
+            assert_eq!(
+                *expected,
+                declaration(&mut token::tokenize(input, "")).unwrap()
+            );
         }
     }
 
@@ -697,7 +726,7 @@ mod tests {
         let expected = make_if_node(cond, then);
 
         let input = "if ( 10 ==20 ) return 15;";
-        let actual = stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        let actual = stmt(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -714,7 +743,7 @@ mod tests {
         let expected = make_if_else_node(cond, then, els);
 
         let input = "if ( 10 ==20 ) return 15; else return 10+30;";
-        let actual = stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        let actual = stmt(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -728,7 +757,7 @@ mod tests {
         let expected = make_while_node(cond, then);
 
         let input = "while (32 >= 20 ) return 10;";
-        let actual = stmt(&mut token::tokenize(input), &mut Context::new()).unwrap();
+        let actual = stmt(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -778,7 +807,7 @@ mod tests {
         let input = "for( i=0;i<10;i=i+1)return i+2;";
         let ctx = &mut Context::new();
         ctx.l.lvar = Some(Rc::new(make_int_lvar("i", 8)));
-        let actual = stmt(&mut token::tokenize(input), ctx).unwrap();
+        let actual = stmt(&mut token::tokenize(input, ""), ctx).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -794,7 +823,7 @@ mod tests {
             make_assign_node("hoge", 4, 8),
         ];
         let expected = vec![Node::new_none(NodeKind::Block(expected))];
-        let mut iter = token::tokenize(input);
+        let mut iter = token::tokenize(input, "");
         let mut actual = Vec::new();
         while iter.peek() != None {
             actual.push(stmt(&mut iter, &mut Context::new()).unwrap());
@@ -821,7 +850,7 @@ mod tests {
         let mut ctx = Context::new();
         ctx.g = g_ctx;
 
-        let mut iter = token::tokenize(input);
+        let mut iter = token::tokenize(input, "");
         let actual = stmt(&mut iter, &mut ctx).unwrap();
         assert_eq!(expected, actual);
 
@@ -846,7 +875,7 @@ mod tests {
         let mut ctx = Context::new();
         ctx.g = g_ctx;
 
-        let mut iter = token::tokenize(input);
+        let mut iter = token::tokenize(input, "");
         let actual = stmt(&mut iter, &mut ctx).unwrap();
 
         assert_eq!(expected, actual);
@@ -870,7 +899,7 @@ mod tests {
             Ident::new("main"),
             vec![],
         ));
-        let iter = &mut token::tokenize(input);
+        let iter = &mut token::tokenize(input, "");
         let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
@@ -908,7 +937,7 @@ mod tests {
         );
 
         let input = "{int foo;foo = 1; int bar;bar = 2; return foo+bar;}";
-        let iter = &mut token::tokenize(input);
+        let iter = &mut token::tokenize(input, "");
         let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
@@ -921,7 +950,7 @@ mod tests {
         let expected = vec![make_int_dec("hoge")];
 
         let input = "int hoge";
-        let iter = &mut token::tokenize(input);
+        let iter = &mut token::tokenize(input, "");
         let actual = params(iter).unwrap();
 
         assert_eq!(expected, actual);
@@ -932,7 +961,7 @@ mod tests {
             make_int_dec("hoge"),
         ];
         let input = "int foo,int bar,int hoge";
-        let iter = &mut token::tokenize(input);
+        let iter = &mut token::tokenize(input, "");
         let actual = params(iter).unwrap();
 
         assert_eq!(expected, actual);
@@ -956,7 +985,7 @@ mod tests {
             Vec::new(),
         ));
         let input = "{return 0;}";
-        let iter = &mut token::tokenize(input);
+        let iter = &mut token::tokenize(input, "");
         let actual = function(iter, expected_func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
@@ -987,7 +1016,7 @@ mod tests {
             )],
         ));
         let input = "{return 0;}";
-        let iter = &mut token::tokenize(input);
+        let iter = &mut token::tokenize(input, "");
         let actual = function(iter, expected_func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
@@ -1030,7 +1059,7 @@ mod tests {
             Ident::new("main"),
             expected_param,
         ));
-        let iter = &mut token::tokenize(input);
+        let iter = &mut token::tokenize(input, "");
         let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
@@ -1093,7 +1122,7 @@ mod tests {
         ];
 
         for (input, expected, g) in &tests {
-            let iter = &mut token::tokenize(input);
+            let iter = &mut token::tokenize(input, "");
             let mut ctx = Context::new();
             ctx.g = g.clone();
             assert_eq!(expected, &primary(iter, &mut ctx).unwrap());

@@ -292,12 +292,14 @@ impl AddAssign for TokenPos {
 pub struct TokenIter<'a> {
     pub s: &'a str,
     pub pos: TokenPos,
+    pub filepath: &'a str,
 }
 
-pub fn tokenize<'a>(s: &'a str) -> TokenIter {
+pub fn tokenize<'a>(s: &'a str, filepath: &'a str) -> TokenIter<'a> {
     TokenIter {
         s,
         pos: TokenPos { tk: 0, bytes: 0 },
+        filepath,
     }
 }
 
@@ -571,7 +573,7 @@ fn calc_space_len(s: &str) -> usize {
     let mut begin = s.char_indices().peekable();
 
     while let Some((pos, chars)) = begin.next() {
-        if chars != ' ' {
+        if !chars.is_whitespace() {
             return pos;
         }
         if begin.peek() == None {
@@ -599,7 +601,7 @@ mod tests {
             Equal, Neq, Assign, Lesser, Leq, Greater, Geq, Plus, Minus, Mul, Div, LParen, RParen,
             Ampersand, Sizeof, LArr, RArr,
         ];
-        let mut iter = tokenize(input);
+        let mut iter = tokenize(input, "");
         for i in expected {
             assert_eq!(Reserved(i), iter.next().unwrap().kind);
         }
@@ -616,7 +618,7 @@ mod tests {
             Num(20),
             SemiColon,
         ];
-        let mut iter = tokenize(input);
+        let mut iter = tokenize(input, "");
         for i in expected {
             assert_eq!(i, iter.next().unwrap().kind);
         }
@@ -642,7 +644,7 @@ mod tests {
             TokenKind::String("aaaaa".to_string()),
             TokenKind::Ident(Ident::new("a")),
         ];
-        let mut iter = tokenize(input);
+        let mut iter = tokenize(input, "");
         for i in expected {
             assert_eq!(i, iter.next().unwrap().kind);
         }
@@ -661,7 +663,7 @@ mod tests {
             TokenKind::TypeKind(TypeKind::Char),
             TokenKind::Ident(Ident::new("char1")),
         ];
-        let mut iter = tokenize(input);
+        let mut iter = tokenize(input, "");
         for i in expected {
             assert_eq!(i, iter.next().unwrap().kind);
         }

@@ -132,6 +132,7 @@ pub(crate) fn expect(iter: &mut TokenIter, op: Operator) -> Result<(), Error> {
                 return Ok(());
             } else {
                 return Err(Error::unexpected_token(
+                    iter.filepath,
                     iter.s,
                     x.clone(),
                     TokenKind::Reserved(op),
@@ -139,7 +140,13 @@ pub(crate) fn expect(iter: &mut TokenIter, op: Operator) -> Result<(), Error> {
             }
         }
     }
-    return Err(Error::eof(iter.s, iter.pos, TokenKind::Reserved(op), None));
+    return Err(Error::eof(
+        iter.filepath,
+        iter.s,
+        iter.pos,
+        TokenKind::Reserved(op),
+        None,
+    ));
 }
 
 pub(crate) fn expect_num(iter: &mut TokenIter) -> Result<u64, Error> {
@@ -149,13 +156,20 @@ pub(crate) fn expect_num(iter: &mut TokenIter) -> Result<u64, Error> {
             return Ok(xx);
         } else {
             return Err(Error::unexpected_token(
+                iter.filepath,
                 iter.s,
                 x.clone(),
                 TokenKind::Num(0),
             ));
         }
     }
-    Err(Error::eof(iter.s, iter.pos, TokenKind::Num(0), None))
+    Err(Error::eof(
+        iter.filepath,
+        iter.s,
+        iter.pos,
+        TokenKind::Num(0),
+        None,
+    ))
 }
 
 pub(crate) fn expect_semi(iter: &mut TokenIter) -> Result<(), Error> {
@@ -165,13 +179,20 @@ pub(crate) fn expect_semi(iter: &mut TokenIter) -> Result<(), Error> {
             return Ok(());
         } else {
             return Err(Error::unexpected_token(
+                iter.filepath,
                 iter.s,
                 x.clone(),
                 TokenKind::SemiColon,
             ));
         }
     }
-    Err(Error::eof(iter.s, iter.pos, TokenKind::SemiColon, None))
+    Err(Error::eof(
+        iter.filepath,
+        iter.s,
+        iter.pos,
+        TokenKind::SemiColon,
+        None,
+    ))
 }
 
 pub(crate) fn _expect_comma(iter: &mut TokenIter) -> Result<(), Error> {
@@ -187,13 +208,20 @@ pub(crate) fn expect_token_kind(iter: &mut TokenIter, kind: TokenKind) -> Result
             return Ok(x.kind);
         } else {
             return Err(Error::unexpected_token(
+                iter.filepath,
                 iter.s,
                 x.clone(),
                 TokenKind::SemiColon,
             ));
         }
     }
-    Err(Error::eof(iter.s, iter.pos, TokenKind::SemiColon, None))
+    Err(Error::eof(
+        iter.filepath,
+        iter.s,
+        iter.pos,
+        TokenKind::SemiColon,
+        None,
+    ))
 }
 
 pub(crate) fn expect_ident(iter: &mut TokenIter) -> Result<Ident, Error> {
@@ -203,6 +231,7 @@ pub(crate) fn expect_ident(iter: &mut TokenIter) -> Result<Ident, Error> {
             return Ok(Ident::new(id.name));
         } else {
             return Err(Error::unexpected_token(
+                iter.filepath,
                 iter.s,
                 x.clone(),
                 TokenKind::Ident(crate::token::Ident::new("")),
@@ -210,6 +239,7 @@ pub(crate) fn expect_ident(iter: &mut TokenIter) -> Result<Ident, Error> {
         }
     }
     Err(Error::eof(
+        iter.filepath,
         iter.s,
         iter.pos,
         TokenKind::Ident(crate::token::Ident::new("")),
@@ -226,13 +256,20 @@ pub(crate) fn expect_block(iter: &mut TokenIter, block: Block) -> Result<(), Err
             }
         } else {
             return Err(Error::unexpected_token(
+                iter.filepath,
                 iter.s,
                 x.clone(),
                 TokenKind::Block(block),
             ));
         }
     }
-    Err(Error::eof(iter.s, iter.pos, TokenKind::Block(block), None))
+    Err(Error::eof(
+        iter.filepath,
+        iter.s,
+        iter.pos,
+        TokenKind::Block(block),
+        None,
+    ))
 }
 
 pub(crate) fn expect_type_kind(iter: &mut TokenIter) -> Result<base_types::TypeKind, Error> {
@@ -242,6 +279,7 @@ pub(crate) fn expect_type_kind(iter: &mut TokenIter) -> Result<base_types::TypeK
             return Ok(bt);
         } else {
             return Err(Error::unexpected_token(
+                iter.filepath,
                 iter.s,
                 x.clone(),
                 TokenKind::TypeKind(base_types::TypeKind::Int),
@@ -249,6 +287,7 @@ pub(crate) fn expect_type_kind(iter: &mut TokenIter) -> Result<base_types::TypeK
         }
     }
     Err(Error::eof(
+        iter.filepath,
         iter.s,
         iter.pos,
         TokenKind::TypeKind(base_types::TypeKind::Int),
@@ -303,7 +342,15 @@ pub(crate) fn check_g_var(
     ident: Ident,
 ) -> Result<Gvar, Error> {
     match g_var.get(&ident.name) {
-        Some(_) => return Err(Error::re_declare(iter.s, ident, iter.pos, None)),
+        Some(_) => {
+            return Err(Error::re_declare(
+                iter.filepath,
+                iter.s,
+                ident,
+                iter.pos,
+                None,
+            ))
+        }
         None => {
             let size = b_type.kind.eight_size();
             let dec = Declaration::new(b_type, ident);
@@ -320,6 +367,7 @@ pub(crate) fn check_func_prototype(
     match func_prototype_mp.get(&func_prototype.ident.name) {
         Some(_) => {
             return Err(Error::re_declare(
+                iter.filepath,
                 iter.s,
                 func_prototype.ident,
                 iter.pos,

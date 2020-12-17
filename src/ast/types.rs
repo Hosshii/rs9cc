@@ -494,7 +494,7 @@ mod tests {
 
         let input = "&*1;";
         let mut ctx = Context::new();
-        let node = ast::stmt(&mut token::tokenize(input), &mut ctx).unwrap();
+        let node = ast::stmt(&mut token::tokenize(input, ""), &mut ctx).unwrap();
         assert_eq!(TypeKind::Int, node.get_type().unwrap());
 
         let input = "*(y + 1);";
@@ -506,7 +506,7 @@ mod tests {
             ),
             8,
         );
-        let node = ast::stmt(&mut token::tokenize(input), &mut ctx).unwrap();
+        let node = ast::stmt(&mut token::tokenize(input, ""), &mut ctx).unwrap();
         assert_eq!(TypeKind::Int, node.get_type().unwrap())
     }
 }

@@ -21,6 +21,7 @@ pub enum ErrorKind {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Error {
+    filepath: String,
     kind: ErrorKind,
     pos: TokenPos,
     input: String,
@@ -28,8 +29,14 @@ pub struct Error {
 }
 
 impl Error {
-    pub fn unexpected_token(input: impl Into<String>, token: Token, expected: TokenKind) -> Error {
+    pub fn unexpected_token(
+        filepath: impl Into<String>,
+        input: impl Into<String>,
+        token: Token,
+        expected: TokenKind,
+    ) -> Error {
         Error {
+            filepath: filepath.into(),
             kind: UnexpectedToken {
                 expected,
                 actual: token.kind,
@@ -41,12 +48,14 @@ impl Error {
     }
 
     pub fn eof(
+        filepath: impl Into<String>,
         input: impl Into<String>,
         pos: TokenPos,
         expected: TokenKind,
         msg: Option<String>,
     ) -> Error {
         Error {
+            filepath: filepath.into(),
             kind: EOF(expected),
             pos,
             input: input.into(),
@@ -55,12 +64,14 @@ impl Error {
     }
 
     pub fn undefined_variable(
+        filepath: impl Into<String>,
         input: impl Into<String>,
         ident: Ident,
         pos: TokenPos,
         msg: Option<String>,
     ) -> Error {
         Error {
+            filepath: filepath.into(),
             kind: UndefinedVariable(ident),
             pos,
             input: input.into(),
@@ -69,12 +80,14 @@ impl Error {
     }
 
     pub fn undefined_function(
+        filepath: impl Into<String>,
         input: impl Into<String>,
         ident: Ident,
         pos: TokenPos,
         msg: Option<String>,
     ) -> Error {
         Error {
+            filepath: filepath.into(),
             kind: UndefinedFunction(ident),
             pos,
             input: input.into(),
@@ -83,12 +96,14 @@ impl Error {
     }
 
     pub fn re_declare(
+        filepath: impl Into<String>,
         input: impl Into<String>,
         ident: Ident,
         pos: TokenPos,
         msg: Option<String>,
     ) -> Error {
         Error {
+            filepath: filepath.into(),
             kind: ReDeclare(ident),
             pos,
             input: input.into(),
@@ -97,12 +112,14 @@ impl Error {
     }
 
     pub fn invalid_variable_dereference(
+        filepath: impl Into<String>,
         input: impl Into<String>,
         pos: TokenPos,
         lvar: Lvar,
         actual_deref_count: usize,
     ) -> Error {
         Error {
+            filepath: filepath.into(),
             kind: InvalidVariableDereference(lvar, actual_deref_count),
             pos,
             input: input.into(),
@@ -111,11 +128,13 @@ impl Error {
     }
 
     pub fn invalid_value_dereference(
+        filepath: impl Into<String>,
         input: impl Into<String>,
         pos: TokenPos,
         type_name: impl Into<String>,
     ) -> Error {
         Error {
+            filepath: filepath.into(),
             kind: InvalidValueDereference(type_name.into()),
             pos,
             input: input.into(),
@@ -124,12 +143,14 @@ impl Error {
     }
 
     pub fn invalid_assignment(
+        filepath: impl Into<String>,
         input: impl Into<String>,
         pos: TokenPos,
         lhs_type: TypeKind,
         rhs_type: TypeKind,
     ) -> Error {
         Error {
+            filepath: filepath.into(),
             kind: InvalidAssignment(lhs_type, rhs_type),
             pos,
             input: input.into(),
@@ -164,12 +185,27 @@ impl fmt::Display for Error {
 }
 
 fn err_format(err: &Error, msg: impl Into<String>, f: &mut fmt::Formatter) -> fmt::Result {
-    writeln!(f, "{}", err.input)?;
+    let mut line_num = 1;
+    let mut bytes = 0;
+    let mut err_input = String::new();
+    for line in err.input.lines() {
+        let len = line.as_bytes().len();
+        if bytes + len >= err.pos.bytes {
+            err_input = line.to_string();
+            break;
+        }
+        line_num += 1;
+        bytes += len + 1;
+    }
+
+    let info = format!("{}: {}", err.filepath, line_num);
+    let err_input = format!("{} {}", info, err_input);
+    writeln!(f, "{}", err_input)?;
     let result = writeln!(
         f,
         "{number:>width$} {err_msg}",
         number = '^',
-        width = err.pos.bytes + 1,
+        width = err.pos.bytes + 1 + info.len() - bytes,
         err_msg = msg.into(),
     );
     if let Some(x) = &err.msg {

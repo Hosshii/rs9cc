@@ -4,16 +4,17 @@ use rs9cc::asm::code_gen;
 use rs9cc::ast::program;
 use rs9cc::token::tokenize;
 use std::env;
+use std::fs;
 
 fn main() {
-    let s = env::args().nth(1).unwrap();
-    if s == "-help" {
-        help();
-        return;
+    let filepath = env::args().nth(1).unwrap();
+    let mut content = fs::read_to_string(&filepath).expect(&format!("{} is not exist", filepath));
+    if content.len() == 0 || content.chars().last().unwrap() != '\n' {
+        content += "\n";
     }
 
     // token生成
-    let mut iter = tokenize(&s);
+    let mut iter = tokenize(&content, &filepath);
 
     // ast生成
     // let node = expr(&mut iter).unwrap();
@@ -32,9 +33,4 @@ fn main() {
         }
         Ok(_) => (),
     }
-}
-
-fn help() {
-    println!("this is help");
-    println!("some error occurs");
 }
