@@ -13,6 +13,8 @@ pub enum TokenKind {
     TypeKind(TypeKind),
     SemiColon,
     Comma,
+    DoubleQuote,
+    String(String),
     EOF,
 }
 
@@ -28,6 +30,8 @@ impl TokenKind {
             TypeKind(x) => x.as_str().to_string(),
             SemiColon => ";".to_string(),
             Comma => ",".to_string(),
+            DoubleQuote => "\"".to_string(),
+            String(s) => s.clone(),
             EOF => "EOF".to_string(),
         }
     }
@@ -330,6 +334,10 @@ impl<'a> TokenIter<'a> {
             return Some(tk);
         }
 
+        if let Some((tk, _)) = self.is_string(s) {
+            return Some(tk);
+        }
+
         if let Some((tk, _)) = self.is_base_type(s) {
             return Some(tk);
         }
@@ -416,6 +424,26 @@ impl<'a> TokenIter<'a> {
         None
     }
 
+    fn is_string(&self, s: &str) -> Option<(Token, TokenPos)> {
+        use TokenKind::DoubleQuote;
+        let mut chars = s.chars();
+        if let Some(x) = chars.next() {
+            if x.to_string() == DoubleQuote.as_string() {
+                let result: String = chars.take_while(|c| c != &'\"').collect();
+                let len = result.len();
+                if len >= s.len() - 1 {
+                    self.error_at("cannot find end of \"");
+                }
+
+                return Some((
+                    Token::new(TokenKind::String(result), self.pos),
+                    TokenPos::new_bytes(len + 2),
+                ));
+            }
+        }
+        None
+    }
+
     fn is_base_type(&self, s: &str) -> Option<(Token, TokenPos)> {
         if let Ok(base_type) = TypeKind::from_starts(s) {
             let len = base_type.as_str().len();
@@ -485,6 +513,11 @@ impl<'a> Iterator for TokenIter<'a> {
         }
 
         if let Some((tk, pos)) = self.is_comma(s) {
+            self.pos += pos;
+            return Some(tk);
+        }
+
+        if let Some((tk, pos)) = self.is_string(s) {
             self.pos += pos;
             return Some(tk);
         }
@@ -589,7 +622,8 @@ mod tests {
         }
         assert_eq!(None, iter.next());
 
-        let input = "return; returnx return1 return 1 for while if else force whilet ifelse elseif";
+        let input =
+            "return; returnx return1 return 1 for while if else force whilet ifelse elseif \"aaaaa\"a";
         let expected = vec![
             TokenKind::KeyWord(Return),
             SemiColon,
@@ -605,6 +639,8 @@ mod tests {
             TokenKind::Ident(Ident::new("whilet")),
             TokenKind::Ident(Ident::new("ifelse")),
             TokenKind::Ident(Ident::new("elseif")),
+            TokenKind::String("aaaaa".to_string()),
+            TokenKind::Ident(Ident::new("a")),
         ];
         let mut iter = tokenize(input);
         for i in expected {

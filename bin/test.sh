@@ -261,6 +261,15 @@ char() {
     assert 10 'char hoge[2]; int main(){hoge[0] =1; hoge[hoge[0]]= 10; return hoge[1];}  '
 }
 
+# 25
+string() {
+    assert 97 'int main(){return "abc"[0];}'
+    assert 97 'int main() { return "abc"[0]; }'
+    assert 98 'int main() { return "abc"[1]; }'
+    assert 99 'int main() { return "abc"[2]; }'
+    assert 0 'int main() { return "abc"[3]; }'
+    assert 4 'int main() { return sizeof("abc"); }'
+}
 if [ $# -eq 0 ]; then
     four_op
     eq
@@ -286,6 +295,7 @@ if [ $# -eq 0 ]; then
     array_idx
     global_variable
     char
+    string
 fi
 
 while [ $# -ne 0 ]; do
@@ -314,6 +324,7 @@ while [ $# -ne 0 ]; do
     "22") array_idx ;;
     "23") global_variable ;;
     "24") char ;;
+    "25") string ;;
     esac
     shift
 done

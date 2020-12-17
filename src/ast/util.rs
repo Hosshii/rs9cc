@@ -71,6 +71,16 @@ pub(crate) fn consume_comma(iter: &mut TokenIter) -> bool {
     false
 }
 
+pub(crate) fn consume_string(iter: &mut TokenIter) -> Option<String> {
+    if let Some(x) = iter.peek() {
+        if let TokenKind::String(string) = x.kind {
+            iter.next();
+            return Some(string);
+        }
+    }
+    None
+}
+
 #[allow(dead_code)]
 pub(crate) fn consume_type_kind(iter: &mut TokenIter) -> Option<base_types::TypeKind> {
     if let Some(x) = iter.peek() {
@@ -309,4 +319,17 @@ pub(crate) fn check_func_def(
         Some(_) => return Err(Error::re_declare(iter.s, func_def.ident, iter.pos, None)),
         None => return Ok(func_def),
     }
+}
+
+pub(crate) fn make_string_node(label: impl Into<String>, size: u64) -> NodeKind {
+    NodeKind::Gvar(Rc::new(Gvar::new(
+        Declaration::new(
+            BaseType::new(TypeKind::Array(
+                size,
+                Rc::new(BaseType::new(TypeKind::Char)),
+            )),
+            Ident::new(label),
+        ),
+        size,
+    )))
 }

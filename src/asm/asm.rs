@@ -24,9 +24,13 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
 
     println!(".data");
     // define global variable
-    for (name, gvar) in program.g_var {
+    for (name, gvar) in program.ctx.g.gvar_mp {
         println!("{}:", name);
         println!("    .zero {}", gvar.size);
+    }
+    for (content, label) in program.ctx.g.tk_string {
+        println!("{}:", label);
+        println!("    .string \"{}\"", content);
     }
 
     let mut ctx = Context::new();

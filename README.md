@@ -24,11 +24,15 @@ equality    = relational ("==" relational | "!=" relational)*
 relational  = add ("<" add | "<=" | ">" add | ">=" add)*
 add         = mul ("+" mul | "-" mul)*
 mul         = unary ("*" unary | "/" unary)*
-unary       = ("+" | "-")? primary
+unary       = ("+" | "-")? postfix
             | "*" unary
             | "&" unary
             | "sizeof" unary
-primary     = num | ident (func-args | "[" num "]")? | "(" expr ")"
+postfix     | primary ("[" expr "]")?
+primary     = num 
+            | ident (func-args | "[" num "]")? 
+            | "(" expr ")"
+            | str
 func-args   = "(" (assign ("," assign)*)? ")"
 declaration = basetype ident ("[" num "]")?
 ```

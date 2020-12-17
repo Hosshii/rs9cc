@@ -312,7 +312,7 @@ pub fn mul(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     }
 }
 
-// unary       = ("+" | "-")? primary
+// unary       = ("+" | "-")? postfix
 //             | "*" unary
 //             | "&" unary
 //             | "sizeof" unary
@@ -369,22 +369,53 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             },
         }
     }
-    return primary(iter, ctx);
+    return postfix(iter, ctx);
 }
 
-// primary     = num | ident (func-args | "[" num "]")? | "(" expr ")"
+// postfix     = primary ("[" expr "]")?
+pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let pri = primary(iter, ctx)?;
+    if consume(iter, Operator::LArr) {
+        let exp = expr(iter, ctx)?;
+        expect(iter, Operator::RArr)?;
+        match pri
+            .get_type()
+            .unwrap_or(TypeKind::_Invalid("invalid type".to_string()))
+        {
+            TypeKind::Array(_, _) | TypeKind::Ptr(_) => {}
+            x => {
+                return Err(Error::invalid_value_dereference(
+                    iter.s,
+                    iter.pos,
+                    x.as_str(),
+                ));
+            }
+        }
+        return Ok(Node::new_unary(
+            NodeKind::Deref,
+            Node::new(NodeKind::Add, pri, exp),
+        ));
+    }
+    Ok(pri)
+}
+
+// primary     = num
+//             | ident func-args?
+//             | "(" expr ")"
+//             | str
 pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    // "(" expr ")"
     if consume(iter, Operator::LParen) {
         let node = expr(iter, ctx)?;
         expect(iter, Operator::RParen)?;
         return Ok(node);
     }
 
+    // ident func-args?
     if let Some(ident) = consume_ident(iter) {
-        // todo
-        // 関数もローカル変数と同じように定義済みかどうか判定するようにした方がいい
         if consume(iter, Operator::LParen) {
             let func_def = ctx
+                .g
                 .func_def_mp
                 .get(&ident.name)
                 .ok_or(Error::undefined_function(iter.s, ident, iter.pos, None))?;
@@ -393,34 +424,30 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 func_args(iter, ctx)?,
             )));
         }
-        if let Some(lvar) = ctx.find_lvar(&ident.name) {
-            if consume(iter, Operator::LArr) {
-                let cur = iter.pos;
-                let _ = expr(iter, ctx)?;
-                let end = iter.pos;
-                // let num = expect_num(iter)?;
-                expect(iter, Operator::RArr)?;
-                let ipt = format!("*({} + ({}))", &ident.name, &iter.s[cur.bytes..end.bytes]);
-                let mut tk = crate::token::tokenize(&ipt);
-                return Ok(unary(&mut tk, ctx)?);
-            }
+        if let Some(lvar) = ctx.l.find_lvar(&ident.name) {
             return Ok(Node::new_leaf(NodeKind::Lvar(lvar)));
-        } else if let Some(x) = ctx.gvar.get(&ident.name) {
-            if consume(iter, Operator::LArr) {
-                let cur = iter.pos;
-                let _ = expr(iter, ctx)?;
-                let end = iter.pos;
-                // let num = expect_num(iter)?;
-                expect(iter, Operator::RArr)?;
-                let ipt = format!("*({} + ({}))", &ident.name, &iter.s[cur.bytes..end.bytes]);
-                let mut tk = crate::token::tokenize(&ipt);
-                return Ok(unary(&mut tk, ctx)?);
-            }
+        } else if let Some(x) = ctx.g.gvar_mp.get(&ident.name) {
             return Ok(Node::new_leaf(NodeKind::Gvar(x.clone())));
         } else {
             return Err(Error::undefined_variable(iter.s, ident, iter.pos, None));
         }
     }
+
+    // str
+    if let Some(string) = consume_string(iter) {
+        let string = Rc::new(string);
+        let idx = ctx.g.tk_string.len();
+        let label = format!(".LC{}", idx).to_string();
+        ctx.g
+            .tk_string
+            .push((string.clone(), Rc::new(label.clone())));
+        return Ok(Node::new_leaf(make_string_node(
+            label,
+            (string.len() + 1) as u64,
+        )));
+    }
+
+    // num
     return Ok(Node::new_num(expect_num(iter)?));
 }
 
@@ -1017,6 +1044,11 @@ mod tests {
                 "foo(1,2)",
                 make_fn_node("foo", vec![Node::new_num(1), Node::new_num(2)]),
                 g_ctx_3,
+            ),
+            (
+                "\"aaa\"",
+                Node::new_leaf(super::make_string_node(".LC0", 4)),
+                GlobalContext::new(),
             ),
         ];
 
