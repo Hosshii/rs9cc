@@ -26,12 +26,12 @@ assert() {
     expected="$1"
     input="$2"
 
-    local bin="./target/x86_64-unknown-linux-musl/debug/rs9cc"
+    bin="./target/debug/rs9cc"
     if [ -n "$RS9CC_ON_WORKFLOW" ]; then
         bin="./target/release/rs9cc"
     fi
     $bin "$input" >tmp.s
-    cc -o tmp tmp.s tmp2.o
+    cc -no-pie -o tmp tmp.s tmp2.o
     ./tmp
     actual="$?"
 
@@ -270,6 +270,15 @@ string() {
     assert 0 'int main() { return "abc"[3]; }'
     assert 4 'int main() { return sizeof("abc"); }'
 }
+
+build() {
+    cargo build
+}
+
+if [ -z "$RS9CC_ON_WORKFLOW" ]; then
+    build
+fi
+
 if [ $# -eq 0 ]; then
     four_op
     eq
