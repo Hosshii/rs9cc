@@ -27,7 +27,7 @@ pub enum NodeKind {
     Addr,
     Deref,
     Block(Vec<Node>),
-    Func(Rc<FuncDef>, Vec<Node>), // (func_name,args)
+    Func(Rc<FuncPrototype>, Vec<Node>), // (func_name,args)
     Num(u64),
     // Ident(Ident),
     Lvar(Rc<Lvar>), // usize はベースポインタからのオフセット
@@ -61,7 +61,7 @@ impl NodeKind {
             Addr => "&".to_string(),
             Deref => "*".to_string(),
             Block(_) => "block".to_string(),
-            Func(func_def, _) => format!("function: {}", func_def.ident.name), // (func_name,args)
+            Func(func_prototype, _) => format!("function: {}", func_prototype.ident.name), // (func_name,args)
             Num(num) => format!("{}", num),
             // Ident(Ident),
             Lvar(lvar) => format!("{:?}", lvar), // usize はベースポインタからのオフセット
@@ -218,7 +218,7 @@ impl Node {
             }
             Lvar(lvar) => Ok(lvar.get_type()),
             Gvar(gvar) => Ok(gvar.get_type()),
-            Func(func_def, _) => Ok(func_def.type_kind.clone()),
+            Func(func_prototype, _) => Ok(func_prototype.type_kind.clone()),
             Num(_) => Ok(TypeKind::Int),
             _ => Err("err"),
         }
@@ -290,7 +290,7 @@ impl Context {
 #[derive(Clone, Debug)]
 pub struct GlobalContext {
     pub gvar_mp: GvarMp,
-    pub func_def_mp: FuncDefMp,
+    pub func_prototype_mp: FuncPrototypeMp,
     pub tk_string: Vec<(Rc<String>, Rc<String>)>, // content, label
 }
 
@@ -298,7 +298,7 @@ impl GlobalContext {
     pub fn new() -> Self {
         Self {
             gvar_mp: HashMap::new(),
-            func_def_mp: HashMap::new(),
+            func_prototype_mp: HashMap::new(),
             tk_string: Vec::new(),
         }
     }
@@ -364,8 +364,6 @@ impl LocalContext {
 pub struct Program {
     pub ctx: Context,
     pub functions: Vec<Function>,
-    // pub func_def: FuncDefMp,
-    // pub g_var: GvarMp,
 }
 
 impl Program {
@@ -379,15 +377,15 @@ impl Program {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Function {
-    pub def: Rc<FuncDef>,
+    pub def: Rc<FuncPrototype>,
     pub all_vars: Option<Rc<Lvar>>,
     pub all_var_num: usize,
     pub nodes: Vec<Node>,
 }
 
-impl From<Function> for FuncDef {
-    fn from(from: Function) -> FuncDef {
-        FuncDef {
+impl From<Function> for FuncPrototype {
+    fn from(from: Function) -> FuncPrototype {
+        FuncPrototype {
             type_kind: from.def.type_kind.clone(),
             ident: from.def.ident.clone(),
             params: from.def.params.clone(),
@@ -398,7 +396,7 @@ impl From<Function> for FuncDef {
 
 impl Function {
     pub fn new(
-        def: Rc<FuncDef>,
+        def: Rc<FuncPrototype>,
         all_vars: Option<Rc<Lvar>>,
         all_var_num: usize,
         nodes: Vec<Node>,
@@ -447,14 +445,14 @@ impl Function {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
-pub struct FuncDef {
+pub struct FuncPrototype {
     pub type_kind: TypeKind,
     pub ident: Ident,
     pub params: Vec<Declaration>,
     pub param_num: usize,
 }
 
-impl FuncDef {
+impl FuncPrototype {
     pub fn new(type_kind: TypeKind, ident: Ident, params: Vec<Declaration>) -> Self {
         let param_num = params.len();
         Self {
@@ -465,7 +463,7 @@ impl FuncDef {
         }
     }
 }
-pub type FuncDefMp = HashMap<String, Rc<FuncDef>>;
+pub type FuncPrototypeMp = HashMap<String, Rc<FuncPrototype>>;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Declaration {

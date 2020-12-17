@@ -6,35 +6,36 @@ mini C compiler written in Rust. This is my hobby project. I use [compilerbook](
 
 ## EBNF
 ```
-program     = (function | declaration ";" )*
-typekind    = "int" | "char"
-basetype    = typekind "*"*
-function    = declaration "(" params? ")" "{" stmt* "}"
-params      = declaration ("," declaration)*
-stmt        = expr ";"
-            | "return" expr ";"
-            | "if" "(" expr ")" stmt
-            | "while" "(" expr ")" stmt
-            | "for" "(" expr? ";" expr? ";" expr? ")" stmt
-            | "{" stmt* "}"
-            | declaration ";"
-expr        = assign
-assign      = equality ("=" assign)?
-equality    = relational ("==" relational | "!=" relational)*
-relational  = add ("<" add | "<=" | ">" add | ">=" add)*
-add         = mul ("+" mul | "-" mul)*
-mul         = unary ("*" unary | "/" unary)*
-unary       = ("+" | "-")? postfix
-            | "*" unary
-            | "&" unary
-            | "sizeof" unary
-postfix     | primary ("[" expr "]")?
-primary     = num 
-            | ident (func-args | "[" num "]")? 
-            | "(" expr ")"
-            | str
-func-args   = "(" (assign ("," assign)*)? ")"
-declaration = basetype ident ("[" num "]")?
+program         = (function | declaration ";" | func-prototype )*
+typekind        = "int" | "char"
+basetype        = typekind "*"*
+declaration     = basetype ident ("[" num "]")?
+func-prototype  = declaration "(" params? ")" 
+function        = func-prototype "{" stmt* "}"
+params          = declaration ("," declaration)*
+stmt            = expr ";"
+                | "return" expr ";"
+                | "if" "(" expr ")" stmt
+                | "while" "(" expr ")" stmt
+                | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+                | "{" stmt* "}"
+                | declaration ";"
+expr            = assign
+assign          = equality ("=" assign)?
+equality        = relational ("==" relational | "!=" relational)*
+relational      = add ("<" add | "<=" | ">" add | ">=" add)*
+add             = mul ("+" mul | "-" mul)*
+mul             = unary ("*" unary | "/" unary)*
+unary           = ("+" | "-")? postfix
+                | "*" unary
+                | "&" unary
+                | "sizeof" unary
+postfix         | primary ("[" expr "]")?
+primary         = num 
+                | ident (func-args | "[" num "]")? 
+                | "(" expr ")"
+                | str
+func-args       = "(" (assign ("," assign)*)? ")"
 ```
 
 ## build 

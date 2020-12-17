@@ -1,7 +1,7 @@
 use super::error::Error;
 use super::util::*;
 use super::NodeKind;
-use super::{Context, Declaration, FuncDef, Function, LocalContext, Node, Program};
+use super::{Context, Declaration, FuncPrototype, Function, LocalContext, Node, Program};
 use crate::base_types::{BaseType, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::rc::Rc;
@@ -27,12 +27,15 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                         expect(iter, Operator::RParen)?;
                     }
 
-                    let func_def = FuncDef::new(b_type.kind, ident, fn_params);
-                    let checked_func_def =
-                        Rc::new(check_func_def(iter, &ctx.g.func_def_mp, func_def)?);
-                    ctx.g.func_def_mp.insert(
-                        checked_func_def.ident.name.clone(),
-                        checked_func_def.clone(),
+                    let func_prototype = FuncPrototype::new(b_type.kind, ident, fn_params);
+                    let checked_func_prototype = Rc::new(check_func_prototype(
+                        iter,
+                        &ctx.g.func_prototype_mp,
+                        func_prototype,
+                    )?);
+                    ctx.g.func_prototype_mp.insert(
+                        checked_func_prototype.ident.name.clone(),
+                        checked_func_prototype.clone(),
                     );
                     let func = function(iter, checked_func_def, &mut ctx)?;
                     program.functions.push(func);
@@ -77,17 +80,14 @@ pub fn base_type(iter: &mut TokenIter) -> Result<Node, Error> {
 // function    = basetype ident "(" params? ")" "{" stmt* "}"
 pub fn function(
     iter: &mut TokenIter,
-    func_def: Rc<FuncDef>,
+    func_prototype: Rc<FuncPrototype>,
     ctx: &mut Context,
 ) -> Result<Function, Error> {
-    // rad only block
-    // define is come from func_def
-
     expect_block(iter, Block::LParen)?;
 
     let l_ctx = LocalContext::new();
     ctx.l = l_ctx;
-    for fn_param in func_def.params.clone() {
+    for fn_param in func_prototype.params.clone() {
         let l = ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0);
         ctx.l.push_front(fn_param, l)
     }
@@ -96,7 +96,7 @@ pub fn function(
     loop {
         if consume_block(iter, Block::RParen) {
             return Ok(Function::new(
-                func_def,
+                func_prototype,
                 ctx.l.lvar.clone(),
                 ctx.l.lvar_count.clone(),
                 stmt_vec,
@@ -335,7 +335,9 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             NodeKind::Num(_) => return Ok(Node::new_num(4)),
             NodeKind::Lvar(x) => return Ok(Node::new_num(x.dec.base_type.kind.size() as u64)),
             NodeKind::Gvar(x) => return Ok(Node::new_num(x.size)),
-            NodeKind::Func(func_def, _) => return Ok(Node::new_num(func_def.type_kind.size())),
+            NodeKind::Func(func_prototype, _) => {
+                return Ok(Node::new_num(func_prototype.type_kind.size()))
+            }
             NodeKind::Deref => {
                 let (deref_count, lvar) = count_deref(&node);
                 let lvar = match lvar {
@@ -414,13 +416,13 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     // ident func-args?
     if let Some(ident) = consume_ident(iter) {
         if consume(iter, Operator::LParen) {
-            let func_def = ctx
+            let func_prototype = ctx
                 .g
-                .func_def_mp
+                .func_prototype_mp
                 .get(&ident.name)
                 .ok_or(Error::undefined_function(iter.s, ident, iter.pos, None))?;
             return Ok(Node::new_leaf(NodeKind::Func(
-                func_def.clone(),
+                func_prototype.clone(),
                 func_args(iter, ctx)?,
             )));
         }
@@ -805,9 +807,13 @@ mod tests {
         let expected_args = vec![];
         let expected = make_fn_node(expected_name, expected_args);
         let mut g_ctx = GlobalContext::new();
-        g_ctx.func_def_mp.insert(
+        g_ctx.func_prototype_mp.insert(
             "add".to_string(),
-            Rc::new(FuncDef::new(TypeKind::Int, Ident::new("add"), Vec::new())),
+            Rc::new(FuncPrototype::new(
+                TypeKind::Int,
+                Ident::new("add"),
+                Vec::new(),
+            )),
         );
         let mut ctx = Context::new();
         ctx.g = g_ctx;
@@ -821,9 +827,9 @@ mod tests {
         let expected_args = vec![Node::new_num(1), Node::new_num(2), Node::new_num(3)];
         let expected = make_fn_node(expected_name, expected_args);
         let mut g_ctx = GlobalContext::new();
-        g_ctx.func_def_mp.insert(
+        g_ctx.func_prototype_mp.insert(
             "three".to_string(),
-            Rc::new(FuncDef::new(
+            Rc::new(FuncPrototype::new(
                 TypeKind::Int,
                 Ident::new("three"),
                 vec![
@@ -844,22 +850,33 @@ mod tests {
     }
 
     #[test]
-    fn test_func_def() {
+    fn test_func_prototype() {
         use crate::token;
 
-        let expected_func_def =
-            Rc::new(FuncDef::new(TypeKind::Int, Ident::new("main"), Vec::new()));
+        let expected_func_prototype = Rc::new(FuncPrototype::new(
+            TypeKind::Int,
+            Ident::new("main"),
+            Vec::new(),
+        ));
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(1))];
-        let expected = Function::new(expected_func_def, None, 0, expected_nodes);
+        let expected = Function::new(expected_func_prototype, None, 0, expected_nodes);
 
         let input = "{return 1;}";
-        let func_def = Rc::new(FuncDef::new(TypeKind::Int, Ident::new("main"), vec![]));
+        let func_prototype = Rc::new(FuncPrototype::new(
+            TypeKind::Int,
+            Ident::new("main"),
+            vec![],
+        ));
         let iter = &mut token::tokenize(input);
-        let actual = function(iter, func_def, &mut Context::new()).unwrap();
+        let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
 
-        let func_def = Rc::new(FuncDef::new(TypeKind::Int, Ident::new("main"), vec![]));
+        let func_prototype = Rc::new(FuncPrototype::new(
+            TypeKind::Int,
+            Ident::new("main"),
+            vec![],
+        ));
         let lvar1 = Lvar::new_leaf(make_int_dec("foo"), 8);
         let lvar2 = Lvar::new(lvar1.clone(), make_int_dec("bar"), 16);
         let expected_lvar = Rc::new(lvar2.clone());
@@ -880,11 +897,16 @@ mod tests {
             ),
         );
         let expected_nodes = vec![node1, node2, node3, node4, node5];
-        let expected = Function::new(func_def.clone(), Some(expected_lvar), 2, expected_nodes);
+        let expected = Function::new(
+            func_prototype.clone(),
+            Some(expected_lvar),
+            2,
+            expected_nodes,
+        );
 
         let input = "{int foo;foo = 1; int bar;bar = 2; return foo+bar;}";
         let iter = &mut token::tokenize(input);
-        let actual = function(iter, func_def, &mut Context::new()).unwrap();
+        let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -917,20 +939,26 @@ mod tests {
     fn test_fn_with_args() {
         use crate::token;
 
-        let expected_func_def =
-            Rc::new(FuncDef::new(TypeKind::Int, Ident::new("main"), Vec::new()));
+        let expected_func_prototype = Rc::new(FuncPrototype::new(
+            TypeKind::Int,
+            Ident::new("main"),
+            Vec::new(),
+        ));
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(0))];
-        let expected = Function::new(expected_func_def, None, 0, expected_nodes);
+        let expected = Function::new(expected_func_prototype, None, 0, expected_nodes);
 
-        let expected_func_def =
-            Rc::new(FuncDef::new(TypeKind::Int, Ident::new("main"), Vec::new()));
+        let expected_func_prototype = Rc::new(FuncPrototype::new(
+            TypeKind::Int,
+            Ident::new("main"),
+            Vec::new(),
+        ));
         let input = "{return 0;}";
         let iter = &mut token::tokenize(input);
-        let actual = function(iter, expected_func_def, &mut Context::new()).unwrap();
+        let actual = function(iter, expected_func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
 
-        let func_def = Rc::new(FuncDef::new(
+        let func_prototype = Rc::new(FuncPrototype::new(
             TypeKind::Int,
             Ident::new("main"),
             vec![Declaration::new(
@@ -940,9 +968,14 @@ mod tests {
         ));
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(0))];
         let expected_lvar = Lvar::new_leaf(make_int_dec("foo"), 8);
-        let expected = Function::new(func_def, Some(Rc::new(expected_lvar)), 1, expected_nodes);
+        let expected = Function::new(
+            func_prototype,
+            Some(Rc::new(expected_lvar)),
+            1,
+            expected_nodes,
+        );
 
-        let expected_func_def = Rc::new(FuncDef::new(
+        let expected_func_prototype = Rc::new(FuncPrototype::new(
             TypeKind::Int,
             Ident::new("main"),
             vec![Declaration::new(
@@ -952,7 +985,7 @@ mod tests {
         ));
         let input = "{return 0;}";
         let iter = &mut token::tokenize(input);
-        let actual = function(iter, expected_func_def, &mut Context::new()).unwrap();
+        let actual = function(iter, expected_func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
 
@@ -962,7 +995,7 @@ mod tests {
             make_int_dec("hoge"),
             make_int_dec("hey"),
         ];
-        let expected_func_def = Rc::new(FuncDef::new(
+        let expected_func_prototype = Rc::new(FuncPrototype::new(
             TypeKind::Int,
             Ident::new("main"),
             expected_param.clone(),
@@ -982,20 +1015,20 @@ mod tests {
             32,
         );
         let expected = Function::new(
-            expected_func_def,
+            expected_func_prototype,
             Some(Rc::new(expected_lvar)),
             4,
             expected_nodes,
         );
 
         let input = "{return 0;}";
-        let func_def = Rc::new(FuncDef::new(
+        let func_prototype = Rc::new(FuncPrototype::new(
             TypeKind::Int,
             Ident::new("main"),
             expected_param,
         ));
         let iter = &mut token::tokenize(input);
-        let actual = function(iter, func_def, &mut Context::new()).unwrap();
+        let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -1004,14 +1037,18 @@ mod tests {
     fn test_primary() {
         use crate::token;
         let mut g_ctx_1 = GlobalContext::new();
-        g_ctx_1.func_def_mp.insert(
+        g_ctx_1.func_prototype_mp.insert(
             "foo".to_string(),
-            Rc::new(FuncDef::new(TypeKind::Int, Ident::new("foo"), Vec::new())),
+            Rc::new(FuncPrototype::new(
+                TypeKind::Int,
+                Ident::new("foo"),
+                Vec::new(),
+            )),
         );
         let mut g_ctx_2 = GlobalContext::new();
-        g_ctx_2.func_def_mp.insert(
+        g_ctx_2.func_prototype_mp.insert(
             "foo".to_string(),
-            Rc::new(FuncDef::new(
+            Rc::new(FuncPrototype::new(
                 TypeKind::Int,
                 Ident::new("foo"),
                 vec![Declaration::new(
@@ -1021,9 +1058,9 @@ mod tests {
             )),
         );
         let mut g_ctx_3 = GlobalContext::new();
-        g_ctx_3.func_def_mp.insert(
+        g_ctx_3.func_prototype_mp.insert(
             "foo".to_string(),
-            Rc::new(FuncDef::new(
+            Rc::new(FuncPrototype::new(
                 TypeKind::Int,
                 Ident::new("foo"),
                 vec![
@@ -1116,7 +1153,7 @@ mod tests {
             ));
         }
         Node::new_none(NodeKind::Func(
-            Rc::new(FuncDef::new(TypeKind::Int, Ident::new(name), dec)),
+            Rc::new(FuncPrototype::new(TypeKind::Int, Ident::new(name), dec)),
             args,
         ))
     }
