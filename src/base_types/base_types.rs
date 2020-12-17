@@ -34,6 +34,7 @@ impl BaseType {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum TypeKind {
+    Char,
     Int,
     Ptr(Rc<BaseType>),
     Array(u64, Rc<BaseType>),
@@ -53,6 +54,7 @@ pub enum TypeKind {
 impl fmt::Display for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            Char => writeln!(f, "{}", self.as_str()),
             Int => writeln!(f, "{}", self.as_str()),
             Ptr(x) => {
                 let (count, b_type) = x.count_deref();
@@ -69,6 +71,7 @@ impl fmt::Display for TypeKind {
 impl TypeKind {
     pub fn as_str(&self) -> &'static str {
         match self {
+            Char => "char",
             Int => "int",
             Ptr(_) => "Ptr",
             Array(_, _) => "Array",
@@ -79,6 +82,7 @@ impl TypeKind {
 
     pub fn from_starts(s: &str) -> Result<TypeKind, ()> {
         match s {
+            x if x.starts_with(Char.as_str()) => Ok(Char),
             x if x.starts_with(Int.as_str()) => Ok(Int),
             _ => Err(()),
         }
@@ -86,6 +90,7 @@ impl TypeKind {
 
     pub fn size(&self) -> u64 {
         match self {
+            Char => 1,
             Int => 4,
             Ptr(_) => 8,
             Array(size, base_type) => size * base_type.kind.size(),
@@ -94,8 +99,16 @@ impl TypeKind {
         }
     }
 
+    fn is_num_type(&self) -> bool {
+        match self {
+            Char | Int => true,
+            _ => false,
+        }
+    }
+
     pub fn get_deref_type(&self) -> Self {
         match self {
+            Char => TypeKind::_Deref(Rc::new(BaseType::new(self.clone()))),
             Int => TypeKind::_Deref(Rc::new(BaseType::new(self.clone()))),
             Ptr(b_type) => b_type.kind.clone(),
             Array(_, b_type) => b_type.kind.clone(),
@@ -117,6 +130,7 @@ impl TypeKind {
     /// `int x[10]: 4 * 10 = 40`
     pub fn eight_size(&self) -> u64 {
         match self {
+            Char => 8,
             Int => 8,
             Ptr(_) => 8,
             Array(_size, base_type) => {
@@ -150,17 +164,23 @@ impl TypeKind {
     /// todo
     /// this can not compare `int **` and `int *a[]`
     pub fn partial_comp(lhs: &TypeKind, rhs: &TypeKind) -> bool {
-        let a = if let TypeKind::Array(_, b_type) = lhs {
-            TypeKind::Ptr(b_type.clone())
+        let a = if let Array(_, b_type) = lhs {
+            Ptr(b_type.clone())
         } else {
             lhs.clone()
         };
 
-        let b = if let TypeKind::Array(_, b_type) = rhs {
-            TypeKind::Ptr(b_type.clone())
+        let b = if let Array(_, b_type) = rhs {
+            Ptr(b_type.clone())
         } else {
             rhs.clone()
         };
+
+        // if lhs and rhs is Int or Char,
+        // return true
+        if a.is_num_type() && b.is_num_type() {
+            return true;
+        }
 
         a == b
     }

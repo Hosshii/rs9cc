@@ -251,6 +251,16 @@ global_variable() {
     assert 5 'int a; int b; int add_a_b(){a = 1; b = 2; return a+b;} int main(){ int a ; a = add_a_b(); return a + b ;}'
 }
 
+# 24
+char() {
+    assert 1 'int main(){char a; a = 1; return a;}'
+    assert 2 'int main(){char a; int b; a =1; b =a +1; return b;}'
+    assert 10 'int main(){char hoge[10]; hoge[9] = 10; return hoge[9];}'
+    assert 3 'int main(){char x[3]; x[0] = -1; x[1] = 2; int y; y = 4; return x[0] + y;}'
+    assert 5 'int main(){char x[3]; x[0] = -1; x[1] = 2; int y; y = 4; return y - x[0];}'
+    assert 10 'char hoge[2]; int main(){hoge[0] =1; hoge[hoge[0]]= 10; return hoge[1];}  '
+}
+
 if [ $# -eq 0 ]; then
     four_op
     eq
@@ -275,6 +285,7 @@ if [ $# -eq 0 ]; then
     array
     array_idx
     global_variable
+    char
 fi
 
 while [ $# -ne 0 ]; do
@@ -302,6 +313,7 @@ while [ $# -ne 0 ]; do
     "21") array ;;
     "22") array_idx ;;
     "23") global_variable ;;
+    "24") char ;;
     esac
     shift
 done

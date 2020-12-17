@@ -7,7 +7,8 @@ mini C compiler written in Rust. This is my hobby project. I use [compilerbook](
 ## EBNF
 ```
 program     = (function | declaration ";" )*
-basetype    = "int" "*"*
+typekind    = "int" | "char"
+basetype    = typekind "*"*
 function    = declaration "(" params? ")" "{" stmt* "}"
 params      = declaration ("," declaration)*
 stmt        = expr ";"

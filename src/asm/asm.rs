@@ -399,23 +399,12 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 fn load(node: &Node) {
     println!("# load");
     let mut word = "mov rax, [rax]";
-    // if let NodeKind::Lvar(ref lvar) = node.kind {
-    //     match &lvar.dec.base_type.kind {
-    //         TypeKind::Array(_, b_type) => match b_type.kind.size() {
-    //             4 => word = "movsxd rax, dword ptr [rax]",
-    //             _ => (),
-    //         },
-    //         _ => (),
-    //     }
-    // }
     if let Ok(type_kind) = node.get_type() {
         match type_kind {
-            TypeKind::Array(_, b_type) => match b_type.kind.size() {
-                4 => word = "movsxd rax, dword ptr [rax]",
-                _ => (),
-            },
-            TypeKind::Int => word = "movsxd rax, dword ptr [rax]",
-            _ => (),
+            TypeKind::Array(_, b_type) => {
+                word = gen_load_asm(b_type.kind.size(), true).unwrap_or(word)
+            }
+            x => word = gen_load_asm(x.size(), true).unwrap_or(word),
         }
     }
     println!("    pop rax");
@@ -423,25 +412,29 @@ fn load(node: &Node) {
     println!("    push rax");
 }
 
+/// generate asm depending on the size.
+/// if ext is true, use sign extension
+fn gen_load_asm(size: u64, signed: bool) -> Option<&'static str> {
+    match size {
+        1 => {
+            if signed {
+                Some("movsx rax, byte ptr [rax]")
+            } else {
+                Some("movzx rax, byte ptr [rax]")
+            }
+        }
+        4 => Some("movsxd rax, dword ptr [rax]"),
+        8 => Some("mov rax, [rax]"),
+        _ => None,
+    }
+}
+
 fn store(node: &Node) {
     let mut word = "mov [rax], rdi";
-    // if let NodeKind::Lvar(ref lvar) = node.kind {
-    //     match &lvar.dec.base_type.kind {
-    //         TypeKind::Array(_, b_type) => match b_type.kind.size() {
-    //             4 => word = "mov [rax], edi",
-    //             _ => (),
-    //         },
-    //         _ => (),
-    //     }
-    // }
     if let Ok(type_kind) = node.get_type() {
         match type_kind {
-            TypeKind::Array(_, b_type) => match b_type.kind.size() {
-                4 => word = "mov [rax], edi",
-                _ => (),
-            },
-            TypeKind::Int => word = "mov [rax], edi",
-            _ => (),
+            TypeKind::Array(_, b_type) => word = gen_store_asm(b_type.kind.size()).unwrap_or(word),
+            x => word = gen_store_asm(x.size()).unwrap_or(word),
         }
     }
     println!("# store");
@@ -449,6 +442,15 @@ fn store(node: &Node) {
     println!("    pop rax");
     println!("    {}", word);
     println!("    push rdi");
+}
+
+fn gen_store_asm(size: u64) -> Option<&'static str> {
+    match size {
+        1 => Some("mov [rax], dil"),
+        4 => Some("mov [rax], edi"),
+        8 => Some("mov [rax], rdi"),
+        _ => None,
+    }
 }
 
 fn ptr_op(node: &Node) {

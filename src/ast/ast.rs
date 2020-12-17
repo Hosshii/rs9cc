@@ -58,7 +58,8 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
     Ok(program)
 }
 
-// basetype    = "int" "*"*
+// typekind    = "int" | "char"
+// basetype    = typekind "*"*
 pub fn base_type(iter: &mut TokenIter) -> Result<Node, Error> {
     let type_kind = expect_type_kind(iter)?;
     let mut btype = BaseType::new(type_kind);
@@ -619,6 +620,36 @@ mod tests {
                     BaseType::new(Array(
                         1,
                         Rc::new(BaseType::new(Ptr(Rc::new(BaseType::new(Int))))),
+                    )),
+                    Ident::new("hoge"),
+                ),
+            ),
+            (
+                "char hoge",
+                Declaration::new(BaseType::new(Char), Ident::new("hoge")),
+            ),
+            (
+                "char **hoge",
+                Declaration::new(
+                    BaseType::new(Ptr(Rc::new(BaseType::new(Ptr(Rc::new(BaseType::new(
+                        Char,
+                    ))))))),
+                    Ident::new("hoge"),
+                ),
+            ),
+            (
+                "char hoge[1]",
+                Declaration::new(
+                    BaseType::new(Array(1, Rc::new(BaseType::new(Char)))),
+                    Ident::new("hoge"),
+                ),
+            ),
+            (
+                "char *hoge[1]",
+                Declaration::new(
+                    BaseType::new(Array(
+                        1,
+                        Rc::new(BaseType::new(Ptr(Rc::new(BaseType::new(Char))))),
                     )),
                     Ident::new("hoge"),
                 ),
