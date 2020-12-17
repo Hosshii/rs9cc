@@ -72,11 +72,11 @@ $ RS9CC_ON_WORKFLOW=1 ./bin/test.sh
 - function definition
 - array
 - global variable
+- pointer and String literal
 
 
 ## todo
 - integer
-- pointer and String literal
 - etc...
 
  # Reference
