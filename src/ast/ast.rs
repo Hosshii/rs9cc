@@ -37,7 +37,10 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                         checked_func_prototype.ident.name.clone(),
                         checked_func_prototype.clone(),
                     );
-                    let func = function(iter, checked_func_def, &mut ctx)?;
+                    if consume_semi(iter) {
+                        continue;
+                    }
+                    let func = function(iter, checked_func_prototype, &mut ctx)?;
                     program.functions.push(func);
                 }
                 TokenKind::SemiColon => {

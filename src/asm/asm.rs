@@ -228,6 +228,11 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             println!("# NodeKind::Func");
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
+
+            // printf 関数はalに浮動小数点数の引数の個数をいれる必要がある
+            // 今はないので決め打ちで0にする
+            println!("    mov al, 0");
+
             for i in args {
                 gen(i, ctx)?;
             }

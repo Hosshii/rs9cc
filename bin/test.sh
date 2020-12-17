@@ -16,9 +16,10 @@ int add6(int a, int b, int c, int d, int e, int f) {
   return a+b+c+d+e+f;
 }
 
-void alloc4(int **p, int x,int y,int z , int a) {
+int alloc4(int **p, int x,int y,int z , int a) {
     *p = malloc(sizeof(int)*4);
     (*p)[0] = x; (*p)[1] = y; (*p)[2] = z; (*p)[3] = a;
+    return 1;
 }
 EOF
 
@@ -143,18 +144,14 @@ block_stmt() {
 
 # 13
 func_call() {
-    # extern is not defined now.
-    # so following code is not working.
-
-    echo 'no test'
-    # assert 3 'int ret3(){} int main(){ret3();}'
-    # assert 3 'int ret3(){} int main(){return ret3();}'
-    # assert 5 'int ret5(){} int main(){return ret5();}'
-    # assert 8 'int add(){} int main(){return add(3, 5);}'
-    # assert 2 'int sub(){} int main(){return sub(5, 3);}'
-    # assert 10 'int mul(){} int main(){return mul(2, 5);}'
-    # assert 6 'int add3(){} int main(){return add3(1,2,3);}'
-    # assert 21 'int add6(){} int main(){return add6(1,2,3,4,5,6);}'
+    assert 3 'int ret3();  int main(){ret3();}'
+    assert 3 'int ret3(); int main(){return ret3();}'
+    assert 5 'int ret5(); int main(){return ret5();}'
+    assert 8 'int add(int x, int y);  int main(){return add(3, 5);}'
+    assert 2 'int sub(int x, int y); int main(){return sub(5, 3);}'
+    assert 10 'int mul(int x, int y); int main(){return mul(2, 5);}'
+    assert 6 'int add3(int x, int y, int z); int main(){return add3(1,2,3);}'
+    assert 21 'int add6(int a, int b, int c ,int d, int e ,int f); int main(){return add6(1,2,3,4,5,6);}'
 }
 
 # 14
@@ -200,13 +197,10 @@ pointer_type() {
 
 # 19
 pointer_operation() {
-    # extern is not defined. so alloc4 cannot use.
-
-    echo 'no test'
-    # assert 1 'int main(){int *p; alloc4(&p,1,2,4,8); return *p;}'
-    # assert 1 'int main(){int *p; alloc4(&p,1,2,4,8); int *q; q = p;return *q;}'
-    # assert 4 'int main(){int *p; alloc4(&p,1,2,4,8); int *q; q = p+2;return *q;}'
-    # assert 8 'int main(){int *p; alloc4(&p,1,2,4,8); int *q; q = p+3;return *q;}'
+    assert 1 'int alloc4(int *p,int x,int y, int z,int a);int main(){int *p; alloc4(&p,1,2,4,8); return *p;}'
+    assert 1 'int alloc4(int *p,int x,int y, int z,int a);int main(){int *p; alloc4(&p,1,2,4,8); int *q; q = p;return *q;}'
+    assert 4 'int alloc4(int *p,int x,int y, int z,int a);int main(){int *p; alloc4(&p,1,2,4,8); int *q; q = p+2;return *q;}'
+    assert 8 'int alloc4(int *p,int x,int y, int z,int a);int main(){int *p; alloc4(&p,1,2,4,8); int *q; q = p+3;return *q;}'
 }
 
 # 20
@@ -269,6 +263,7 @@ string() {
     assert 99 'int main() { return "abc"[2]; }'
     assert 0 'int main() { return "abc"[3]; }'
     assert 4 'int main() { return sizeof("abc"); }'
+    assert 12 'int printf(char *x); int main(){return printf("hello world!"); }'
 }
 
 build() {
