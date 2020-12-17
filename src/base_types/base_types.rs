@@ -54,16 +54,22 @@ pub enum TypeKind {
 impl fmt::Display for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Char => writeln!(f, "{}", self.as_str()),
-            Int => writeln!(f, "{}", self.as_str()),
+            Char => write!(f, "{}", self.as_str()),
+            Int => write!(f, "{}", self.as_str()),
             Ptr(x) => {
                 let (count, b_type) = x.count_deref();
                 let ptr = format!("{:*<width$}", "*", width = count + 1);
-                writeln!(f, "{} {}", b_type.kind.as_str(), ptr)
+                write!(f, "{} {}", b_type.kind.as_str(), ptr)
             }
-            Array(size, ptr_type) => writeln!(f, "{} [{}]", ptr_type.kind, size),
-            _Deref(_) => unreachable!(),
-            _Invalid(msg) => writeln!(f, "{}", msg),
+            Array(size, ptr_type) => write!(f, "{} [{}]", ptr_type.kind, size),
+            _Deref(x) => {
+                // todo
+                // もう少しいい表示考える
+                let (count, b_type) = x.count_deref();
+                let ptr = format!("{:*<width$}", "*", width = count + 1);
+                write!(f, "{} {}", b_type.kind.as_str(), ptr)
+            }
+            _Invalid(msg) => write!(f, "{}", msg),
         }
     }
 }
