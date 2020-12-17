@@ -34,6 +34,7 @@ pub enum NodeKind {
     BaseType(base_types::BaseType),
     Declaration(Declaration),
     Gvar(Rc<Gvar>),
+    TkString(Rc<String>, Rc<String>, usize), // text, label, idx of ctx.tk_string
 }
 
 impl NodeKind {
@@ -67,6 +68,7 @@ impl NodeKind {
             BaseType(b_type) => format!("{}", b_type.kind),
             Declaration(dec) => format!("{:?}", dec),
             Gvar(x) => format!("{:?}", x),
+            TkString(string, _, _) => string.to_string(),
         }
     }
     /// convert NodeKind to token::Operator
@@ -270,20 +272,49 @@ impl Gvar {
 
 pub type GvarMp = HashMap<String, Rc<Gvar>>;
 
-pub struct Context<'a> {
-    pub gvar: &'a GvarMp,
-    pub lvar: Option<Rc<Lvar>>,
-    pub(crate) lvar_count: usize,
-    pub func_def_mp: &'a FuncDefMp,
+#[derive(Clone, Debug)]
+pub struct Context {
+    pub g: GlobalContext,
+    pub l: LocalContext,
 }
 
-impl<'a> Context<'a> {
-    pub fn new(gvar: &'a GvarMp, func_def_mp: &'a FuncDefMp) -> Self {
+impl Context {
+    pub fn new() -> Self {
         Self {
-            gvar,
+            g: GlobalContext::new(),
+            l: LocalContext::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct GlobalContext {
+    pub gvar_mp: GvarMp,
+    pub func_def_mp: FuncDefMp,
+    pub tk_string: Vec<(Rc<String>, Rc<String>)>, // content, label
+}
+
+impl GlobalContext {
+    pub fn new() -> Self {
+        Self {
+            gvar_mp: HashMap::new(),
+            func_def_mp: HashMap::new(),
+            tk_string: Vec::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct LocalContext {
+    pub lvar: Option<Rc<Lvar>>,
+    pub(crate) lvar_count: usize,
+}
+
+impl LocalContext {
+    pub fn new() -> Self {
+        Self {
             lvar: None,
             lvar_count: 0,
-            func_def_mp,
         }
     }
 
@@ -331,17 +362,17 @@ impl<'a> Context<'a> {
 
 #[derive(Clone, Debug)]
 pub struct Program {
+    pub ctx: Context,
     pub functions: Vec<Function>,
-    pub func_def: FuncDefMp,
-    pub g_var: GvarMp,
+    // pub func_def: FuncDefMp,
+    // pub g_var: GvarMp,
 }
 
 impl Program {
     pub fn new() -> Self {
         Self {
+            ctx: Context::new(),
             functions: Vec::new(),
-            func_def: HashMap::new(),
-            g_var: HashMap::new(),
         }
     }
 }
@@ -464,17 +495,13 @@ mod tests {
         use crate::token;
 
         let input = "&*1;";
-        let mp1 = HashMap::new();
-        let mp2 = HashMap::new();
-        let mut ctx = Context::new(&mp1, &mp2);
+        let mut ctx = Context::new();
         let node = ast::stmt(&mut token::tokenize(input), &mut ctx).unwrap();
         assert_eq!(TypeKind::Int, node.get_type().unwrap());
 
         let input = "*(y + 1);";
-        let mp1 = HashMap::new();
-        let mp2 = HashMap::new();
-        let mut ctx = Context::new(&mp1, &mp2);
-        ctx.push_front(
+        let mut ctx = Context::new();
+        ctx.l.push_front(
             Declaration::new(
                 BaseType::new(TypeKind::Ptr(Rc::new(BaseType::new(TypeKind::Int)))),
                 Ident::new("y"),
