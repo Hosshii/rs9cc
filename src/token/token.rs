@@ -11,6 +11,7 @@ pub enum TokenKind {
     Block(Block),
     Num(u64),
     TypeKind(TypeKind),
+    Comment(Comment),
     SemiColon,
     Comma,
     DoubleQuote,
@@ -28,6 +29,7 @@ impl TokenKind {
             Num(x) => x.to_string(),
             Block(x) => x.as_str().to_string(),
             TypeKind(x) => x.as_str().to_string(),
+            Comment(x) => x.as_str().to_string(),
             SemiColon => ";".to_string(),
             Comma => ",".to_string(),
             DoubleQuote => "\"".to_string(),
@@ -212,6 +214,36 @@ impl FromStr for Block {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
+pub enum Comment {
+    Single,
+    MultiStart,
+    MultiEnd,
+}
+impl Comment {
+    fn as_str(&self) -> &'static str {
+        use self::Comment::*;
+        match self {
+            Single => "//",
+            MultiStart => "/*",
+            MultiEnd => "*/",
+        }
+    }
+}
+
+impl FromStr for Comment {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Comment, Self::Err> {
+        use self::Comment::*;
+        match s {
+            x if x == Single.as_str() => Ok(Single),
+            x if x == MultiStart.as_str() => Ok(MultiStart),
+            x if x == MultiEnd.as_str() => Ok(MultiEnd),
+            _ => Err(()),
+        }
+    }
+}
+
 // impl Iterator for KeyWord {
 //     type Item = Self;
 //     fn next(&mut self) -> Option<Self::Item> {
@@ -306,8 +338,12 @@ pub fn tokenize<'a>(s: &'a str, filepath: &'a str) -> TokenIter<'a> {
 impl<'a> TokenIter<'a> {
     /// std::iter::Peekable.peek()に似てるけど、nextを内部で呼ばない
     pub fn peek(&self) -> Option<Token> {
-        let sp = calc_space_len(self.cur_str());
-        let s = &self.s[self.pos.bytes + sp..];
+        let s: &str;
+        match calc_space_len(self.cur_str()) {
+            Ok(sp) => s = &self.s[self.pos.bytes + sp..],
+            Err(e) => self.error_at(&e),
+        }
+
         if s.is_empty() {
             return None;
         }
@@ -482,8 +518,12 @@ impl<'a> TokenIter<'a> {
 impl<'a> Iterator for TokenIter<'a> {
     type Item = Token;
     fn next(&mut self) -> Option<Self::Item> {
-        let sp = calc_space_len(self.cur_str());
-        self.pos.bytes += sp;
+        match calc_space_len(self.cur_str()) {
+            Ok(sp) => {
+                self.pos.bytes += sp;
+            }
+            Err(e) => self.error_at(&e),
+        }
         let s = self.cur_str();
         if s.is_empty() {
             return None;
@@ -558,6 +598,8 @@ fn split_ident(s: &str) -> (&str, &str, usize) {
             || s[i..].starts_with(&TokenKind::Comma.as_string())
             || s[i..].starts_with(Block::LParen.as_str())
             || s[i..].starts_with(Block::RParen.as_str())
+            || s[i..].starts_with(Comment::Single.as_str())
+            || s[i..].starts_with(Comment::MultiStart.as_str())
         {
             break;
         }
@@ -569,18 +611,47 @@ fn split_ident(s: &str) -> (&str, &str, usize) {
 
 /// 入力の先頭から空白がなくなるところを探して
 /// 最初に出てくる空白ではない文字の位置を返す
-fn calc_space_len(s: &str) -> usize {
+fn calc_space_len(s: &str) -> Result<usize, String> {
     let mut begin = s.char_indices().peekable();
 
-    while let Some((pos, chars)) = begin.next() {
+    while let Some((mut pos, mut chars)) = begin.next() {
+        // for comment //
+        if chars == '/' {
+            if let Some((_, x)) = begin.next() {
+                if x == '/' {
+                    chars = ' ';
+                    while let Some((_pos, _chars)) = begin.next() {
+                        pos = _pos;
+                        if _chars == '\n' {
+                            break;
+                        }
+                    }
+                } else if x == '*' {
+                    chars = ' ';
+                    while let Some((_, c)) = begin.next() {
+                        if c == '*' {
+                            if let Some((_pos, _chars)) = begin.next() {
+                                pos = _pos;
+                                if _chars == '/' {
+                                    break;
+                                }
+                            } else {
+                                return Err("comment is no closed.".to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         if !chars.is_whitespace() {
-            return pos;
+            return Ok(pos);
         }
         if begin.peek() == None {
-            return pos + 1;
+            return Ok(pos + 1);
         }
     }
-    0
+    Ok(0)
 }
 
 fn is_alnum(c: char) -> bool {
@@ -624,8 +695,9 @@ mod tests {
         }
         assert_eq!(None, iter.next());
 
-        let input =
-            "return; returnx return1 return 1 for while if else force whilet ifelse elseif \"aaaaa\"a";
+        let input = "
+            return; returnx return1 return 1 for while if else force whilet ifelse elseif \"aaaaa\"a ";
+
         let expected = vec![
             TokenKind::KeyWord(Return),
             SemiColon,
@@ -644,6 +716,25 @@ mod tests {
             TokenKind::String("aaaaa".to_string()),
             TokenKind::Ident(Ident::new("a")),
         ];
+        let mut iter = tokenize(input, "");
+        for i in expected {
+            assert_eq!(i, iter.next().unwrap().kind);
+        }
+        assert_eq!(None, iter.next());
+
+        let input = r###"
+        // hello. this is comment 
+        ;
+        /*
+        hello 
+        this 
+        is 
+        multi 
+        line
+        comment */
+        ; //
+        "###;
+        let expected = vec![TokenKind::SemiColon, TokenKind::SemiColon];
         let mut iter = tokenize(input, "");
         for i in expected {
             assert_eq!(i, iter.next().unwrap().kind);
@@ -719,9 +810,9 @@ mod tests {
 
     #[test]
     fn test_calc_space_len() {
-        let tests = [("    a", 4), ("a", 0)];
+        let tests = [("    a", 4), ("a", 0), ("// ", 3)];
         for (s, expected) in &tests {
-            assert_eq!(expected, &calc_space_len(s));
+            assert_eq!(expected, &calc_space_len(s).unwrap());
         }
     }
 
