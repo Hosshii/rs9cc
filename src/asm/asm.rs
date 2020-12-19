@@ -84,7 +84,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         NodeKind::Lvar(lvar) => {
             println!("# NodeKind::Lvar");
             gen_val(node, ctx)?;
-            if let TypeKind::Array(_, _) = lvar.dec.base_type.kind {
+            if let TypeKind::Array(_, _, _) = lvar.dec.base_type.kind {
                 return Ok(());
             }
             load(node);
@@ -93,7 +93,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         NodeKind::Gvar(gvar) => {
             println!("# NodeKind::Gvar");
             gen_val(node, ctx)?;
-            if let TypeKind::Array(_, _) = gvar.dec.base_type.kind {
+            if let TypeKind::Array(_, _, _) = gvar.dec.base_type.kind {
                 return Ok(());
             }
             load(node);
@@ -192,7 +192,9 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
             if let Some(init) = &node.init {
-                gen(init, ctx)?;
+                for i in init {
+                    gen(i, ctx)?;
+                }
             }
 
             println!(".Lbegin{}:", jlb_num);
@@ -303,7 +305,15 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             }
             return Ok(());
         }
-        NodeKind::Declaration(_) => return Ok(()),
+        NodeKind::Declaration(_) => {
+            if let Some(ref init) = node.init {
+                for i in init {
+                    gen(i, ctx)?
+                }
+            }
+
+            return Ok(());
+        }
         _ => (),
     }
 
@@ -410,7 +420,7 @@ fn load(node: &Node) {
     let mut word = "mov rax, [rax]";
     if let Ok(type_kind) = node.get_type() {
         match type_kind {
-            TypeKind::Array(_, b_type) => {
+            TypeKind::Array(_, b_type, _) => {
                 word = gen_load_asm(b_type.kind.size(), true).unwrap_or(word)
             }
             x => word = gen_load_asm(x.size(), true).unwrap_or(word),
@@ -442,7 +452,10 @@ fn store(node: &Node) {
     let mut word = "mov [rax], rdi";
     if let Ok(type_kind) = node.get_type() {
         match type_kind {
-            TypeKind::Array(_, b_type) => word = gen_store_asm(b_type.kind.size()).unwrap_or(word),
+            // TypeKind::Array(_, b_type) => word = gen_store_asm(b_type.kind.size()).unwrap_or(word),
+            TypeKind::Array(_, b_type, _) => {
+                word = gen_store_asm(TypeKind::Ptr(b_type).size()).unwrap_or(word)
+            }
             x => word = gen_store_asm(x.size()).unwrap_or(word),
         }
     }
@@ -467,7 +480,7 @@ fn ptr_op(node: &Node) {
     if let Some(ref lhs) = node.lhs {
         if let NodeKind::Lvar(ref lvar) = lhs.kind {
             match &lvar.dec.base_type.kind {
-                TypeKind::Ptr(ptr) | TypeKind::Array(_, ptr) => {
+                TypeKind::Ptr(ptr) | TypeKind::Array(_, ptr, _) => {
                     println!("    imul rdi, {}", ptr.kind.size());
                 }
                 _ => (),

@@ -37,7 +37,7 @@ pub enum TypeKind {
     Char,
     Int,
     Ptr(Rc<BaseType>),
-    Array(u64, Rc<BaseType>),
+    Array(u64, Rc<BaseType>, bool), // bool is whether initializ or not
 
     /// this is virtual type for `get_deref_type`
     _Deref(Rc<BaseType>),
@@ -61,7 +61,7 @@ impl fmt::Display for TypeKind {
                 let ptr = format!("{:*<width$}", "*", width = count + 1);
                 write!(f, "{} {}", b_type.kind.as_str(), ptr)
             }
-            Array(size, ptr_type) => write!(f, "{} [{}]", ptr_type.kind, size),
+            Array(size, ptr_type, _) => write!(f, "{} [{}]", ptr_type.kind, size),
             _Deref(x) => {
                 // todo
                 // もう少しいい表示考える
@@ -80,7 +80,7 @@ impl TypeKind {
             Char => "char",
             Int => "int",
             Ptr(_) => "Ptr",
-            Array(_, _) => "Array",
+            Array(_, _, _) => "Array",
             _Deref(_) => unreachable!(),
             _Invalid(_) => unreachable!(),
         }
@@ -99,7 +99,7 @@ impl TypeKind {
             Char => 1,
             Int => 4,
             Ptr(_) => 8,
-            Array(size, base_type) => size * base_type.kind.size(),
+            Array(size, base_type, _) => size * base_type.kind.size(),
             _Deref(_) => unreachable!(),
             _Invalid(_) => unreachable!(),
         }
@@ -117,7 +117,7 @@ impl TypeKind {
             Char => TypeKind::_Deref(Rc::new(BaseType::new(self.clone()))),
             Int => TypeKind::_Deref(Rc::new(BaseType::new(self.clone()))),
             Ptr(b_type) => b_type.kind.clone(),
-            Array(_, b_type) => b_type.kind.clone(),
+            Array(_, b_type, _) => b_type.kind.clone(),
             _Deref(b_type) => b_type.kind.clone(),
             _Invalid(msg) => _Invalid(msg.clone()),
         }
@@ -139,7 +139,7 @@ impl TypeKind {
             Char => 8,
             Int => 8,
             Ptr(_) => 8,
-            Array(_size, base_type) => {
+            Array(_size, base_type, _) => {
                 let mut size = _size * base_type.kind.size();
                 size += (8 - size % 8) % 8; // sizeを8の倍数にする
                 size
@@ -149,7 +149,7 @@ impl TypeKind {
         }
     }
 
-    pub fn to_arr(&mut self, size: u64) {
+    pub fn to_arr(&mut self, size: u64, sized: bool) {
         // unsafeをまだよくわかってないのでmem::replaceを使ってやる
 
         // unsafe {
@@ -159,7 +159,11 @@ impl TypeKind {
         //     )
         // }
 
-        *self = Array(size, Rc::new(BaseType::new(std::mem::replace(self, Int))));
+        *self = Array(
+            size,
+            Rc::new(BaseType::new(std::mem::replace(self, Int))),
+            sized,
+        );
 
         // use std::mem::take instead of std::mem::replace
         // *self = Array(size, Rc::new(BaseType::new(std::mem::take(self))));
@@ -170,13 +174,13 @@ impl TypeKind {
     /// todo
     /// this can not compare `int **` and `int *a[]`
     pub fn partial_comp(lhs: &TypeKind, rhs: &TypeKind) -> bool {
-        let a = if let Array(_, b_type) = lhs {
+        let a = if let Array(_, b_type, _) = lhs {
             Ptr(b_type.clone())
         } else {
             lhs.clone()
         };
 
-        let b = if let Array(_, b_type) = rhs {
+        let b = if let Array(_, b_type, _) = rhs {
             Ptr(b_type.clone())
         } else {
             rhs.clone()

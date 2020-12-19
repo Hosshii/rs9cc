@@ -3,6 +3,7 @@ use super::{Ident, Lvar};
 use crate::base_types::TypeKind;
 use crate::token::{Token, TokenKind, TokenPos};
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum ErrorKind {
@@ -16,6 +17,7 @@ pub enum ErrorKind {
     InvalidVariableDereference(Lvar, usize),
     InvalidValueDereference(String),
     InvalidAssignment(TypeKind, TypeKind),
+    InvalidInitialization(Rc<Lvar>, String),
     EOF(TokenKind),
 }
 
@@ -157,6 +159,22 @@ impl Error {
             msg: None,
         }
     }
+
+    pub fn invalid_initialization(
+        filepath: impl Into<String>,
+        input: impl Into<String>,
+        pos: TokenPos,
+        lhs: Rc<Lvar>,
+        rhs: String,
+    ) -> Error {
+        Error {
+            filepath: filepath.into(),
+            kind: InvalidInitialization(lhs, rhs),
+            pos,
+            input: input.into(),
+            msg: None,
+        }
+    }
 }
 
 impl fmt::Display for Error {
@@ -179,6 +197,9 @@ impl fmt::Display for Error {
             }
             InvalidAssignment(lhs_type, rhs_type) => {
                 invalid_assignment_err_format(&self, lhs_type, rhs_type, f)
+            }
+            InvalidInitialization(lhs, rhs) => {
+                invalid_initialization_err_format(&self, lhs, rhs, f)
             }
         }
     }
@@ -294,5 +315,18 @@ fn invalid_assignment_err_format(
     f: &mut fmt::Formatter,
 ) -> fmt::Result {
     let msg = format!("invalid assignment. lhs: {}, rhs: {}", lhs_type, rhs_type);
+    err_format(err, msg, f)
+}
+
+fn invalid_initialization_err_format(
+    err: &Error,
+    lvar: &Lvar,
+    rhs: &String,
+    f: &mut fmt::Formatter,
+) -> fmt::Result {
+    let msg = format!(
+        "invalid initialization. lhs: {}, rhs: {}",
+        lvar.dec.base_type.kind, rhs
+    );
     err_format(err, msg, f)
 }

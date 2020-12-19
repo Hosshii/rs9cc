@@ -126,7 +126,7 @@ pub struct Node {
     pub cond: Option<Box<Node>>,
     pub then: Option<Box<Node>>,
     pub els: Option<Box<Node>>,
-    pub init: Option<Box<Node>>,
+    pub init: Option<Vec<Node>>,
     pub inc: Option<Box<Node>>,
 }
 
@@ -145,7 +145,7 @@ impl Node {
         cond: Option<Box<Node>>,
         then: Option<Box<Node>>,
         els: Option<Box<Node>>,
-        init: Option<Box<Node>>,
+        init: Option<Vec<Node>>,
         inc: Option<Box<Node>>,
     ) -> Node {
         Node {
@@ -177,6 +177,12 @@ impl Node {
     pub fn new_cond(kind: NodeKind, cond: Node) -> Node {
         let mut node = Node::new_none(kind);
         node.cond = Some(Box::new(cond));
+        node
+    }
+
+    pub fn new_init(kind: NodeKind, init: Vec<Node>) -> Node {
+        let mut node = Node::new_leaf(kind);
+        node.init = Some(init);
         node
     }
 

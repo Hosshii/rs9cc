@@ -384,9 +384,18 @@ pub(crate) fn make_string_node(label: impl Into<String>, size: u64) -> NodeKind 
             BaseType::new(TypeKind::Array(
                 size,
                 Rc::new(BaseType::new(TypeKind::Char)),
+                true,
             )),
             Ident::new(label),
         ),
         size,
     )))
+}
+
+pub(crate) fn make_array_idx_node(idx: u64, lvar: Rc<Lvar>) -> Node {
+    Node::new(
+        NodeKind::Add,
+        Node::new_leaf(NodeKind::Lvar(lvar)),
+        Node::new_num(idx),
+    )
 }

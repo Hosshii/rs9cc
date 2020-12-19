@@ -262,9 +262,25 @@ string() {
     assert 97 'int main() { return "abc"[0]; }'
     assert 98 'int main() { return "abc"[1]; }'
     assert 99 'int main() { return "abc"[2]; }'
-    assert 0 'int main() { return "abc"[3]; }'
+    assert 100 'int main() { return "abcd"[3]; }'
     assert 4 'int main() { return sizeof("abc"); }'
     assert 12 'int printf(char *x); int main(){return printf("hello world!"); }'
+}
+
+# 26
+init() {
+    assert 1 'int main(){int x = 1; return x;}'
+    assert 3 'int main(){int x[2] = {1,2}; return x[0]+x[1];} '
+    assert 19 'int main(){int x[10] = {10,9}; int result = 0; int i=0; for ( i ; i< 10; i = i+1){result = result +x[i];}return result;}'
+    assert 0 'int main(){int x[2] = {}; return x[0]+x[1];}'
+    assert 99 'int printf(char *x); int main(){char p[10] = "cello";return p[0]; }'
+    assert 0 'int printf(char *x); int main(){char p[10] = "cello";return p[9]; }'
+    assert 5 'int printf(char *x); int main(){char p[10] = "hello";return printf(p); }'
+    assert 19 'int main(){int x[] = {10,9}; int result = 0; int i=0; for ( i ; i< 2; i = i+1){result = result +x[i];}return result;}'
+    assert 5 'int printf(char *x); int main(){char p[] = "hello";return printf(p); }'
+    assert 19 'int main(){int x[] = {10,9}; int result = 0; int i=0; for ( i ; i< 2; i = i+1){result = result +x[i];}return result;}'
+    assert 8 'int main(){int x[] = {1,2}; return sizeof (x);}'
+    assert 19 'int main(){int x[] = {10,9}; int result = 0; int i=0; for ( i ; i< sizeof(x)/4; i = i+1){result = result +x[i];}return result;}'
 }
 
 build() {
@@ -301,6 +317,7 @@ if [ $# -eq 0 ]; then
     global_variable
     char
     string
+    init
 fi
 
 while [ $# -ne 0 ]; do
@@ -330,6 +347,7 @@ while [ $# -ne 0 ]; do
     "23") global_variable ;;
     "24") char ;;
     "25") string ;;
+    "26") init ;;
     esac
     shift
 done

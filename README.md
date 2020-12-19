@@ -6,10 +6,12 @@ mini C compiler written in Rust. This is my hobby project. I use [compilerbook](
 
 ## EBNF
 ```
-program         = (function | declaration ";" | func-prototype )*
+program         = (function | declaration ("=" initialize)? ";" | func-prototype )*
 typekind        = "int" | "char"
 basetype        = typekind "*"*
-declaration     = basetype ident ("[" num "]")?
+declaration     = basetype ident ("[" num? "]")?
+initialize      = "{" (expr ("," expr)*)? "}" 
+                | expr 
 func-prototype  = declaration "(" params? ")" 
 function        = func-prototype "{" stmt* "}"
 params          = declaration ("," declaration)*
@@ -17,9 +19,9 @@ stmt            = expr ";"
                 | "return" expr ";"
                 | "if" "(" expr ")" stmt
                 | "while" "(" expr ")" stmt
-                | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+                | "for" "(" (expr | declaration "=" initialize)? ";" expr? ";" expr? ")" stmt
                 | "{" stmt* "}"
-                | declaration ";"
+                | declaration ("=" initialize)? ";"
 expr            = assign
 assign          = equality ("=" assign)?
 equality        = relational ("==" relational | "!=" relational)*
@@ -35,6 +37,7 @@ primary         = num
                 | ident (func-args | "[" num "]")? 
                 | "(" expr ")"
                 | str
+                | char
 func-args       = "(" (assign ("," assign)*)? ")"
 ```
 

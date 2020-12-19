@@ -43,6 +43,16 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                     let func = function(iter, checked_func_prototype, &mut ctx)?;
                     program.functions.push(func);
                 }
+                // x => match x {
+                //     TokenKind::SemiColon | TokenKind::Reserved(Operator::Assign) => {
+                //         ctx.g.gvar_mp.insert(
+                //             ident.name.clone(),
+                //             Rc::new(check_g_var(iter, &ctx.g.gvar_mp, b_type, ident)?),
+                //         );
+                //         if x == TokenKind::Reserved(Operator::Assign) {}
+                //     }
+                //     TokenKind::Reserved(Operator::LArr) => {}
+                // },
                 TokenKind::SemiColon => {
                     ctx.g.gvar_mp.insert(
                         ident.name.clone(),
@@ -50,7 +60,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                     );
                 }
                 TokenKind::Reserved(Operator::LArr) => {
-                    b_type.kind.to_arr(expect_num(iter)?);
+                    b_type.kind.to_arr(expect_num(iter)?, true);
                     expect(iter, Operator::RArr)?;
                     expect_semi(iter)?;
                     ctx.g.gvar_mp.insert(
@@ -78,6 +88,21 @@ pub fn base_type(iter: &mut TokenIter) -> Result<Node, Error> {
         }
     }
     Ok(Node::new_leaf(NodeKind::BaseType(btype)))
+}
+
+//declaration = basetype ident ("[" num? "]")?
+pub(crate) fn declaration(iter: &mut TokenIter) -> Result<Declaration, Error> {
+    let mut b_type = expect_base_type(iter)?;
+    let ident = expect_ident(iter)?;
+    if consume(iter, Operator::LArr) {
+        if consume(iter, Operator::RArr) {
+            b_type.kind.to_arr(0, false);
+        } else {
+            b_type.kind.to_arr(expect_num(iter)?, true);
+            expect(iter, Operator::RArr)?;
+        }
+    }
+    Ok(Declaration::new(b_type, ident))
 }
 
 // function    = basetype ident "(" params? ")" "{" stmt* "}"
@@ -118,12 +143,95 @@ pub fn params(iter: &mut TokenIter) -> Result<Vec<Declaration>, Error> {
     Ok(params)
 }
 
+// "{" (expr ("," expr)*)? | str
+pub fn arr_initialize(
+    iter: &mut TokenIter,
+    ctx: &mut Context,
+    dec: &mut Declaration,
+    // b_type: &BaseType,
+    // x: u64,
+    // sized: bool,
+) -> Result<Node, Error> {
+    let mut nodes = Vec::new();
+
+    // str
+    if let Some(string) = consume_string(iter) {
+        for i in string.chars() {
+            nodes.push(Node::new_num(i as u64))
+        }
+    }
+    // num
+    else {
+        expect_block(iter, Block::LParen)?;
+        if !consume_block(iter, Block::RParen) {
+            nodes.push(expr(iter, ctx)?);
+
+            while consume_comma(iter) {
+                nodes.push(expr(iter, ctx)?);
+            }
+            expect_block(iter, Block::RParen)?;
+        }
+    }
+
+    if let TypeKind::Array(x, _, sized) = &mut dec.base_type.kind {
+        if !*sized {
+            *x = nodes.len() as u64;
+            *sized = true;
+        }
+    } else {
+        unreachable!()
+    }
+    ctx.l.push_front(
+        dec.clone(),
+        ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+    );
+
+    if let TypeKind::Array(x, _, _) = &mut dec.base_type.kind {
+        let lvar = ctx.l.find_lvar(&dec.ident.name).unwrap();
+        let mut idx = 0;
+        let mut assign_nodes = Vec::new();
+        let len = nodes.len();
+        for node in nodes {
+            assign_nodes.push(Node::new(
+                NodeKind::Assign,
+                Node::new_unary(NodeKind::Deref, make_array_idx_node(idx, lvar.clone())),
+                node,
+            ));
+            idx += 1;
+        }
+        if *x < assign_nodes.len() as u64 {
+            return Err(Error::invalid_initialization(
+                iter.filepath,
+                iter.s,
+                iter.pos,
+                lvar,
+                format!("length is: {}", assign_nodes.len()),
+            ));
+        }
+
+        for _ in 0..(*x - len as u64) {
+            assign_nodes.push(Node::new(
+                NodeKind::Assign,
+                Node::new_unary(NodeKind::Deref, make_array_idx_node(idx, lvar.clone())),
+                Node::new_num(0),
+            ));
+            idx += 1;
+        }
+        return Ok(Node::new_init(
+            NodeKind::Declaration(dec.clone()),
+            assign_nodes,
+        ));
+    } else {
+        unreachable!()
+    }
+}
+
 // stmt        = expr ";"
 //             | "return" expr ";"
 //             | "if" "(" expr ")" stmt
 //             | "while" "(" expr ")" stmt
 //             | "for" "(" expr? ";" expr? ";" expr? ")" stmt
-//             | "{" stm| declaration ";"t* "}"
+//             | "{" stmt* "}"
 //             | declaration ";"
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(x) = iter.peek() {
@@ -162,7 +270,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     expect(iter, Operator::LParen)?;
                     let mut node = Node::new_none(NodeKind::For);
                     if !consume_semi(iter) {
-                        node.init = Some(Box::new(expr(iter, ctx)?));
+                        node.init = Some(vec![expr(iter, ctx)?]);
                         expect_semi(iter)?;
                     }
                     if !consume_semi(iter) {
@@ -202,7 +310,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         }
     }
 
-    if let Some(dec) = consume_declaration(iter) {
+    if let Some(mut dec) = consume_declaration(iter) {
         if let Some(_) = ctx.l.find_lvar(&dec.ident.name) {
             // consume_declaration calls iter.next();
             // so if the variable is not defined, the error position is not correct.
@@ -219,12 +327,46 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 None,
             ));
         } else {
-            ctx.l.push_front(
-                dec.clone(),
-                ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
-            );
-            expect_semi(iter)?;
-            return Ok(Node::new_leaf(NodeKind::Declaration(dec)));
+            if consume_semi(iter) {
+                ctx.l.push_front(
+                    dec.clone(),
+                    ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+                );
+                return Ok(Node::new_leaf(NodeKind::Declaration(dec)));
+            }
+            expect(iter, Operator::Assign)?;
+            match &dec.base_type.kind {
+                TypeKind::Array(_, _, _) => {
+                    let node = arr_initialize(iter, ctx, &mut dec)?;
+                    expect_semi(iter)?;
+                    return Ok(node);
+                }
+                b_type => {
+                    ctx.l.push_front(
+                        dec.clone(),
+                        ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+                    );
+                    let node = expr(iter, ctx)?;
+                    if let Ok(x) = node.get_type() {
+                        if !TypeKind::partial_comp(&x, &b_type) {
+                            return Err(Error::invalid_assignment(
+                                iter.filepath,
+                                iter.s,
+                                iter.pos,
+                                b_type.clone(),
+                                x,
+                            ));
+                        }
+                    }
+                    expect_semi(iter)?;
+                    let node = Node::new(
+                        NodeKind::Assign,
+                        Node::new_leaf(NodeKind::Lvar(ctx.l.find_lvar(&dec.ident.name).unwrap())),
+                        node,
+                    );
+                    return Ok(Node::new_init(NodeKind::Declaration(dec), vec![node]));
+                }
+            }
         }
     }
     let node = expr(iter, ctx)?;
@@ -347,7 +489,9 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         let node = unary(iter, ctx)?;
         match node.kind {
             NodeKind::Num(_) => return Ok(Node::new_num(4)),
-            NodeKind::Lvar(x) => return Ok(Node::new_num(x.dec.base_type.kind.size() as u64)),
+            NodeKind::Lvar(x) => {
+                return Ok(Node::new_num(x.dec.base_type.kind.size() as u64));
+            }
             NodeKind::Gvar(x) => return Ok(Node::new_num(x.size)),
             NodeKind::Func(func_prototype, _) => {
                 return Ok(Node::new_num(func_prototype.type_kind.size()))
@@ -400,7 +544,7 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             .get_type()
             .unwrap_or(TypeKind::_Invalid("invalid type".to_string()))
         {
-            TypeKind::Array(_, _) | TypeKind::Ptr(_) => {}
+            TypeKind::Array(_, _, _) | TypeKind::Ptr(_) => {}
             x => {
                 return Err(Error::invalid_value_dereference(
                     iter.filepath,
@@ -493,17 +637,6 @@ fn func_args(iter: &mut TokenIter, ctx: &mut Context) -> Result<Vec<Node>, Error
     }
     expect(iter, Operator::RParen)?;
     Ok(args)
-}
-
-//declaration = basetype ident ("[" num "]")?
-pub(crate) fn declaration(iter: &mut TokenIter) -> Result<Declaration, Error> {
-    let mut b_type = expect_base_type(iter)?;
-    let ident = expect_ident(iter)?;
-    if consume(iter, Operator::LArr) {
-        b_type.kind.to_arr(expect_num(iter)?);
-        expect(iter, Operator::RArr)?;
-    }
-    Ok(Declaration::new(b_type, ident))
 }
 
 #[cfg(test)]
@@ -664,7 +797,7 @@ mod tests {
             (
                 "int hoge[1]",
                 Declaration::new(
-                    BaseType::new(Array(1, Rc::new(BaseType::new(Int)))),
+                    BaseType::new(Array(1, Rc::new(BaseType::new(Int)), true)),
                     Ident::new("hoge"),
                 ),
             ),
@@ -674,6 +807,7 @@ mod tests {
                     BaseType::new(Array(
                         1,
                         Rc::new(BaseType::new(Ptr(Rc::new(BaseType::new(Int))))),
+                        true,
                     )),
                     Ident::new("hoge"),
                 ),
@@ -694,7 +828,7 @@ mod tests {
             (
                 "char hoge[1]",
                 Declaration::new(
-                    BaseType::new(Array(1, Rc::new(BaseType::new(Char)))),
+                    BaseType::new(Array(1, Rc::new(BaseType::new(Char)), true)),
                     Ident::new("hoge"),
                 ),
             ),
@@ -704,6 +838,7 @@ mod tests {
                     BaseType::new(Array(
                         1,
                         Rc::new(BaseType::new(Ptr(Rc::new(BaseType::new(Char))))),
+                        true,
                     )),
                     Ident::new("hoge"),
                 ),
@@ -1169,7 +1304,7 @@ mod tests {
         then: Node,
     ) -> Node {
         let mut node = Node::new_none(NodeKind::For);
-        node.init = init.map(|c| Box::new(c));
+        node.init = init.map(|c| vec![c]);
         node.cond = cond.map(|c| Box::new(c));
         node.inc = inc.map(|c| Box::new(c));
         node.then = Some(Box::new(then));
