@@ -17,7 +17,7 @@ jobs:
       - name: Build
         run: cargo build --release
       - name: run tests
-        run: RS9CC_ON_WORKFLOW=1 ./bin/test.sh
+        run: RS9CC_ON_WORKFLOW=1 ./bin/test.sh sh
         continue-on-error: true
   cargo_test:
     name: Run cargo test

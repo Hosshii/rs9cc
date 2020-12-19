@@ -23,11 +23,22 @@ int alloc4(int **p, int x,int y,int z , int a) {
 }
 EOF
 
+test() {
+    local bin="./target/debug/rs9cc"
+    if [ -n "$RS9CC_ON_WORKFLOW" ]; then
+        bin="./target/release/rs9cc"
+    fi
+
+    $bin bin/test.c >test.s
+    cc -no-pie -o "test" test.s
+    ./test
+}
+
 assert() {
     expected="$1"
     input="$2"
 
-    bin="./target/debug/rs9cc"
+    local bin="./target/debug/rs9cc"
     if [ -n "$RS9CC_ON_WORKFLOW" ]; then
         bin="./target/release/rs9cc"
     fi
@@ -290,6 +301,17 @@ build() {
 
 if [ -z "$RS9CC_ON_WORKFLOW" ]; then
     build
+fi
+
+if [ $# -eq 0 ]; then
+    test
+    __my_code=$?
+    echo ""
+    echo "exit code: $__my_code"
+fi
+
+if [ $1 == "sh" ]; then
+    shift
 fi
 
 if [ $# -eq 0 ]; then
