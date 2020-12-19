@@ -1,6 +1,6 @@
 use super::error::Error;
 use super::{
-    Declaration, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident, Lvar, Node, NodeKind,
+    Context, Declaration, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident, Lvar, Node, NodeKind,
 };
 use crate::base_types;
 use crate::base_types::{BaseType, TypeKind};
@@ -108,6 +108,73 @@ pub(crate) fn consume_base_type(iter: &mut TokenIter) -> Option<base_types::Base
         return Some(btype);
     }
     None
+}
+
+/// declaration ("=" initialize)? ";"
+pub(crate) fn consume_initialize(
+    iter: &mut TokenIter,
+    ctx: &mut Context,
+) -> Result<Option<Node>, Error> {
+    if let Some(mut dec) = consume_declaration(iter) {
+        if let Some(_) = ctx.l.find_lvar(&dec.ident.name) {
+            // consume_declaration calls iter.next();
+            // so if the variable is not defined, the error position is not correct.
+            // ex
+            // a = 3;
+            //   ^ variable a is not defined
+            // to prevent this, subtract from iter.pos.bytes.
+            // but now i dont have good solution.
+            return Err(Error::re_declare(
+                iter.filepath,
+                iter.s,
+                dec.ident,
+                iter.pos,
+                None,
+            ));
+        } else {
+            if consume_semi(iter) {
+                ctx.l.push_front(
+                    dec.clone(),
+                    ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+                );
+                return Ok(Some(Node::new_leaf(NodeKind::Declaration(dec))));
+            }
+            expect(iter, Operator::Assign)?;
+            match &dec.base_type.kind {
+                TypeKind::Array(_, _, _) => {
+                    let node = super::ast::arr_initialize(iter, ctx, &mut dec)?;
+                    expect_semi(iter)?;
+                    return Ok(Some(node));
+                }
+                b_type => {
+                    ctx.l.push_front(
+                        dec.clone(),
+                        ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+                    );
+                    let node = super::ast::expr(iter, ctx)?;
+                    if let Ok(x) = node.get_type() {
+                        if !TypeKind::partial_comp(&x, &b_type) {
+                            return Err(Error::invalid_assignment(
+                                iter.filepath,
+                                iter.s,
+                                iter.pos,
+                                b_type.clone(),
+                                x,
+                            ));
+                        }
+                    }
+                    expect_semi(iter)?;
+                    let node = Node::new(
+                        NodeKind::Assign,
+                        Node::new_leaf(NodeKind::Lvar(ctx.l.find_lvar(&dec.ident.name).unwrap())),
+                        node,
+                    );
+                    return Ok(Some(Node::new_init(NodeKind::Declaration(dec), vec![node])));
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 pub(crate) fn consume_declaration(iter: &mut TokenIter) -> Option<Declaration> {

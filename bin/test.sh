@@ -281,6 +281,7 @@ init() {
     assert 19 'int main(){int x[] = {10,9}; int result = 0; int i=0; for ( i ; i< 2; i = i+1){result = result +x[i];}return result;}'
     assert 8 'int main(){int x[] = {1,2}; return sizeof (x);}'
     assert 19 'int main(){int x[] = {10,9}; int result = 0; int i=0; for ( i ; i< sizeof(x)/4; i = i+1){result = result +x[i];}return result;}'
+    assert 19 'int main(){int x[] = {10,9}; int result = 0;  for ( int i = 0 ; i< sizeof(x)/4; i = i+1){result = result +x[i];}return result;}'
 }
 
 build() {

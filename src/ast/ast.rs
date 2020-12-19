@@ -232,7 +232,7 @@ pub fn arr_initialize(
 //             | "while" "(" expr ")" stmt
 //             | "for" "(" expr? ";" expr? ";" expr? ")" stmt
 //             | "{" stmt* "}"
-//             | declaration ";"
+//             | declaration ("=" initialize)? ";"
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(x) = iter.peek() {
         match x.kind {
@@ -270,8 +270,12 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     expect(iter, Operator::LParen)?;
                     let mut node = Node::new_none(NodeKind::For);
                     if !consume_semi(iter) {
-                        node.init = Some(vec![expr(iter, ctx)?]);
-                        expect_semi(iter)?;
+                        if let Some(init) = consume_initialize(iter, ctx)? {
+                            node.init = Some(vec![init]);
+                        } else {
+                            node.init = Some(vec![expr(iter, ctx)?]);
+                            expect_semi(iter)?;
+                        }
                     }
                     if !consume_semi(iter) {
                         node.cond = Some(Box::new(expr(iter, ctx)?));
@@ -310,65 +314,10 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         }
     }
 
-    if let Some(mut dec) = consume_declaration(iter) {
-        if let Some(_) = ctx.l.find_lvar(&dec.ident.name) {
-            // consume_declaration calls iter.next();
-            // so if the variable is not defined, the error position is not correct.
-            // ex
-            // a = 3;
-            //   ^ variable a is not defined
-            // to prevent this, subtract from iter.pos.bytes.
-            // but now i dont have good solution.
-            return Err(Error::re_declare(
-                iter.filepath,
-                iter.s,
-                dec.ident,
-                iter.pos,
-                None,
-            ));
-        } else {
-            if consume_semi(iter) {
-                ctx.l.push_front(
-                    dec.clone(),
-                    ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
-                );
-                return Ok(Node::new_leaf(NodeKind::Declaration(dec)));
-            }
-            expect(iter, Operator::Assign)?;
-            match &dec.base_type.kind {
-                TypeKind::Array(_, _, _) => {
-                    let node = arr_initialize(iter, ctx, &mut dec)?;
-                    expect_semi(iter)?;
-                    return Ok(node);
-                }
-                b_type => {
-                    ctx.l.push_front(
-                        dec.clone(),
-                        ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
-                    );
-                    let node = expr(iter, ctx)?;
-                    if let Ok(x) = node.get_type() {
-                        if !TypeKind::partial_comp(&x, &b_type) {
-                            return Err(Error::invalid_assignment(
-                                iter.filepath,
-                                iter.s,
-                                iter.pos,
-                                b_type.clone(),
-                                x,
-                            ));
-                        }
-                    }
-                    expect_semi(iter)?;
-                    let node = Node::new(
-                        NodeKind::Assign,
-                        Node::new_leaf(NodeKind::Lvar(ctx.l.find_lvar(&dec.ident.name).unwrap())),
-                        node,
-                    );
-                    return Ok(Node::new_init(NodeKind::Declaration(dec), vec![node]));
-                }
-            }
-        }
+    if let Some(node) = consume_initialize(iter, ctx)? {
+        return Ok(node);
     }
+
     let node = expr(iter, ctx)?;
     expect_semi(iter)?;
     Ok(node)
