@@ -281,6 +281,7 @@ string() {
 # 26
 init() {
     assert 1 'int main(){int x = 1; return x;}'
+    assert 1 'int main(){int x = 1; int *y = &x; return *y;}'
     assert 3 'int main(){int x[2] = {1,2}; return x[0]+x[1];} '
     assert 19 'int main(){int x[10] = {10,9}; int result = 0; int i=0; for ( i ; i< 10; i = i+1){result = result +x[i];}return result;}'
     assert 0 'int main(){int x[2] = {}; return x[0]+x[1];}'

@@ -6,7 +6,7 @@ use crate::base_types::{BaseType, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::rc::Rc;
 
-// program     = (function | declaration ";" )*
+// program         = (function | declaration ("=" initialize)? ";" | func-prototype )*
 pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
     let mut program = Program::new();
     let mut ctx = &mut program.ctx;
@@ -20,6 +20,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
         let ident = expect_ident(iter)?;
         if let Some(next) = iter.next() {
             match next.kind {
+                // function
                 TokenKind::Reserved(Operator::LParen) => {
                     let mut fn_params = Vec::new();
                     if !consume(iter, Operator::RParen) {
@@ -53,12 +54,15 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                 //     }
                 //     TokenKind::Reserved(Operator::LArr) => {}
                 // },
+
+                // global variable
                 TokenKind::SemiColon => {
                     ctx.g.gvar_mp.insert(
                         ident.name.clone(),
                         Rc::new(check_g_var(iter, &ctx.g.gvar_mp, b_type, ident)?),
                     );
                 }
+                // array
                 TokenKind::Reserved(Operator::LArr) => {
                     b_type.kind.to_arr(expect_num(iter)?, true);
                     expect(iter, Operator::RArr)?;
