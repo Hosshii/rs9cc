@@ -340,60 +340,12 @@ pub fn tokenize<'a>(s: &'a str, filepath: &'a str) -> TokenIter<'a> {
 }
 
 impl<'a> TokenIter<'a> {
-    /// std::iter::Peekable.peek()に似てるけど、nextを内部で呼ばない
-    pub fn peek(&self) -> Option<Token> {
-        let s: &str;
-        match calc_space_len(self.cur_str()) {
-            Ok(sp) => s = &self.s[self.pos.bytes + sp..],
-            Err(e) => self.error_at(&e),
-        }
-
-        if s.is_empty() {
-            return None;
-        }
-
-        if let Some((tk, _)) = self.is_op(s) {
-            return Some(tk);
-        }
-
-        if let Some((tk, _)) = self.is_keyword(s) {
-            return Some(tk);
-        }
-
-        if let Some((tk, _)) = self.is_num(s) {
-            return Some(tk);
-        }
-
-        if let Some((tk, _)) = self.is_semi(s) {
-            return Some(tk);
-        }
-
-        if let Some((tk, _)) = self.is_block_paren(s) {
-            return Some(tk);
-        }
-
-        if let Some((tk, _)) = self.is_comma(s) {
-            return Some(tk);
-        }
-
-        if let Some((tk, _)) = self.is_string(s) {
-            return Some(tk);
-        }
-
-        if let Some((tk, _)) = self.is_char(s) {
-            return Some(tk);
-        }
-
-        if let Some((tk, _)) = self.is_base_type(s) {
-            return Some(tk);
-        }
-
-        // これ最後の方がいい
-        if let Some((tk, _)) = self.is_ident(s) {
-            return Some(tk);
-        }
-
-        None
+    /// std::iter::Peekable.peek()に似てるけど、posを元に戻す
+    pub fn peek(&mut self) -> Option<Token> {
+        let cur_pos = self.pos;
+        let result = self.next();
+        self.pos = cur_pos;
+        result
     }
 
     fn is_op(&self, s: &str) -> Option<(Token, TokenPos)> {
