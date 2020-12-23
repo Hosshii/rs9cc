@@ -165,11 +165,11 @@ impl Error {
         input: impl Into<String>,
         pos: TokenPos,
         lhs: Rc<Lvar>,
-        rhs: String,
+        rhs: impl Into<String>,
     ) -> Error {
         Error {
             filepath: filepath.into(),
-            kind: InvalidInitialization(lhs, rhs),
+            kind: InvalidInitialization(lhs, rhs.into()),
             pos,
             input: input.into(),
             msg: None,

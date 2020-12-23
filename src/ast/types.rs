@@ -34,7 +34,7 @@ pub enum NodeKind {
     BaseType(base_types::BaseType),
     Declaration(Declaration),
     Gvar(Rc<Gvar>),
-    TkString(Rc<String>, Rc<String>, usize), // text, label, idx of ctx.tk_string
+    TkString(Rc<String>), // text, label, idx of ctx.tk_string
 }
 
 impl NodeKind {
@@ -68,7 +68,7 @@ impl NodeKind {
             BaseType(b_type) => format!("{}", b_type.kind),
             Declaration(dec) => format!("{:?}", dec),
             Gvar(x) => format!("{:?}", x),
-            TkString(string, _, _) => string.to_string(),
+            TkString(string) => string.to_string(),
         }
     }
     /// convert NodeKind to token::Operator
@@ -229,6 +229,22 @@ impl Node {
             _ => Err("err"),
         }
     }
+
+    /// get gvar
+    /// if NodeKind is ptr or addr, recursively search
+    pub fn get_gvar(&self) -> Result<Rc<Gvar>, &'static str> {
+        match &self.kind {
+            Gvar(gvar) => Ok(gvar.clone()),
+            Addr | Deref => {
+                if let Some(ref lhs) = self.lhs {
+                    Ok(lhs.get_gvar()?)
+                } else {
+                    Err("addr")
+                }
+            }
+            _ => Err("not gvar"),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
@@ -264,11 +280,12 @@ impl Lvar {
 pub struct Gvar {
     pub dec: Declaration,
     pub size: u64,
+    pub init: Vec<Node>,
 }
 
 impl Gvar {
-    pub fn new(dec: Declaration, size: u64) -> Self {
-        Self { dec, size }
+    pub fn new(dec: Declaration, size: u64, init: Vec<Node>) -> Self {
+        Self { dec, size, init }
     }
 
     fn get_type(&self) -> TypeKind {

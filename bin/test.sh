@@ -286,6 +286,8 @@ init() {
     assert 19 'int main(){int x[10] = {10,9}; int result = 0; int i=0; for ( i ; i< 10; i = i+1){result = result +x[i];}return result;}'
     assert 0 'int main(){int x[2] = {}; return x[0]+x[1];}'
     assert 99 'int printf(char *x); int main(){char p[10] = "cello";return p[0]; }'
+    assert 111 'int main(){char *p = "hello"; return p[4];}'
+    assert 3 'int three() { return 3; }int arity(int x) { return x; }int main() { return arity(three()); }'
     assert 0 'int printf(char *x); int main(){char p[10] = "cello";return p[9]; }'
     assert 5 'int printf(char *x); int main(){char p[10] = "hello";return printf(p); }'
     assert 19 'int main(){int x[] = {10,9}; int result = 0; int i=0; for ( i ; i< 2; i = i+1){result = result +x[i];}return result;}'
@@ -294,6 +296,16 @@ init() {
     assert 8 'int main(){int x[] = {1,2}; return sizeof (x);}'
     assert 19 'int main(){int x[] = {10,9}; int result = 0; int i=0; for ( i ; i< sizeof(x)/4; i = i+1){result = result +x[i];}return result;}'
     assert 19 'int main(){int x[] = {10,9}; int result = 0;  for ( int i = 0 ; i< sizeof(x)/4; i = i+1){result = result +x[i];}return result;}'
+    assert 10 'int a = 10; int main(){return a;}'
+    # assert 10 'int a ; int y = a; int main(){return 1;}' # err
+    assert 5 'int main(){int a = 5; int  *b = &a; return *b;}'
+    assert 3 'int a[]= {1,2}; int main(){return a[1]+a[0];}'
+    assert 3 'int a[3]= {1,2}; int main(){return a[1]+a[0]+a[2];}'
+    assert 13 'int a[3]= {1,2}; int main(){a[2]=10;return a[1]+a[0]+a[2];}'
+    assert 20 'int a =20; int *b = &a; int main(){return *b;}'
+    assert 104 'char p[]="hello"; int main(){return p[0];}'
+    assert 104 'char *p = "hello"; int main(){return p[0];}'
+
 }
 
 build() {

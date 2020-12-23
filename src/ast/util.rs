@@ -146,30 +146,10 @@ pub(crate) fn consume_initialize(
                     expect_semi(iter)?;
                     return Ok(Some(node));
                 }
-                b_type => {
-                    ctx.l.push_front(
-                        dec.clone(),
-                        ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
-                    );
-                    let node = super::ast::expr(iter, ctx)?;
-                    if let Ok(x) = node.get_type() {
-                        if !TypeKind::partial_comp(&x, &b_type) {
-                            return Err(Error::invalid_assignment(
-                                iter.filepath,
-                                iter.s,
-                                iter.pos,
-                                b_type.clone(),
-                                x,
-                            ));
-                        }
-                    }
+                _ => {
+                    let node = super::ast::unary_initialize(iter, ctx, &mut dec)?;
                     expect_semi(iter)?;
-                    let node = Node::new(
-                        NodeKind::Assign,
-                        Node::new_leaf(NodeKind::Lvar(ctx.l.find_lvar(&dec.ident.name).unwrap())),
-                        node,
-                    );
-                    return Ok(Some(Node::new_init(NodeKind::Declaration(dec), vec![node])));
+                    return Ok(Some(node));
                 }
             }
         }
@@ -407,6 +387,7 @@ pub(crate) fn check_g_var(
     g_var: &GvarMp,
     b_type: BaseType,
     ident: Ident,
+    init: Vec<Node>,
 ) -> Result<Gvar, Error> {
     match g_var.get(&ident.name) {
         Some(_) => {
@@ -421,7 +402,7 @@ pub(crate) fn check_g_var(
         None => {
             let size = b_type.kind.eight_size();
             let dec = Declaration::new(b_type, ident);
-            return Ok(Gvar::new(dec, size));
+            return Ok(Gvar::new(dec, size, init));
         }
     }
 }
@@ -445,7 +426,7 @@ pub(crate) fn check_func_prototype(
     }
 }
 
-pub(crate) fn make_string_node(label: impl Into<String>, size: u64) -> NodeKind {
+pub(crate) fn make_string_node(label: impl Into<String>, size: u64, init: Vec<Node>) -> NodeKind {
     NodeKind::Gvar(Rc::new(Gvar::new(
         Declaration::new(
             BaseType::new(TypeKind::Array(
@@ -456,6 +437,7 @@ pub(crate) fn make_string_node(label: impl Into<String>, size: u64) -> NodeKind 
             Ident::new(label),
         ),
         size,
+        init,
     )))
 }
 

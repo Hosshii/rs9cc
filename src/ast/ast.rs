@@ -44,35 +44,83 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                     let func = function(iter, checked_func_prototype, &mut ctx)?;
                     program.functions.push(func);
                 }
-                // x => match x {
-                //     TokenKind::SemiColon | TokenKind::Reserved(Operator::Assign) => {
-                //         ctx.g.gvar_mp.insert(
-                //             ident.name.clone(),
-                //             Rc::new(check_g_var(iter, &ctx.g.gvar_mp, b_type, ident)?),
-                //         );
-                //         if x == TokenKind::Reserved(Operator::Assign) {}
-                //     }
-                //     TokenKind::Reserved(Operator::LArr) => {}
-                // },
+                x => match x {
+                    TokenKind::SemiColon | TokenKind::Reserved(Operator::Assign) => {
+                        // int x;
+                        // int y = x; is not valid
+                        let mut init = vec![];
+                        if x == TokenKind::Reserved(Operator::Assign) {
+                            if let Some(xx) = iter.peek() {
+                                if let TokenKind::String(_) = xx.kind {
+                                    init.push(expr(iter, ctx)?);
+                                } else {
+                                    let node = expr(iter, ctx)?;
+                                    match &node.kind {
+                                        NodeKind::Gvar(_) | NodeKind::Lvar(_) => {
+                                            // todo error handling.
+                                            todo!();
+                                        }
+                                        _ => (),
+                                    }
+                                    init.push(node);
+                                }
+                            }
 
-                // global variable
-                TokenKind::SemiColon => {
-                    ctx.g.gvar_mp.insert(
-                        ident.name.clone(),
-                        Rc::new(check_g_var(iter, &ctx.g.gvar_mp, b_type, ident)?),
-                    );
-                }
-                // array
-                TokenKind::Reserved(Operator::LArr) => {
-                    b_type.kind.to_arr(expect_num(iter)?, true);
-                    expect(iter, Operator::RArr)?;
-                    expect_semi(iter)?;
-                    ctx.g.gvar_mp.insert(
-                        ident.name.clone(),
-                        Rc::new(check_g_var(iter, &ctx.g.gvar_mp, b_type, ident)?),
-                    );
-                }
-                _ => {}
+                            expect_semi(iter)?;
+                        }
+                        ctx.g.gvar_mp.insert(
+                            ident.name.clone(),
+                            Rc::new(check_g_var(iter, &ctx.g.gvar_mp, b_type, ident, init)?),
+                        );
+                    }
+                    TokenKind::Reserved(Operator::LArr) => {
+                        if consume(iter, Operator::RArr) {
+                            b_type.kind.to_arr(0, false);
+                        } else {
+                            b_type.kind.to_arr(expect_num(iter)?, true);
+                            expect(iter, Operator::RArr)?;
+                        }
+                        let mut init = Vec::new();
+                        if consume(iter, Operator::Assign) {
+                            let mut nodes = Vec::new();
+
+                            // str
+                            if let Some(string) = consume_string(iter) {
+                                for i in string.chars() {
+                                    nodes.push(Node::new_num(i as u64))
+                                }
+                            }
+                            // num
+                            else {
+                                expect_block(iter, Block::LParen)?;
+                                if !consume_block(iter, Block::RParen) {
+                                    nodes.push(expr(iter, ctx)?);
+
+                                    while consume_comma(iter) {
+                                        nodes.push(expr(iter, ctx)?);
+                                    }
+                                    expect_block(iter, Block::RParen)?;
+                                }
+                            }
+
+                            if let TypeKind::Array(x, _, sized) = &mut b_type.kind {
+                                if !*sized {
+                                    *x = nodes.len() as u64;
+                                    *sized = true;
+                                }
+                            } else {
+                                unreachable!()
+                            }
+                            init = nodes;
+                        }
+                        ctx.g.gvar_mp.insert(
+                            ident.name.clone(),
+                            Rc::new(check_g_var(iter, &ctx.g.gvar_mp, b_type, ident, init)?),
+                        );
+                        expect_semi(iter)?;
+                    }
+                    _ => (),
+                },
             }
         }
     }
@@ -148,6 +196,7 @@ pub fn params(iter: &mut TokenIter) -> Result<Vec<Declaration>, Error> {
 }
 
 // "{" (expr ("," expr)*)? | str
+// for local var
 pub fn arr_initialize(
     iter: &mut TokenIter,
     ctx: &mut Context,
@@ -228,6 +277,41 @@ pub fn arr_initialize(
     } else {
         unreachable!()
     }
+}
+
+// expr
+// for local var
+pub fn unary_initialize(
+    iter: &mut TokenIter,
+    ctx: &mut Context,
+    dec: &mut Declaration,
+) -> Result<Node, Error> {
+    let type_kind = &dec.base_type.kind;
+    ctx.l.push_front(
+        dec.clone(),
+        ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+    );
+    let node = expr(iter, ctx)?;
+    if let Ok(x) = node.get_type() {
+        if !TypeKind::partial_comp(&x, &type_kind) {
+            return Err(Error::invalid_assignment(
+                iter.filepath,
+                iter.s,
+                iter.pos,
+                type_kind.clone(),
+                x,
+            ));
+        }
+    }
+    let node = Node::new(
+        NodeKind::Assign,
+        Node::new_leaf(NodeKind::Lvar(ctx.l.find_lvar(&dec.ident.name).unwrap())),
+        node,
+    );
+    return Ok(Node::new_init(
+        NodeKind::Declaration(dec.clone()),
+        vec![node],
+    ));
 }
 
 // stmt        = expr ";"
@@ -572,6 +656,7 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         return Ok(Node::new_leaf(make_string_node(
             label,
             (string.len() + 1) as u64,
+            vec![Node::new_leaf(NodeKind::TkString(string.clone()))],
         )));
     }
 
@@ -1204,7 +1289,13 @@ mod tests {
             ),
             (
                 "\"aaa\"",
-                Node::new_leaf(super::make_string_node(".LC0", 4)),
+                Node::new_leaf(super::make_string_node(
+                    ".LC0",
+                    4,
+                    vec![Node::new_leaf(NodeKind::TkString(Rc::new(
+                        "aaa".to_string(),
+                    )))],
+                )),
                 GlobalContext::new(),
             ),
         ];

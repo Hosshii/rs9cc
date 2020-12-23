@@ -26,7 +26,54 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
     // define global variable
     for (name, gvar) in program.ctx.g.gvar_mp {
         println!("{}:", name);
-        println!("    .zero {}", gvar.size);
+        match &gvar.dec.base_type.kind {
+            TypeKind::Array(size, b_type, _) => {
+                let word = match &b_type.kind.size() {
+                    1 => "byte",
+                    4 => "long",
+                    8 => "quad",
+                    _ => todo!(),
+                };
+                for i in &gvar.init {
+                    if let NodeKind::Num(x) = i.kind {
+                        println!("    .{} {}", word, x);
+                    } else {
+                        unreachable!();
+                    }
+                }
+                for _ in 0..(size - gvar.init.len() as u64) {
+                    println!("    .{} {}", word, 0);
+                }
+            }
+            TypeKind::Ptr(_) => {
+                if gvar.init.len() <= 0 {
+                    println!("    .quad {}", 0);
+                } else {
+                    if let Ok(gvar) = &gvar.init[0].get_gvar() {
+                        println!("    .quad {}", gvar.dec.ident.name);
+                    } else {
+                        return Err(Error::not_gvar());
+                    }
+                }
+            }
+            type_kind => {
+                let word = match &type_kind.size() {
+                    1 => "byte",
+                    4 => "long",
+                    8 => "quad",
+                    _ => todo!(),
+                };
+                if gvar.init.len() <= 0 {
+                    println!("    .{} {}", word, 0);
+                } else {
+                    if let NodeKind::Num(x) = gvar.init[0].kind {
+                        println!("    .{} {}", word, x);
+                    } else {
+                        println!("    .{} {}", word, 0);
+                    }
+                }
+            }
+        }
     }
     for (content, label) in program.ctx.g.tk_string {
         println!("{}:", label);
@@ -478,13 +525,20 @@ fn gen_store_asm(size: u64) -> Option<&'static str> {
 fn ptr_op(node: &Node) {
     println!("# ptr op");
     if let Some(ref lhs) = node.lhs {
-        if let NodeKind::Lvar(ref lvar) = lhs.kind {
-            match &lvar.dec.base_type.kind {
+        match &lhs.kind {
+            NodeKind::Lvar(lvar) => match &lvar.dec.base_type.kind {
                 TypeKind::Ptr(ptr) | TypeKind::Array(_, ptr, _) => {
                     println!("    imul rdi, {}", ptr.kind.size());
                 }
                 _ => (),
-            }
+            },
+            NodeKind::Gvar(gvar) => match &gvar.dec.base_type.kind {
+                TypeKind::Ptr(ptr) | TypeKind::Array(_, ptr, _) => {
+                    println!("    imul rdi, {}", ptr.kind.size());
+                }
+                _ => (),
+            },
+            _ => (),
         }
     }
 }
