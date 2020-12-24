@@ -403,7 +403,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     }
 
     if let Some(node) = consume_initialize(iter, ctx)? {
-        return Ok(Node::new_unary(NodeKind::ExprStmt, node));
+        return Ok(node);
     }
 
     let node = Node::new_unary(NodeKind::ExprStmt, expr(iter, ctx)?);
@@ -1014,10 +1014,10 @@ mod tests {
         use crate::token;
         let input = "{1; 2; int hoge; hoge=4;}";
         let expected = vec![
-            Node::new_num(1),
-            Node::new_num(2),
+            Node::new_unary(NodeKind::ExprStmt, Node::new_num(1)),
+            Node::new_unary(NodeKind::ExprStmt, Node::new_num(2)),
             Node::new_leaf(NodeKind::Declaration(make_int_dec("hoge"))),
-            make_assign_node("hoge", 4, 8),
+            Node::new_unary(NodeKind::ExprStmt, make_assign_node("hoge", 4, 8)),
         ];
         let expected = vec![Node::new_none(NodeKind::Block(expected))];
         let mut iter = token::tokenize(input, "");
@@ -1034,7 +1034,10 @@ mod tests {
         let input = "add();";
         let expected_name = "add";
         let expected_args = vec![];
-        let expected = make_fn_node(expected_name, expected_args);
+        let expected = Node::new_unary(
+            NodeKind::ExprStmt,
+            make_fn_node(expected_name, expected_args),
+        );
         let mut g_ctx = GlobalContext::new();
         g_ctx.func_prototype_mp.insert(
             "add".to_string(),
@@ -1054,7 +1057,10 @@ mod tests {
         let input = "three(1,2,3);";
         let expected_name = "three";
         let expected_args = vec![Node::new_num(1), Node::new_num(2), Node::new_num(3)];
-        let expected = make_fn_node(expected_name, expected_args);
+        let expected = Node::new_unary(
+            NodeKind::ExprStmt,
+            make_fn_node(expected_name, expected_args),
+        );
         let mut g_ctx = GlobalContext::new();
         g_ctx.func_prototype_mp.insert(
             "three".to_string(),
@@ -1110,12 +1116,15 @@ mod tests {
         let lvar2 = Lvar::new(lvar1.clone(), make_int_dec("bar"), 16);
         let expected_lvar = Rc::new(lvar2.clone());
         let node1 = Node::new_leaf(NodeKind::Declaration(make_int_dec("foo")));
-        let node2 = make_assign_node("foo", 1, 8);
+        let node2 = Node::new_unary(NodeKind::ExprStmt, make_assign_node("foo", 1, 8));
         let node3 = Node::new_leaf(NodeKind::Declaration(make_int_dec("bar")));
-        let node4 = Node::new(
-            NodeKind::Assign,
-            Node::new_leaf(NodeKind::Lvar(Rc::new(lvar2.clone()))),
-            Node::new_num(2),
+        let node4 = Node::new_unary(
+            NodeKind::ExprStmt,
+            Node::new(
+                NodeKind::Assign,
+                Node::new_leaf(NodeKind::Lvar(Rc::new(lvar2.clone()))),
+                Node::new_num(2),
+            ),
         );
         let node5 = Node::new_unary(
             NodeKind::Return,

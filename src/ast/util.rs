@@ -144,12 +144,12 @@ pub(crate) fn consume_initialize(
                 TypeKind::Array(_, _, _) => {
                     let node = super::ast::arr_initialize(iter, ctx, &mut dec)?;
                     expect_semi(iter)?;
-                    return Ok(Some(node));
+                    return Ok(Some(Node::new_unary(NodeKind::ExprStmt, node)));
                 }
                 _ => {
                     let node = super::ast::unary_initialize(iter, ctx, &mut dec)?;
                     expect_semi(iter)?;
-                    return Ok(Some(node));
+                    return Ok(Some(Node::new_unary(NodeKind::ExprStmt, node)));
                 }
             }
         }

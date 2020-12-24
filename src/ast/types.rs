@@ -230,6 +230,13 @@ impl Node {
             Gvar(gvar) => Ok(gvar.get_type()),
             Func(func_prototype, _) => Ok(func_prototype.type_kind.clone()),
             Num(_) => Ok(TypeKind::Int),
+            ExprStmt => {
+                if let Some(ref lhs) = self.lhs {
+                    Ok(lhs.get_type()?)
+                } else {
+                    Err("expr stmt")
+                }
+            }
             _ => Err("err"),
         }
     }
