@@ -403,10 +403,10 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     }
 
     if let Some(node) = consume_initialize(iter, ctx)? {
-        return Ok(node);
+        return Ok(Node::new_unary(NodeKind::ExprStmt, node));
     }
 
-    let node = expr(iter, ctx)?;
+    let node = Node::new_unary(NodeKind::ExprStmt, expr(iter, ctx)?);
     expect_semi(iter)?;
     Ok(node)
 }
@@ -608,6 +608,14 @@ pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error>
         nodes.push(stmt(iter, ctx)?);
     }
     expect(iter, Operator::RParen)?;
+
+    if nodes.last().unwrap().kind != NodeKind::ExprStmt {
+        return Err(Error::invalid_stmt_expr(iter.filepath, iter.s, iter.pos));
+    }
+    *(nodes.last_mut().unwrap()) = std::mem::replace(
+        nodes.last_mut().unwrap().lhs.as_mut().unwrap(),
+        Node::new_num(0),
+    );
     Ok(Node::new_leaf(NodeKind::StmtExpr(nodes)))
 }
 

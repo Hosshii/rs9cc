@@ -36,6 +36,7 @@ pub enum NodeKind {
     Gvar(Rc<Gvar>),
     TkString(Rc<String>), // text, label, idx of ctx.tk_string
     StmtExpr(Vec<Node>),
+    ExprStmt,
 }
 
 impl NodeKind {
@@ -71,6 +72,7 @@ impl NodeKind {
             Gvar(x) => format!("{:?}", x),
             TkString(string) => string.to_string(),
             StmtExpr(_) => "stmt expr".to_string(),
+            ExprStmt => "expression statement".to_string(),
         }
     }
     /// convert NodeKind to token::Operator

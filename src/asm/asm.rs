@@ -361,6 +361,16 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 
             return Ok(());
         }
+        NodeKind::ExprStmt => {
+            println!("# NodeKind::ExprStmt");
+            if let Some(lhs) = &node.lhs {
+                gen(&lhs, ctx)?;
+                println!("    add rsp, 8");
+            } else {
+                return Err(Error::not_found());
+            }
+            return Ok(());
+        }
         _ => (),
     }
 

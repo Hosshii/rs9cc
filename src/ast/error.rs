@@ -18,6 +18,7 @@ pub enum ErrorKind {
     InvalidValueDereference(String),
     InvalidAssignment(TypeKind, TypeKind),
     InvalidInitialization(Rc<Lvar>, String),
+    InvalidStmtExpr,
     EOF(TokenKind),
 }
 
@@ -175,6 +176,20 @@ impl Error {
             msg: None,
         }
     }
+
+    pub fn invalid_stmt_expr(
+        filepath: impl Into<String>,
+        input: impl Into<String>,
+        pos: TokenPos,
+    ) -> Error {
+        Error {
+            filepath: filepath.into(),
+            kind: InvalidStmtExpr,
+            pos,
+            input: input.into(),
+            msg: None,
+        }
+    }
 }
 
 impl fmt::Display for Error {
@@ -201,6 +216,7 @@ impl fmt::Display for Error {
             InvalidInitialization(lhs, rhs) => {
                 invalid_initialization_err_format(&self, lhs, rhs, f)
             }
+            InvalidStmtExpr => invalid_stmt_expr_err_format(&self, f),
         }
     }
 }
@@ -329,4 +345,8 @@ fn invalid_initialization_err_format(
         lvar.dec.base_type.kind, rhs
     );
     err_format(err, msg, f)
+}
+
+fn invalid_stmt_expr_err_format(err: &Error, f: &mut fmt::Formatter) -> fmt::Result {
+    err_format(err, "stmt expr return void is not supported", f)
 }

@@ -1,5 +1,8 @@
 /target
 *.o
 *.s
+*.c
+test*
+*out
 tmp*
 *pdf
