@@ -266,8 +266,8 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             println!(".Lend{}:", jlb_num);
             return Ok(());
         }
-        NodeKind::Block(stmts) => {
-            println!("# NodeKind::Block");
+        NodeKind::Block(stmts) | NodeKind::StmtExpr(stmts) => {
+            println!("# NodeKind::Block,StmtExpr");
             for stmt in stmts {
                 gen(stmt, ctx)?;
             }

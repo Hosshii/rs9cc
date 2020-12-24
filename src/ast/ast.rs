@@ -599,13 +599,29 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     Ok(pri)
 }
 
+// stmt-expr       = "(" "{" stmt stmt* "}" ")"
+pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    // expect(iter, Operator::LParen)?;
+    // expect_block(iter, Block::LParen)?;
+    let mut nodes = vec![stmt(iter, ctx)?];
+    while !consume_block(iter, Block::RParen) {
+        nodes.push(stmt(iter, ctx)?);
+    }
+    expect(iter, Operator::RParen)?;
+    Ok(Node::new_leaf(NodeKind::StmtExpr(nodes)))
+}
+
 // primary     = num
 //             | ident func-args?
 //             | "(" expr ")"
 //             | str
+//             | "(" "{" stmt-expr-tail
 pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     // "(" expr ")"
     if consume(iter, Operator::LParen) {
+        if consume_block(iter, Block::LParen) {
+            return Ok(stmt_expr(iter, ctx)?);
+        }
         let node = expr(iter, ctx)?;
         expect(iter, Operator::RParen)?;
         return Ok(node);

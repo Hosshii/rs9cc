@@ -276,6 +276,7 @@ string() {
     assert 100 'int main() { return "abcd"[3]; }'
     assert 4 'int main() { return sizeof("abc"); }'
     assert 12 'int printf(char *x); int main(){return printf("hello world!"); }'
+    assert 6 'int printf(char *x); int main(){printf("hello world!\n");return printf(" oops\\"); }'
 }
 
 # 26
@@ -305,7 +306,15 @@ init() {
     assert 20 'int a =20; int *b = &a; int main(){return *b;}'
     assert 104 'char p[]="hello"; int main(){return p[0];}'
     assert 104 'char *p = "hello"; int main(){return p[0];}'
+}
 
+# 27
+stmt_expr() {
+    assert 0 'int main() { return ({ 0; }); }'
+    assert 2 'int main() { return ({ 0; 1; 2; }); }'
+    assert 1 'int main() { ({ 0; return 1; 2; }); return 3; }'
+    assert 3 'int main() { return ({ int x=3; x; }); }'
+    assert 1 'int main(){ return 0 + ({int x = 1; x;}); }'
 }
 
 build() {
@@ -354,6 +363,7 @@ if [ $# -eq 0 ]; then
     char
     string
     init
+    stmt_expr
 fi
 
 while [ $# -ne 0 ]; do
@@ -384,6 +394,7 @@ while [ $# -ne 0 ]; do
     "24") char ;;
     "25") string ;;
     "26") init ;;
+    "27") stmt_expr ;;
     esac
     shift
 done

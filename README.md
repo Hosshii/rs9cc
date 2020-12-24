@@ -33,11 +33,13 @@ unary           = ("+" | "-")? postfix
                 | "&" unary
                 | "sizeof" unary
 postfix         | primary ("[" expr "]")?
+stmt-expr       = "(" "{" stmt stmt* "}" ")"
 primary         = num 
                 | ident (func-args | "[" num "]")? 
                 | "(" expr ")"
                 | str
                 | char
+                | "(" "{" stmt-expr-tail
 func-args       = "(" (assign ("," assign)*)? ")"
 ```
 
