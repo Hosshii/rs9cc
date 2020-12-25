@@ -310,6 +310,7 @@ pub type GvarMp = HashMap<String, Rc<Gvar>>;
 pub struct Context {
     pub g: GlobalContext,
     pub l: LocalContext,
+    pub s: LocalContext,
 }
 
 impl Context {
@@ -317,7 +318,13 @@ impl Context {
         Self {
             g: GlobalContext::new(),
             l: LocalContext::new(),
+            s: LocalContext::new(),
         }
+    }
+
+    pub fn push_front(&mut self, dec: Declaration, offset: u64) {
+        self.l.push_front(dec.clone(), offset);
+        self.s.push_front(dec, offset);
     }
 }
 
@@ -533,7 +540,7 @@ mod tests {
 
         let input = "*(y + 1);";
         let mut ctx = Context::new();
-        ctx.l.push_front(
+        ctx.push_front(
             Declaration::new(
                 BaseType::new(TypeKind::Ptr(Rc::new(BaseType::new(TypeKind::Int)))),
                 Ident::new("y"),

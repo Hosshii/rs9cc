@@ -234,13 +234,13 @@ pub fn arr_initialize(
     } else {
         unreachable!()
     }
-    ctx.l.push_front(
+    ctx.push_front(
         dec.clone(),
         ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
     );
 
     if let TypeKind::Array(x, _, _) = &mut dec.base_type.kind {
-        let lvar = ctx.l.find_lvar(&dec.ident.name).unwrap();
+        let lvar = ctx.s.find_lvar(&dec.ident.name).unwrap();
         let mut idx = 0;
         let mut assign_nodes = Vec::new();
         let len = nodes.len();
@@ -287,7 +287,7 @@ pub fn unary_initialize(
     dec: &mut Declaration,
 ) -> Result<Node, Error> {
     let type_kind = &dec.base_type.kind;
-    ctx.l.push_front(
+    ctx.push_front(
         dec.clone(),
         ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
     );
@@ -305,7 +305,7 @@ pub fn unary_initialize(
     }
     let node = Node::new(
         NodeKind::Assign,
-        Node::new_leaf(NodeKind::Lvar(ctx.l.find_lvar(&dec.ident.name).unwrap())),
+        Node::new_leaf(NodeKind::Lvar(ctx.s.find_lvar(&dec.ident.name).unwrap())),
         node,
     );
     return Ok(Node::new_init(
@@ -382,12 +382,12 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 Block::LParen => {
                     iter.next();
                     let mut stmt_vec = Vec::new();
-                    loop {
-                        if consume_block(iter, Block::RParen) {
-                            return Ok(Node::new_none(NodeKind::Block(stmt_vec)));
-                        }
+                    let sc = ctx.s.clone();
+                    while !consume_block(iter, Block::RParen) {
                         stmt_vec.push(stmt(iter, ctx)?);
                     }
+                    ctx.s = sc;
+                    return Ok(Node::new_none(NodeKind::Block(stmt_vec)));
                 }
                 _ => {
                     return Err(Error::unexpected_token(
@@ -603,6 +603,7 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     // expect(iter, Operator::LParen)?;
     // expect_block(iter, Block::LParen)?;
+    let sc = ctx.s.clone();
     let mut nodes = vec![stmt(iter, ctx)?];
     while !consume_block(iter, Block::RParen) {
         nodes.push(stmt(iter, ctx)?);
@@ -616,6 +617,7 @@ pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error>
         nodes.last_mut().unwrap().lhs.as_mut().unwrap(),
         Node::new_num(0),
     );
+    ctx.s = sc;
     Ok(Node::new_leaf(NodeKind::StmtExpr(nodes)))
 }
 
@@ -654,7 +656,7 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 func_args(iter, ctx)?,
             )));
         }
-        if let Some(lvar) = ctx.l.find_lvar(&ident.name) {
+        if let Some(lvar) = ctx.s.find_lvar(&ident.name) {
             return Ok(Node::new_leaf(NodeKind::Lvar(lvar)));
         } else if let Some(x) = ctx.g.gvar_mp.get(&ident.name) {
             return Ok(Node::new_leaf(NodeKind::Gvar(x.clone())));
@@ -817,6 +819,7 @@ mod tests {
         for i in expected {
             let ctx = &mut Context::new();
             ctx.l.lvar = Some(Rc::new(make_int_lvar("hoge", 8)));
+            ctx.s.lvar = Some(Rc::new(make_int_lvar("hoge", 8)));
             assert_eq!(i, unary(iter, ctx).unwrap());
         }
 
@@ -831,7 +834,8 @@ mod tests {
         let iter = &mut token::tokenize(input, "");
         for i in expected {
             let ctx = &mut Context::new();
-            ctx.l.lvar = Some(Rc::new(i.1));
+            ctx.l.lvar = Some(Rc::new(i.1.clone()));
+            ctx.s.lvar = Some(Rc::new(i.1));
 
             assert_eq!(i.0, unary(iter, ctx).unwrap());
         }
@@ -963,7 +967,7 @@ mod tests {
     fn test_for() {
         use crate::token;
 
-        let init = make_assign_node("i", 0, 8);
+        let init = Node::new_unary(NodeKind::ExprStmt, make_assign_node("i", 0, 8));
         let cond = Node::new(
             NodeKind::Lesser,
             Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
@@ -980,13 +984,16 @@ mod tests {
             )))),
             Node::new_num(1),
         );
-        let inc = Node::new(
-            NodeKind::Assign,
-            Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
-                make_int_dec("i"),
-                8,
-            )))),
-            tmp_inc,
+        let inc = Node::new_unary(
+            NodeKind::ExprStmt,
+            Node::new(
+                NodeKind::Assign,
+                Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
+                    make_int_dec("i"),
+                    8,
+                )))),
+                tmp_inc,
+            ),
         );
 
         let ret = Node::new(
@@ -1004,6 +1011,7 @@ mod tests {
         let input = "for( i=0;i<10;i=i+1)return i+2;";
         let ctx = &mut Context::new();
         ctx.l.lvar = Some(Rc::new(make_int_lvar("i", 8)));
+        ctx.s.lvar = Some(Rc::new(make_int_lvar("i", 8)));
         let actual = stmt(&mut token::tokenize(input, ""), ctx).unwrap();
 
         assert_eq!(expected, actual);

@@ -317,6 +317,14 @@ stmt_expr() {
     assert 1 'int main(){ return 0 + ({int x = 1; x;}); }'
 }
 
+# 28
+var_scope() {
+    assert 2 'int main(){int x =1; return ({int x = 2; x; }); }'
+    assert 2 'int main() { int x=2; { int x=3; } return x; }'
+    assert 2 'int main() { int x=2; { int x=3; } { int y=4; return x; }}'
+    assert 3 'int main() { int x=2; { x=3; } return x; }'
+}
+
 build() {
     cargo build
 }
@@ -364,6 +372,7 @@ if [ $# -eq 0 ]; then
     string
     init
     stmt_expr
+    var_scope
 fi
 
 while [ $# -ne 0 ]; do
@@ -395,6 +404,7 @@ while [ $# -ne 0 ]; do
     "25") string ;;
     "26") init ;;
     "27") stmt_expr ;;
+    "28") var_scope ;;
     esac
     shift
 done

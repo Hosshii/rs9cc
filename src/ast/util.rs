@@ -116,43 +116,45 @@ pub(crate) fn consume_initialize(
     ctx: &mut Context,
 ) -> Result<Option<Node>, Error> {
     if let Some(mut dec) = consume_declaration(iter) {
-        if let Some(_) = ctx.l.find_lvar(&dec.ident.name) {
-            // consume_declaration calls iter.next();
-            // so if the variable is not defined, the error position is not correct.
-            // ex
-            // a = 3;
-            //   ^ variable a is not defined
-            // to prevent this, subtract from iter.pos.bytes.
-            // but now i dont have good solution.
-            return Err(Error::re_declare(
-                iter.filepath,
-                iter.s,
-                dec.ident,
-                iter.pos,
-                None,
-            ));
-        } else {
-            if consume_semi(iter) {
-                ctx.l.push_front(
-                    dec.clone(),
-                    ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
-                );
-                return Ok(Some(Node::new_leaf(NodeKind::Declaration(dec))));
+        // todo error handling of re declaration
+
+        // if let Some(_) = ctx.s.find_lvar(&dec.ident.name) {
+        //     // consume_declaration calls iter.next();
+        //     // so if the variable is not defined, the error position is not correct.
+        //     // ex
+        //     // a = 3;
+        //     //   ^ variable a is not defined
+        //     // to prevent this, subtract from iter.pos.bytes.
+        //     // but now i dont have good solution.
+        //     return Err(Error::re_declare(
+        //         iter.filepath,
+        //         iter.s,
+        //         dec.ident,
+        //         iter.pos,
+        //         None,
+        //     ));
+        // } else {
+        if consume_semi(iter) {
+            ctx.push_front(
+                dec.clone(),
+                ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+            );
+            return Ok(Some(Node::new_leaf(NodeKind::Declaration(dec))));
+        }
+        expect(iter, Operator::Assign)?;
+        match &dec.base_type.kind {
+            TypeKind::Array(_, _, _) => {
+                let node = super::ast::arr_initialize(iter, ctx, &mut dec)?;
+                expect_semi(iter)?;
+                return Ok(Some(Node::new_unary(NodeKind::ExprStmt, node)));
             }
-            expect(iter, Operator::Assign)?;
-            match &dec.base_type.kind {
-                TypeKind::Array(_, _, _) => {
-                    let node = super::ast::arr_initialize(iter, ctx, &mut dec)?;
-                    expect_semi(iter)?;
-                    return Ok(Some(Node::new_unary(NodeKind::ExprStmt, node)));
-                }
-                _ => {
-                    let node = super::ast::unary_initialize(iter, ctx, &mut dec)?;
-                    expect_semi(iter)?;
-                    return Ok(Some(Node::new_unary(NodeKind::ExprStmt, node)));
-                }
+            _ => {
+                let node = super::ast::unary_initialize(iter, ctx, &mut dec)?;
+                expect_semi(iter)?;
+                return Ok(Some(Node::new_unary(NodeKind::ExprStmt, node)));
             }
         }
+        // }
     }
     Ok(None)
 }
