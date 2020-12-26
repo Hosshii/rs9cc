@@ -29,9 +29,9 @@ test() {
         bin="./target/release/rs9cc"
     fi
 
-    $bin bin/test.c >test.s
-    cc -no-pie -o "test" test.s
-    ./test
+    $bin bin/test.c >$HOME/test.s
+    cc -no-pie -o "${HOME}/test" $HOME/test.s
+    $HOME/test
 }
 
 assert() {
@@ -277,6 +277,7 @@ string() {
     assert 4 'int main() { return sizeof("abc"); }'
     assert 12 'int printf(char *x); int main(){return printf("hello world!"); }'
     assert 6 'int printf(char *x); int main(){printf("hello world!\n");return printf(" oops\\"); }'
+    assert 6 'int main(){char p[] = "hello"; return sizeof p;}'
 }
 
 # 26
@@ -338,9 +339,10 @@ if [ $# -eq 0 ]; then
     __my_code=$?
     echo ""
     echo "exit code: $__my_code"
+    exit $__my_code
 fi
 
-if [ $1 == "sh" ]; then
+if [ "$1" == "sh" ]; then
     shift
 fi
 

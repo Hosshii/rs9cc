@@ -6,10 +6,10 @@ runner() {
 
     case $target in
     "test")
-        docker run --rm -v $PWD:/rs9cc -w /rs9cc rust ./bin/test.sh
+        docker run --rm -v $PWD:/rs9cc:cached -w /rs9cc rust ./bin/test.sh
         ;;
     "test_sh")
-        docker run --rm -v $PWD:/rs9cc -w /rs9cc rust ./bin/test.sh "sh" $@
+        docker run --rm -v $PWD:/rs9cc:cached -w /rs9cc rust ./bin/test.sh "sh" $@
         ;;
     "build") build ;;
     "execute") docker run --rm -v $PWD:/rs9cc -w /rs9cc gcc $@ ;;

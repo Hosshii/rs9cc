@@ -16,9 +16,11 @@ jobs:
         run: rustup self update
       - name: Build
         run: cargo build --release
-      - name: run tests
+      - name: run shell script tests
         run: RS9CC_ON_WORKFLOW=1 ./bin/test.sh sh
         continue-on-error: true
+      - name: run C script tests
+        run: RS9CC_ON_WORKFLOW=1 ./bin/test.sh
   cargo_test:
     name: Run cargo test
     runs-on: ubuntu-latest
