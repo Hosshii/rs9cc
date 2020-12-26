@@ -169,7 +169,7 @@ pub fn function(
     ctx.l = l_ctx;
     for fn_param in func_prototype.params.clone() {
         let l = ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0);
-        ctx.l.push_front(fn_param, l)
+        ctx.push_front(fn_param, l)
     }
 
     let mut stmt_vec = Vec::new();
@@ -212,6 +212,7 @@ pub fn arr_initialize(
         for i in string.chars() {
             nodes.push(Node::new_num(i as u64))
         }
+        nodes.push(Node::new_num('\0' as u64));
     }
     // num
     else {
@@ -245,10 +246,13 @@ pub fn arr_initialize(
         let mut assign_nodes = Vec::new();
         let len = nodes.len();
         for node in nodes {
-            assign_nodes.push(Node::new(
-                NodeKind::Assign,
-                Node::new_unary(NodeKind::Deref, make_array_idx_node(idx, lvar.clone())),
-                node,
+            assign_nodes.push(Node::new_unary(
+                NodeKind::ExprStmt,
+                Node::new(
+                    NodeKind::Assign,
+                    Node::new_unary(NodeKind::Deref, make_array_idx_node(idx, lvar.clone())),
+                    node,
+                ),
             ));
             idx += 1;
         }
@@ -263,10 +267,13 @@ pub fn arr_initialize(
         }
 
         for _ in 0..(*x - len as u64) {
-            assign_nodes.push(Node::new(
-                NodeKind::Assign,
-                Node::new_unary(NodeKind::Deref, make_array_idx_node(idx, lvar.clone())),
-                Node::new_num(0),
+            assign_nodes.push(Node::new_unary(
+                NodeKind::ExprStmt,
+                Node::new(
+                    NodeKind::Assign,
+                    Node::new_unary(NodeKind::Deref, make_array_idx_node(idx, lvar.clone())),
+                    Node::new_num(0),
+                ),
             ));
             idx += 1;
         }
@@ -303,10 +310,13 @@ pub fn unary_initialize(
             ));
         }
     }
-    let node = Node::new(
-        NodeKind::Assign,
-        Node::new_leaf(NodeKind::Lvar(ctx.s.find_lvar(&dec.ident.name).unwrap())),
-        node,
+    let node = Node::new_unary(
+        NodeKind::ExprStmt,
+        Node::new(
+            NodeKind::Assign,
+            Node::new_leaf(NodeKind::Lvar(ctx.s.find_lvar(&dec.ident.name).unwrap())),
+            node,
+        ),
     );
     return Ok(Node::new_init(
         NodeKind::Declaration(dec.clone()),
@@ -361,7 +371,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                         if let Some(init) = consume_initialize(iter, ctx)? {
                             node.init = Some(vec![init]);
                         } else {
-                            node.init = Some(vec![expr(iter, ctx)?]);
+                            node.init = Some(vec![read_expr_stmt(iter, ctx)?]);
                             expect_semi(iter)?;
                         }
                     }
@@ -370,7 +380,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                         expect_semi(iter)?;
                     }
                     if !consume_semi(iter) {
-                        node.inc = Some(Box::new(expr(iter, ctx)?));
+                        node.inc = Some(Box::new(read_expr_stmt(iter, ctx)?));
                     }
                     expect(iter, Operator::RParen)?;
                     node.then = Some(Box::new(stmt(iter, ctx)?));
@@ -406,9 +416,13 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         return Ok(node);
     }
 
-    let node = Node::new_unary(NodeKind::ExprStmt, expr(iter, ctx)?);
+    let node = read_expr_stmt(iter, ctx)?;
     expect_semi(iter)?;
     Ok(node)
+}
+
+pub fn read_expr_stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    Ok(Node::new_unary(NodeKind::ExprStmt, expr(iter, ctx)?))
 }
 
 // expr        = assign

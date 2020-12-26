@@ -346,7 +346,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             println!("# NodeKind::Deref");
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)?;
-                load(lhs);
+                load(node);
             } else {
                 return Err(Error::not_found());
             }

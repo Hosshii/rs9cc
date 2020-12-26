@@ -35,7 +35,7 @@ unary           = ("+" | "-")? postfix
 postfix         | primary ("[" expr "]")?
 stmt-expr       = "(" "{" stmt stmt* "}" ")"
 primary         = num 
-                | ident (func-args | "[" num "]")? 
+                | ident (func-args)? 
                 | "(" expr ")"
                 | str
                 | char

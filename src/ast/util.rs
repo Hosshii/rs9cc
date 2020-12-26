@@ -117,6 +117,9 @@ pub(crate) fn consume_initialize(
 ) -> Result<Option<Node>, Error> {
     if let Some(mut dec) = consume_declaration(iter) {
         // todo error handling of re declaration
+        // ブロックの中とかの再定義もエラーになるので今はやめてる
+        // ex
+        // int x; {int x;}  // cause err
 
         // if let Some(_) = ctx.s.find_lvar(&dec.ident.name) {
         //     // consume_declaration calls iter.next();
@@ -146,12 +149,12 @@ pub(crate) fn consume_initialize(
             TypeKind::Array(_, _, _) => {
                 let node = super::ast::arr_initialize(iter, ctx, &mut dec)?;
                 expect_semi(iter)?;
-                return Ok(Some(Node::new_unary(NodeKind::ExprStmt, node)));
+                return Ok(Some(node));
             }
             _ => {
                 let node = super::ast::unary_initialize(iter, ctx, &mut dec)?;
                 expect_semi(iter)?;
-                return Ok(Some(Node::new_unary(NodeKind::ExprStmt, node)));
+                return Ok(Some(node));
             }
         }
         // }
