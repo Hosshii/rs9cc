@@ -346,6 +346,9 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             println!("# NodeKind::Deref");
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)?;
+                if let Ok(TypeKind::Array(_, _, _)) = node.get_type() {
+                    return Ok(());
+                }
                 load(node);
             } else {
                 return Err(Error::not_found());
@@ -509,7 +512,6 @@ fn store(node: &Node) {
     let mut word = "mov [rax], rdi";
     if let Ok(type_kind) = node.get_type() {
         match type_kind {
-            // TypeKind::Array(_, b_type) => word = gen_store_asm(b_type.kind.size()).unwrap_or(word),
             TypeKind::Array(_, b_type, _) => {
                 word = gen_store_asm(TypeKind::Ptr(b_type).size()).unwrap_or(word)
             }
@@ -535,20 +537,13 @@ fn gen_store_asm(size: u64) -> Option<&'static str> {
 fn ptr_op(node: &Node) {
     println!("# ptr op");
     if let Some(ref lhs) = node.lhs {
-        match &lhs.kind {
-            NodeKind::Lvar(lvar) => match &lvar.dec.base_type.kind {
+        if let Ok(type_kind) = &lhs.get_type() {
+            match type_kind {
                 TypeKind::Ptr(ptr) | TypeKind::Array(_, ptr, _) => {
                     println!("    imul rdi, {}", ptr.kind.size());
                 }
                 _ => (),
-            },
-            NodeKind::Gvar(gvar) => match &gvar.dec.base_type.kind {
-                TypeKind::Ptr(ptr) | TypeKind::Array(_, ptr, _) => {
-                    println!("    imul rdi, {}", ptr.kind.size());
-                }
-                _ => (),
-            },
-            _ => (),
+            }
         }
     }
 }

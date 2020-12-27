@@ -37,7 +37,7 @@ pub enum TypeKind {
     Char,
     Int,
     Ptr(Rc<BaseType>),
-    Array(u64, Rc<BaseType>, bool), // bool is whether initializ or not
+    Array(u64, Rc<BaseType>, bool), // bool is whether initialized or not
 
     /// this is virtual type for `get_deref_type`
     _Deref(Rc<BaseType>),
@@ -169,6 +169,10 @@ impl TypeKind {
         // *self = Array(size, Rc::new(BaseType::new(std::mem::take(self))));
     }
 
+    pub fn array_of(size: u64, base: &TypeKind, initialized: bool) -> TypeKind {
+        TypeKind::Array(size, Rc::new(BaseType::new(base.clone())), initialized)
+    }
+
     /// `int [] == int *`
     /// array and pointer is same
     /// todo
@@ -193,5 +197,48 @@ impl TypeKind {
         }
 
         a == b
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    #[test]
+    fn test_size() {
+        let tests = [
+            (Char, 1),
+            (Int, 4),
+            (Ptr(Rc::new(BaseType::new(Int))), 8),
+            (make_array(5, Char, false), 5),
+            (make_array(5, Int, false), 20),
+            (make_array(4, make_array(4, Int, false), false), 64),
+            (make_array(5, make_array(5, Int, false), false), 100),
+        ];
+
+        for (t, expected) in &tests {
+            assert_eq!(t.size(), *expected);
+        }
+    }
+
+    #[test]
+    fn test_eight_size() {
+        let tests = [
+            (Char, 8),
+            (Int, 8),
+            (Ptr(Rc::new(BaseType::new(Int))), 8),
+            (make_array(4, Char, false), 8),
+            (make_array(4, Int, false), 16),
+            (make_array(4, make_array(4, Int, false), false), 64),
+            (make_array(4, make_array(5, Char, false), false), 24),
+        ];
+
+        for (t, expected) in &tests {
+            assert_eq!(t.eight_size(), *expected);
+        }
+    }
+
+    fn make_array(size: u64, type_kind: TypeKind, initialized: bool) -> TypeKind {
+        TypeKind::Array(size, Rc::new(BaseType::new(type_kind)), initialized)
     }
 }

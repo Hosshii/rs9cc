@@ -142,19 +142,29 @@ pub fn base_type(iter: &mut TokenIter) -> Result<Node, Error> {
     Ok(Node::new_leaf(NodeKind::BaseType(btype)))
 }
 
-//declaration = basetype ident ("[" num? "]")?
+//declaration = basetype ident ("[" num? "]")*
 pub(crate) fn declaration(iter: &mut TokenIter) -> Result<Declaration, Error> {
-    let mut b_type = expect_base_type(iter)?;
+    let b_type = expect_base_type(iter)?;
     let ident = expect_ident(iter)?;
-    if consume(iter, Operator::LArr) {
-        if consume(iter, Operator::RArr) {
-            b_type.kind.to_arr(0, false);
-        } else {
-            b_type.kind.to_arr(expect_num(iter)?, true);
-            expect(iter, Operator::RArr)?;
-        }
+    let type_kind = read_arr_type(iter, b_type.kind)?;
+    Ok(Declaration::new(BaseType::new(type_kind), ident))
+}
+
+fn read_arr_type(iter: &mut TokenIter, base: TypeKind) -> Result<TypeKind, Error> {
+    if !consume(iter, Operator::LArr) {
+        return Ok(base);
     }
-    Ok(Declaration::new(b_type, ident))
+    if consume(iter, Operator::RArr) {
+        let mut base = read_arr_type(iter, base)?;
+        base.to_arr(0, false);
+        Ok(base)
+    } else {
+        let idx = expect_num(iter)?;
+        expect(iter, Operator::RArr)?;
+        let mut base = read_arr_type(iter, base)?;
+        base.to_arr(idx, true);
+        Ok(base)
+    }
 }
 
 // function    = basetype ident "(" params? ")" "{" stmt* "}"
@@ -201,9 +211,6 @@ pub fn arr_initialize(
     iter: &mut TokenIter,
     ctx: &mut Context,
     dec: &mut Declaration,
-    // b_type: &BaseType,
-    // x: u64,
-    // sized: bool,
 ) -> Result<Node, Error> {
     let mut nodes = Vec::new();
 
@@ -293,23 +300,23 @@ pub fn unary_initialize(
     ctx: &mut Context,
     dec: &mut Declaration,
 ) -> Result<Node, Error> {
-    let type_kind = &dec.base_type.kind;
+    // let type_kind = &dec.base_type.kind;
     ctx.push_front(
         dec.clone(),
         ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
     );
     let node = expr(iter, ctx)?;
-    if let Ok(x) = node.get_type() {
-        if !TypeKind::partial_comp(&x, &type_kind) {
-            return Err(Error::invalid_assignment(
-                iter.filepath,
-                iter.s,
-                iter.pos,
-                type_kind.clone(),
-                x,
-            ));
-        }
-    }
+    // if let Ok(x) = node.get_type() {
+    //     if !TypeKind::partial_comp(&x, &type_kind) {
+    //         return Err(Error::invalid_assignment(
+    //             iter.filepath,
+    //             iter.s,
+    //             iter.pos,
+    //             type_kind.clone(),
+    //             x,
+    //         ));
+    //     }
+    // }
     let node = Node::new_unary(
         NodeKind::ExprStmt,
         Node::new(
@@ -435,23 +442,25 @@ pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = equality(iter, ctx)?;
     if consume(iter, Operator::Assign) {
         let rhs = assign(iter, ctx)?;
-        let lhs_type = node
-            .get_type()
-            .unwrap_or(TypeKind::_Invalid("invalid lhs".to_string()));
-        let rhs_type = rhs
-            .get_type()
-            .unwrap_or(TypeKind::_Invalid("invalid rhs".to_string()));
+        // 左右の型が違っても受け入れる
+
+        // let lhs_type = node
+        //     .get_type()
+        //     .unwrap_or(TypeKind::_Invalid("invalid lhs".to_string()));
+        // let rhs_type = rhs
+        //     .get_type()
+        //     .unwrap_or(TypeKind::_Invalid("invalid rhs".to_string()));
 
         // 配列とポインタの比較が中途半端
-        if lhs_type != rhs_type && !TypeKind::partial_comp(&lhs_type, &rhs_type) {
-            return Err(Error::invalid_assignment(
-                iter.filepath,
-                iter.s,
-                iter.pos,
-                lhs_type,
-                rhs_type,
-            ));
-        }
+        // if lhs_type != rhs_type && !TypeKind::partial_comp(&lhs_type, &rhs_type) {
+        //     return Err(Error::invalid_assignment(
+        //         iter.filepath,
+        //         iter.s,
+        //         iter.pos,
+        //         lhs_type,
+        //         rhs_type,
+        //     ));
+        // }
         node = Node::new(NodeKind::Assign, node, rhs);
     }
     return Ok(node);
@@ -538,77 +547,24 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         return Ok(Node::new_unary(NodeKind::Addr, unary(iter, ctx)?));
     } else if consume(iter, Operator::Sizeof) {
         let node = unary(iter, ctx)?;
-        match node.kind {
-            NodeKind::Num(_) => return Ok(Node::new_num(4)),
-            NodeKind::Lvar(x) => {
-                return Ok(Node::new_num(x.dec.base_type.kind.size() as u64));
+        match node.get_type() {
+            Ok(x) => return Ok(Node::new_num(x.size())),
+            Err(e) => {
+                println!("{}", e);
+                todo!()
             }
-            NodeKind::Gvar(x) => return Ok(Node::new_num(x.size)),
-            NodeKind::Func(func_prototype, _) => {
-                return Ok(Node::new_num(func_prototype.type_kind.size()))
-            }
-            NodeKind::Deref => {
-                let (deref_count, lvar) = count_deref(&node);
-                let lvar = match lvar {
-                    Ok(x) => x,
-                    Err(x) => {
-                        return Err(Error::invalid_value_dereference(
-                            iter.filepath,
-                            iter.s,
-                            iter.pos,
-                            x.as_str(),
-                        ))
-                    }
-                };
-
-                return if let Ok(type_kind) = node.get_type() {
-                    Ok(Node::new_num(type_kind.size()))
-                } else {
-                    Err(Error::invalid_variable_dereference(
-                        iter.filepath,
-                        iter.s,
-                        iter.pos,
-                        (*lvar).clone(),
-                        deref_count,
-                    ))
-                };
-            }
-            _ => match node.lhs.unwrap().kind {
-                NodeKind::Num(_) => {
-                    return Ok(Node::new_num(4));
-                }
-                NodeKind::Lvar(x) => return Ok(Node::new_num(x.dec.base_type.kind.size() as u64)),
-                _ => unreachable!(),
-            },
         }
     }
     return postfix(iter, ctx);
 }
 
-// postfix     = primary ("[" expr "]")?
+// postfix     = primary ("[" expr "]")*
 pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
-    let pri = primary(iter, ctx)?;
-    if consume(iter, Operator::LArr) {
-        let exp = expr(iter, ctx)?;
+    let mut pri = primary(iter, ctx)?;
+    while consume(iter, Operator::LArr) {
+        let idx = expr(iter, ctx)?;
         expect(iter, Operator::RArr)?;
-        match pri
-            .get_type()
-            .unwrap_or(TypeKind::_Invalid("invalid type".to_string()))
-        {
-            TypeKind::Array(_, _, _) | TypeKind::Ptr(_) => {}
-            x => {
-                return Err(Error::invalid_value_dereference(
-                    iter.filepath,
-                    iter.s,
-                    iter.pos,
-                    x.as_str(),
-                ));
-            }
-        }
-        return Ok(Node::new_unary(
-            NodeKind::Deref,
-            Node::new(NodeKind::Add, pri, exp),
-        ));
+        pri = Node::new_unary(NodeKind::Deref, Node::new(NodeKind::Add, pri, idx));
     }
     Ok(pri)
 }
@@ -918,6 +874,17 @@ mod tests {
                     BaseType::new(Array(
                         1,
                         Rc::new(BaseType::new(Ptr(Rc::new(BaseType::new(Char))))),
+                        true,
+                    )),
+                    Ident::new("hoge"),
+                ),
+            ),
+            (
+                "int hoge[2][2]",
+                Declaration::new(
+                    BaseType::new(Array(
+                        2,
+                        Rc::new(BaseType::new(Array(2, Rc::new(BaseType::new(Int)), true))),
                         true,
                     )),
                     Ident::new("hoge"),

@@ -164,11 +164,12 @@ int main() {
   assert( 2,({int foo; int *bar; foo=1; bar = &foo;  *bar+1;}), "({int foo; int *bar; foo=1; bar = &foo;  *bar+1;})");
   assert( 3,( {int x; x=3; *&x; }), "( {int x; x=3; *&x; })");
   assert( 3,( {int x; x=3; int *y;y=&x;  int **z;z=&y;  **z; }), "( {int x; x=3; int *y;y=&x;  int **z;z=&y;  **z; })");
-  assert( 5,( { int x; int y; x=3; y=5;  *(&x-8); }), "( { int x; int y; x=3; y=5;  *(&x-8); })");
-  assert( 3,( { int x; int y; x=3; y=5;  *(&y+8); }), "( { int x; int y; x=3; y=5;  *(&y+8); })");
+  assert( 5,( { int x; int y; x=3; y=5;  *(&x-2); }), "( { int x; int y; x=3; y=5;  *(&x-8); })"); // コンパイラ 依存
+  assert( 3,( { int x; int y; x=3; y=5;  *(&y+2); }), "( { int x; int y; x=3; y=5;  *(&y+8); })"); // コンパイラ 依存
   assert( 5,( { int x; int *y; x=3; y=&x; *y=5;  x; }), "( { int x; int *y; x=3; y=&x; *y=5;  x; })");
-  assert( 7,( { int x; int y; x=3; y=5; *(&x-8)=7; y; }), "( { int x; int y; x=3; y=5; *(&x-8)=7; y; })");
-  assert( 7,( { int x; int y; x=3; y=5; *(&y+8)=7; x; }), "( { int x; int y; x=3; y=5; *(&y+8)=7; x; })");
+  assert( 7,( { int x; int y; x=3; y=5; *(&x-2)=7; y; }), "( { int x; int y; x=3; y=5; *(&x-8)=7; y; })"); // コンパイラ 依存
+  assert( 7,( { int x; int y; x=3; y=5; *(&y+2)=7; x; }), "( { int x; int y; x=3; y=5; *(&y+8)=7; x; })"); // コンパイラ 依存
+
 
   // #17
   printf("\n\n#17\n");
@@ -282,6 +283,22 @@ int main() {
   assert( 2,( { int x=2; { int x=3; } x; }), "( { int x=2; { int x=3; } x; })");
   assert( 2,( { int x=2; { int x=3; } ({ int y=4; x; });}), "( { int x=2; { int x=3; } { int y=4; x; }})");
   assert( 3,( { int x=2; { x=3; } x; }), "( { int x=2; { x=3; } x; })");
+
+  // #29
+  printf("\n\n#29\n");
+  assert( 0, ( { int x[2][3]; int *y=x; *y=0; **x; })," ( { int x[2][3]; int *y=x; *y=0; **x; })");
+  assert( 1, ( { int x[2][3]; int *y=x; *(y+1)=1; *(*x+1); })," ( { int x[2][3]; int *y=x; *(y+1)=1; *(*x+1); })");
+  assert( 2, ( { int x[2][3]; int *y=x; *(y+2)=2;  *(*x+2); })," ( { int x[2][3]; int *y=x; *(y+2)=2;  *(*x+2); })");
+  assert( 3, ( { int x[2][3]; int *y=x; *(y+3)=3;  **(x+1); })," ( { int x[2][3]; int *y=x; *(y+3)=3;  **(x+1); })");
+  assert( 4, ( { int x[2][3]; int *y=x; *(y+4)=4;  *(*(x+1)+1); })," ( { int x[2][3]; int *y=x; *(y+4)=4;  *(*(x+1)+1); })");
+  assert( 5, ( { int x[2][3]; int *y=x; *(y+5)=5;  *(*(x+1)+2); })," ( { int x[2][3]; int *y=x; *(y+5)=5;  *(*(x+1)+2); })");
+  assert( 6, ( { int x[2][3]; int *y=x; *(y+6)=6;  **(x+2); })," ( { int x[2][3]; int *y=x; *(y+6)=6;  **(x+2); })");
+  assert( 11, ({int hoge[2][3]; hoge[0][0]=1;hoge[1][2]= 10;hoge[0][0]+hoge[1][2];}), " ({int hoge[2][3]; hoge[0][0]=1;hoge[1][2]= 10;hoge[0][0]+hoge[1][2];})");
+  assert( 72, ( {int hoge[2][3][4]; for(int i = 0; i < 2; i=i+1){for (int j = 0; j < 3; j = j+1){for (int k = 0;k<4;k=k+1){hoge[i][j][k]=i+k+j;}}}  int result = 0;for(int i = 0; i < 2; i=i+1){for (int j = 0; j < 3; j = j+1){for (int k = 0;k<4;k=k+1){result = result + hoge[i][j][k];}}} result; }), " ( {int hoge[2][3][4]; for(int i = 0; i < 2; i=i+1){for (int j = 0; j < 3; j = j+1){for (int k = 0;k<4;k=k+1){hoge[i][j][k]=i+k+j;}}}  int result = 0;for(int i = 0; i < 2; i=i+1){for (int j = 0; j < 3; j = j+1){for (int k = 0;k<4;k=k+1){result = result + hoge[i][j][k];}}} result; })");
+  assert( 96,({int hoge[2][3][4]; sizeof hoge;}), "({int hoge[2][3][4]; sizeof hoge;})");
+  assert( 48,({int hoge[2][3][4]; sizeof hoge[0];}), "({int hoge[2][3][4]; sizeof hoge[0];})");
+  assert( 16,({int hoge[2][3][4]; sizeof hoge[0][0];}), "({int hoge[2][3][4]; sizeof hoge[0][0];})");
+  assert( 4,({int hoge[2][3][4]; sizeof hoge[0][0][0];}), "({int hoge[2][3][4]; sizeof hoge[0][0][0];})");
 
 
   return 0;

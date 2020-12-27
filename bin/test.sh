@@ -186,11 +186,11 @@ unary_deref_addr() {
     assert 2 'int main(){int foo; int *bar; foo=1; bar = &foo; return *bar+1;}'
     assert 3 'int main() {int x; x=3; return *&x; }'
     assert 3 'int main() {int x; x=3; int *y;y=&x;  int **z;z=&y; return **z; }'
-    assert 5 'int main() { int x; int y; x=3; y=5; return *(&x-8); }'
-    assert 3 'int main() { int x; int y; x=3; y=5; return *(&y+8); }'
+    assert 5 'int main() { int x; int y; x=3; y=5; return *(&x-2); }' # コンパイラ 依存
+    assert 3 'int main() { int x; int y; x=3; y=5; return *(&y+2); }' # コンパイラ 依存
     assert 5 'int main() { int x; int *y; x=3; y=&x; *y=5; return x; }'
-    assert 7 'int main() { int x; int y; x=3; y=5; *(&x-8)=7; return y; }'
-    assert 7 'int main() { int x; int y; x=3; y=5; *(&y+8)=7; return x; }'
+    assert 7 'int main() { int x; int y; x=3; y=5; *(&x-2)=7; return y; }' # コンパイラ 依存
+    assert 7 'int main() { int x; int y; x=3; y=5; *(&y+2)=7; return x; }' # コンパイラ 依存
 }
 
 # 17
@@ -326,6 +326,23 @@ var_scope() {
     assert 3 'int main() { int x=2; { x=3; } return x; }'
 }
 
+# 29
+multi_dimension_arr() {
+    assert 0 'int main() { int x[2][3]; int *y=x; *y=0; return **x; }'
+    assert 1 'int main() { int x[2][3]; int *y=x; *(y+1)=1; return *(*x+1); }'
+    assert 2 'int main() { int x[2][3]; int *y=x; *(y+2)=2; return *(*x+2); }'
+    assert 3 'int main() { int x[2][3]; int *y=x; *(y+3)=3; return **(x+1); }'
+    assert 4 'int main() { int x[2][3]; int *y=x; *(y+4)=4; return *(*(x+1)+1); }'
+    assert 5 'int main() { int x[2][3]; int *y=x; *(y+5)=5; return *(*(x+1)+2); }'
+    assert 6 'int main() { int x[2][3]; int *y=x; *(y+6)=6; return **(x+2); }'
+    assert 11 'int main(){int hoge[2][3]; hoge[0][0]=1;hoge[1][2]= 10;return hoge[0][0]+hoge[1][2];}'
+    assert 72 'int main() {int hoge[2][3][4]; for(int i = 0; i < 2; i=i+1){for (int j = 0; j < 3; j = j+1){for (int k = 0;k<4;k=k+1){hoge[i][j][k]=i+k+j;}}}  int result = 0;for(int i = 0; i < 2; i=i+1){for (int j = 0; j < 3; j = j+1){for (int k = 0;k<4;k=k+1){result = result + hoge[i][j][k];}}} return result; }'
+    assert 96 'int main(){int hoge[2][3][4]; return sizeof hoge;}'
+    assert 48 'int main(){int hoge[2][3][4]; return sizeof hoge[0];}'
+    assert 16 'int main(){int hoge[2][3][4]; return sizeof hoge[0][0];}'
+    assert 4 'int main(){int hoge[2][3][4]; return sizeof hoge[0][0][0];}'
+}
+
 build() {
     cargo build
 }
@@ -375,6 +392,7 @@ if [ $# -eq 0 ]; then
     init
     stmt_expr
     var_scope
+    multi_dimension_arr
 fi
 
 while [ $# -ne 0 ]; do
@@ -407,6 +425,7 @@ while [ $# -ne 0 ]; do
     "26") init ;;
     "27") stmt_expr ;;
     "28") var_scope ;;
+    "29") multi_dimension_arr ;;
     esac
     shift
 done
