@@ -343,6 +343,16 @@ multi_dimension_arr() {
     assert 4 'int main(){int hoge[2][3][4]; return sizeof hoge[0][0][0];}'
 }
 
+# 30
+struct() {
+    assert 8 'int main(){struct square {int x; int y;} square; return sizeof square;}'
+    assert 3 'int main(){struct square {int x; int y;} square; square.x = 3; square.y = 2; return square.x;}'
+    assert 2 'int main(){struct square {int x; int y;} square; square.x = 3; square.y = 2; return square.y;}'
+    assert 6 'int main(){struct square {int x; int y;} square; square.x = 3; square.y = 2; return square.y *square.x;}'
+    assert 6 'int main(){struct  {int x; int y;} square; square.x = 3; square.y = 2; return square.y *square.x;}'
+    assert 80 'int main(){struct  subject {int math[10]; int English[10];} subject; return sizeof(subject);}'
+}
+
 build() {
     cargo build
 }
@@ -393,6 +403,7 @@ if [ $# -eq 0 ]; then
     stmt_expr
     var_scope
     multi_dimension_arr
+    struct
 fi
 
 while [ $# -ne 0 ]; do
@@ -426,6 +437,7 @@ while [ $# -ne 0 ]; do
     "27") stmt_expr ;;
     "28") var_scope ;;
     "29") multi_dimension_arr ;;
+    "30") struct ;;
     esac
     shift
 done

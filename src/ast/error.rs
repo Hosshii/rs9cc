@@ -13,6 +13,7 @@ pub enum ErrorKind {
     },
     UndefinedVariable(Ident),
     UndefinedFunction(Ident),
+    UndefinedMember(Ident),
     ReDeclare(Ident),
     InvalidVariableDereference(Lvar, usize),
     InvalidValueDereference(String),
@@ -92,6 +93,22 @@ impl Error {
         Error {
             filepath: filepath.into(),
             kind: UndefinedFunction(ident),
+            pos,
+            input: input.into(),
+            msg,
+        }
+    }
+
+    pub fn undefined_member(
+        filepath: impl Into<String>,
+        input: impl Into<String>,
+        pos: TokenPos,
+        ident: Ident,
+        msg: Option<String>,
+    ) -> Error {
+        Error {
+            filepath: filepath.into(),
+            kind: UndefinedMember(ident),
             pos,
             input: input.into(),
             msg,
@@ -203,6 +220,7 @@ impl fmt::Display for Error {
             }
             UndefinedVariable(ident) => undefined_variable_err_format(&self, ident, f),
             UndefinedFunction(ident) => undefined_function_err_format(&self, ident, f),
+            UndefinedMember(ident) => undefined_member_err_format(&self, ident, f),
             ReDeclare(ident) => re_declare_err_format(&self, ident, f),
             InvalidVariableDereference(lvar, actual_deref_count) => {
                 invalid_variable_dereference_err_format(&self, lvar, *actual_deref_count, f)
@@ -284,6 +302,14 @@ fn undefined_function_err_format(
     f: &mut fmt::Formatter,
 ) -> fmt::Result {
     err_format(err, format!("function {} is not defined", ident.name), f)
+}
+
+fn undefined_member_err_format(err: &Error, ident: &Ident, f: &mut fmt::Formatter) -> fmt::Result {
+    err_format(
+        err,
+        format!("struct member {} is not defined", ident.name),
+        f,
+    )
 }
 
 fn re_declare_err_format(err: &Error, ident: &Ident, f: &mut fmt::Formatter) -> fmt::Result {

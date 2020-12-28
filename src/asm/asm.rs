@@ -146,6 +146,18 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             load(node);
             return Ok(());
         }
+        NodeKind::Member(_, _) => {
+            println!("# NodeKind::Member");
+            let lhs = node.lhs.as_ref().unwrap();
+            gen_val(node, ctx)?;
+            if let NodeKind::Lvar(lvar) = &lhs.kind {
+                if let TypeKind::Array(_, _, _) = lvar.dec.base_type.kind {
+                    return Ok(());
+                }
+            }
+            load(node);
+            return Ok(());
+        }
         NodeKind::Assign => {
             println!("# NodeKind::Assign");
             if let Some(lhs) = &node.lhs {
@@ -465,6 +477,19 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             } else {
                 Err(Error::not_found())
             }
+        }
+        NodeKind::Member(_, offset) => {
+            println!("# member");
+            if let Some(lhs) = &node.lhs {
+                gen_val(&lhs, ctx)?;
+                println!("    pop rax");
+                println!("    add rax, {}", offset);
+                println!("    push rax");
+                return Ok(());
+            } else {
+                Err(Error::not_found())
+            }
+            // gen_val(node, ctx: &mut Context)
         }
         _ => Err(Error::not_lvar()),
     }

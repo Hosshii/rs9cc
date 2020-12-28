@@ -16,6 +16,7 @@ pub enum TokenKind {
     Comma,
     DoubleQuote,
     SingleQuote,
+    Period,
     String(String),
     Char(char),
     EOF,
@@ -36,6 +37,7 @@ impl TokenKind {
             Comma => ",".to_string(),
             DoubleQuote => "\"".to_string(),
             SingleQuote => "'".to_string(),
+            Period => ".".to_string(),
             String(s) => s.clone(),
             Char(c) => c.to_string(),
             EOF => "EOF".to_string(),
@@ -148,6 +150,7 @@ pub enum KeyWord {
     Else,
     While,
     For,
+    Struct,
 }
 
 impl KeyWord {
@@ -159,6 +162,7 @@ impl KeyWord {
             Else => "else",
             While => "while",
             For => "for",
+            Struct => "struct",
         }
     }
 
@@ -170,6 +174,7 @@ impl KeyWord {
             x if x.starts_with(Else.as_str()) => Ok(Else),
             x if x.starts_with(While.as_str()) => Ok(While),
             x if x.starts_with(For.as_str()) => Ok(For),
+            x if x.starts_with(Struct.as_str()) => Ok(Struct),
             _ => Err(()),
         }
     }
@@ -185,6 +190,7 @@ impl FromStr for KeyWord {
             x if x == Else.as_str() => Ok(Else),
             x if x == While.as_str() => Ok(While),
             x if x == For.as_str() => Ok(For),
+            x if x == Struct.as_str() => Ok(Struct),
             _ => Err(()),
         }
     }
@@ -422,6 +428,15 @@ impl<'a> TokenIter<'a> {
         None
     }
 
+    fn is_period(&self, s: &str) -> Option<(Token, TokenPos)> {
+        use self::TokenKind::*;
+        let ss = s.chars().nth(0).unwrap();
+        if ss.to_string() == Period.as_string() {
+            return Some((Token::new(Period, self.pos), TokenPos::new_bytes(1)));
+        }
+        None
+    }
+
     fn is_string(&self, s: &str) -> Option<(Token, TokenPos)> {
         use TokenKind::DoubleQuote;
         let mut chars = s.chars();
@@ -540,6 +555,11 @@ impl<'a> Iterator for TokenIter<'a> {
             return Some(tk);
         }
 
+        if let Some((tk, pos)) = self.is_period(s) {
+            self.pos += pos;
+            return Some(tk);
+        }
+
         if let Some((tk, pos)) = self.is_string(s) {
             self.pos += pos;
             return Some(tk);
@@ -586,6 +606,7 @@ fn split_ident(s: &str) -> (&str, &str, usize) {
             || s[i..].starts_with(Block::RParen.as_str())
             || s[i..].starts_with(Comment::Single.as_str())
             || s[i..].starts_with(Comment::MultiStart.as_str())
+            || s[i..].starts_with(&TokenKind::Period.as_string())
         {
             break;
         }
@@ -682,10 +703,10 @@ mod tests {
         assert_eq!(None, iter.next());
 
         let input = "
-            return; returnx return1 return 1 for while if else force whilet ifelse elseif \"aaaaa\"a \'a\'a";
+            return; returnx return1 return 1 for while if else force whilet ifelse elseif \"aaaaa\"a \'a\'a struct .";
 
         let expected = vec![
-            TokenKind::KeyWord(Return),
+            KeyWord(Return),
             SemiColon,
             TokenKind::Ident(Ident::new("returnx")),
             TokenKind::Ident(Ident::new("return1")),
@@ -703,6 +724,8 @@ mod tests {
             TokenKind::Ident(Ident::new("a")),
             TokenKind::Char('a'),
             TokenKind::Ident(Ident::new('a')),
+            KeyWord(Struct),
+            TokenKind::Period,
         ];
         let mut iter = tokenize(input, "");
         for i in expected {

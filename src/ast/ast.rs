@@ -1,8 +1,8 @@
 use super::error::Error;
 use super::util::*;
 use super::NodeKind;
-use super::{Context, Declaration, FuncPrototype, Function, LocalContext, Node, Program};
-use crate::base_types::{BaseType, TypeKind};
+use super::{Context, Declaration, FuncPrototype, Function, Ident, LocalContext, Node, Program};
+use crate::base_types::{BaseType, Member, Struct, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::rc::Rc;
 
@@ -127,7 +127,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
     Ok(program)
 }
 
-// typekind    = "int" | "char"
+// typekind    = "int" | "char | struct-dec"
 // basetype    = typekind "*"*
 pub fn base_type(iter: &mut TokenIter) -> Result<Node, Error> {
     let type_kind = expect_type_kind(iter)?;
@@ -140,6 +140,41 @@ pub fn base_type(iter: &mut TokenIter) -> Result<Node, Error> {
         }
     }
     Ok(Node::new_leaf(NodeKind::BaseType(btype)))
+}
+
+// struct-dec      = "struct" ident? "{" declaration ";" "}"
+pub fn struct_dec(iter: &mut TokenIter) -> Result<Rc<Struct>, Error> {
+    expect_keyword(iter, KeyWord::Struct)?;
+    let ident = consume_ident(iter);
+
+    expect_block(iter, Block::LParen)?;
+    let mut members = Vec::new();
+    while !consume_block(iter, Block::RParen) {
+        members.push(declaration(iter)?);
+        expect_semi(iter)?;
+    }
+    let mut offset = 0;
+    let members: Vec<Member> = members
+        .into_iter()
+        .map(|m| {
+            let _offset = offset;
+            offset += m.base_type.kind.size();
+            let mem = Member::new(Rc::new(m.base_type.kind), _offset, m.ident);
+            mem
+        })
+        .collect();
+    let members = Rc::new(members);
+
+    let mut _struct = if let Some(ident) = ident {
+        let ident = Rc::new(ident);
+        Rc::new(Struct::new(ident.clone(), members))
+    } else {
+        Rc::new(Struct::new(
+            Rc::new(Ident::new(".struct.anonymous")),
+            members,
+        ))
+    };
+    Ok(_struct)
 }
 
 //declaration = basetype ident ("[" num? "]")*
@@ -537,15 +572,44 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     return postfix(iter, ctx);
 }
 
-// postfix     = primary ("[" expr "]")*
+// postfix     = primary ("[" expr "]" | "." ident)*
 pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let mut pri = primary(iter, ctx)?;
-    while consume(iter, Operator::LArr) {
-        let idx = expr(iter, ctx)?;
-        expect(iter, Operator::RArr)?;
-        pri = Node::new_unary(NodeKind::Deref, Node::new(NodeKind::Add, pri, idx));
+    loop {
+        if consume(iter, Operator::LArr) {
+            let idx = expr(iter, ctx)?;
+            expect(iter, Operator::RArr)?;
+            pri = Node::new_unary(NodeKind::Deref, Node::new(NodeKind::Add, pri, idx));
+            continue;
+        }
+
+        if consume_period(iter) {
+            let member_name = expect_ident(iter)?;
+            #[allow(unused_assignments)]
+            let mut offset = 0;
+            if let NodeKind::Lvar(x) = &pri.kind {
+                if let TypeKind::Struct(_struct) = &x.dec.base_type.kind {
+                    offset = _struct
+                        .find_field(&member_name)
+                        .ok_or(Error::undefined_member(
+                            iter.filepath,
+                            iter.s,
+                            iter.pos,
+                            member_name.clone(),
+                            None,
+                        ))?
+                        .offset;
+                } else {
+                    todo!()
+                }
+            } else {
+                todo!()
+            }
+            pri = Node::new_unary(NodeKind::Member(member_name, offset), pri);
+            continue;
+        }
+        return Ok(pri);
     }
-    Ok(pri)
 }
 
 // stmt-expr       = "(" "{" stmt stmt* "}" ")"
@@ -877,6 +941,49 @@ mod tests {
                 declaration(&mut token::tokenize(input, "")).unwrap()
             );
         }
+    }
+
+    #[test]
+    fn test_struct_dec() {
+        use crate::token;
+        use TypeKind::{Char, Int, Ptr};
+
+        let members = Rc::new(vec![
+            make_member(Int, "first", 0),
+            make_member(Int, "second", 4),
+        ]);
+        let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
+        let input = "struct hoge {int first; int second;}";
+        let actual = struct_dec(&mut token::tokenize(input, "")).unwrap();
+        assert_eq!(expected, actual);
+        assert_eq!(8, actual.get_size());
+
+        let members = Rc::new(vec![
+            make_member(Int, "first", 0),
+            make_member(Int, "second", 4),
+            make_member(Char, "third", 8),
+            make_member(Int, "four", 9),
+        ]);
+        let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
+        let input = "struct hoge {int first; int second; char third; int four;}";
+        let actual = struct_dec(&mut token::tokenize(input, "")).unwrap();
+        assert_eq!(expected, actual);
+        assert_eq!(16, actual.get_size());
+
+        let members = Rc::new(vec![
+            make_member(Int, "first", 0),
+            make_member(Ptr(Rc::new(BaseType::new(Int))), "second", 4),
+            make_member(Int, "four", 12),
+        ]);
+        let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
+        let input = "struct hoge {int first; int *second; int four;}";
+        let actual = struct_dec(&mut token::tokenize(input, "")).unwrap();
+        assert_eq!(expected, actual);
+        assert_eq!(16, actual.get_size());
+    }
+
+    fn make_member(type_kind: TypeKind, name: impl Into<String>, offset: u64) -> Member {
+        Member::new(Rc::new(type_kind), offset, Ident::new(name))
     }
 
     #[test]

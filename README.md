@@ -7,9 +7,10 @@ mini C compiler written in Rust. This is my hobby project. I use [compilerbook](
 ## EBNF
 ```
 program         = (function | declaration ("=" initialize)? ";" | func-prototype )*
-typekind        = "int" | "char"
+typekind        = "int" | "char | struct-dec"
 basetype        = typekind "*"*
-declaration     = basetype ident ("[" num? "]")?
+struct-dec      = "struct" "{" declaration ";" "}"
+declaration     = basetype ident ("[" num? "]")*
 initialize      = "{" (expr ("," expr)*)? "}" 
                 | expr 
 func-prototype  = declaration "(" params? ")" 
@@ -32,7 +33,7 @@ unary           = ("+" | "-")? postfix
                 | "*" unary
                 | "&" unary
                 | "sizeof" unary
-postfix         | primary ("[" expr "]")?
+postfix         | primary ("[" expr "]" | "." ident)*
 stmt-expr       = "(" "{" stmt stmt* "}" ")"
 primary         = num 
                 | ident (func-args)? 

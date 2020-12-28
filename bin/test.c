@@ -300,6 +300,14 @@ int main() {
   assert( 16,({int hoge[2][3][4]; sizeof hoge[0][0];}), "({int hoge[2][3][4]; sizeof hoge[0][0];})");
   assert( 4,({int hoge[2][3][4]; sizeof hoge[0][0][0];}), "({int hoge[2][3][4]; sizeof hoge[0][0][0];})");
 
+  // #30
+  printf("\n\n#30\n");
+  assert( 8,({struct square {int x; int y;} square; sizeof square;}), "({struct square {int x; int y;} square; sizeof square;})");
+  assert( 3,({struct square {int x; int y;} square; square.x = 3; square.y = 2; square.x;}), "({struct square {int x; int y;} square; square.x = 3; square.y = 2; square.x;})");
+  assert( 2,({struct square {int x; int y;} square; square.x = 3; square.y = 2; square.y;}), "({struct square {int x; int y;} square; square.x = 3; square.y = 2; square.y;})");
+  assert( 6,({struct square {int x; int y;} square; square.x = 3; square.y = 2; square.y *square.x;}), "({struct square {int x; int y;} square; square.x = 3; square.y = 2; square.y *square.x;})");
+  assert( 80,({struct  subject {int math[10]; int English[10];} subject; sizeof(subject);}) ,"({struct  subject {int math[10]; int English[10];} subject; sizeof(subject);})");
+
 
   return 0;
 }

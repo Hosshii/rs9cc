@@ -1,4 +1,6 @@
 use self::TypeKind::*;
+use crate::ast::Ident;
+use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 
@@ -33,11 +35,79 @@ impl BaseType {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+pub struct Member {
+    pub type_kind: Rc<TypeKind>,
+    pub offset: u64,
+    pub ident: Ident,
+}
+
+impl fmt::Display for Member {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{} {}", self.ident.name, self.type_kind)
+    }
+}
+
+impl Member {
+    pub fn new(type_kind: Rc<TypeKind>, offset: u64, ident: Ident) -> Self {
+        Self {
+            type_kind,
+            offset,
+            ident,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+pub struct Struct {
+    ident: Rc<Ident>,
+    members: Rc<Vec<Member>>,
+    is_anonymous: bool,
+}
+
+impl Struct {
+    pub fn new(ident: Rc<Ident>, members: Rc<Vec<Member>>) -> Self {
+        Self {
+            ident,
+            members,
+            is_anonymous: false,
+        }
+    }
+
+    pub fn new_anonymous(members: Rc<Vec<Member>>) -> Self {
+        Self {
+            ident: Rc::new(Ident::new(".struct.anonymous")),
+            members,
+            is_anonymous: true,
+        }
+    }
+
+    pub fn find_field(&self, ident: &Ident) -> Option<Member> {
+        for member in &*self.members {
+            if &member.ident == ident {
+                return Some(member.clone());
+            }
+        }
+        None
+    }
+
+    pub fn get_size(&self) -> u64 {
+        if self.members.len() < 1 {
+            return 0;
+        }
+        let last = self.members.last().unwrap();
+        let mut size = last.offset + last.type_kind.size();
+        size += (8 - size % 8) % 8;
+        size
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum TypeKind {
     Char,
     Int,
     Ptr(Rc<BaseType>),
     Array(u64, Rc<BaseType>, bool), // bool is whether initialized or not
+    Struct(Rc<Struct>),
 
     /// this is virtual type for `get_deref_type`
     _Deref(Rc<BaseType>),
@@ -62,6 +132,12 @@ impl fmt::Display for TypeKind {
                 write!(f, "{} {}", b_type.kind.as_str(), ptr)
             }
             Array(size, ptr_type, _) => write!(f, "{} [{}]", ptr_type.kind, size),
+            Struct(s) => {
+                for member in &*s.members {
+                    writeln!(f, "{}", member)?
+                }
+                Ok(())
+            }
             _Deref(x) => {
                 // todo
                 // もう少しいい表示考える
@@ -81,6 +157,7 @@ impl TypeKind {
             Int => "int",
             Ptr(_) => "Ptr",
             Array(_, _, _) => "Array",
+            Struct(_) => "struct",
             _Deref(_) => unreachable!(),
             _Invalid(_) => unreachable!(),
         }
@@ -100,6 +177,7 @@ impl TypeKind {
             Int => 4,
             Ptr(_) => 8,
             Array(size, base_type, _) => size * base_type.kind.size(),
+            Struct(s) => s.get_size(),
             _Deref(_) => unreachable!(),
             _Invalid(_) => unreachable!(),
         }
@@ -118,6 +196,7 @@ impl TypeKind {
             Int => TypeKind::_Deref(Rc::new(BaseType::new(self.clone()))),
             Ptr(b_type) => b_type.kind.clone(),
             Array(_, b_type, _) => b_type.kind.clone(),
+            Struct(_) => TypeKind::_Deref(Rc::new(BaseType::new(self.clone()))),
             _Deref(b_type) => b_type.kind.clone(),
             _Invalid(msg) => _Invalid(msg.clone()),
         }
@@ -144,6 +223,7 @@ impl TypeKind {
                 size += (8 - size % 8) % 8; // sizeを8の倍数にする
                 size
             }
+            Struct(_) => self.size(), // structは8の倍数にのともとパディングしてる
             _Deref(_) => unreachable!(),
             _Invalid(_) => unreachable!(),
         }

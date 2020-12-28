@@ -73,6 +73,16 @@ pub(crate) fn consume_comma(iter: &mut TokenIter) -> bool {
     false
 }
 
+pub(crate) fn consume_period(iter: &mut TokenIter) -> bool {
+    if let Some(x) = iter.peek() {
+        if x.kind == TokenKind::Period {
+            iter.next();
+            return true;
+        }
+    }
+    false
+}
+
 pub(crate) fn consume_string(iter: &mut TokenIter) -> Option<String> {
     if let Some(x) = iter.peek() {
         if let TokenKind::String(string) = x.kind {
@@ -195,6 +205,28 @@ pub(crate) fn expect_semi(iter: &mut TokenIter) -> Result<(), Error> {
     ))
 }
 
+pub(crate) fn expect_keyword(iter: &mut TokenIter, keyword: KeyWord) -> Result<(), Error> {
+    if let Some(x) = iter.peek() {
+        if x.kind == TokenKind::KeyWord(keyword) {
+            iter.next();
+            return Ok(());
+        } else {
+            return Err(Error::unexpected_token(
+                iter.filepath,
+                iter.s,
+                x.clone(),
+                TokenKind::SemiColon,
+            ));
+        }
+    }
+    Err(Error::eof(
+        iter.filepath,
+        iter.s,
+        iter.pos,
+        TokenKind::SemiColon,
+        None,
+    ))
+}
 pub(crate) fn _expect_comma(iter: &mut TokenIter) -> Result<(), Error> {
     expect_token_kind(iter, TokenKind::Comma)?;
     Ok(())
@@ -277,6 +309,8 @@ pub(crate) fn expect_type_kind(iter: &mut TokenIter) -> Result<base_types::TypeK
         if let TokenKind::TypeKind(bt) = x.kind {
             iter.next();
             return Ok(bt);
+        } else if x.kind == TokenKind::KeyWord(KeyWord::Struct) {
+            return Ok(TypeKind::Struct(crate::ast::ast::struct_dec(iter)?));
         } else {
             return Err(Error::unexpected_token(
                 iter.filepath,
