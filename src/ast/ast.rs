@@ -206,12 +206,7 @@ pub fn params(iter: &mut TokenIter) -> Result<Vec<Declaration>, Error> {
 }
 
 // "{" (expr ("," expr)*)? | str
-// for local var
-pub fn arr_initialize(
-    iter: &mut TokenIter,
-    ctx: &mut Context,
-    dec: &mut Declaration,
-) -> Result<Node, Error> {
+pub fn multi_field_initialize(iter: &mut TokenIter, ctx: &mut Context) -> Result<Vec<Node>, Error> {
     let mut nodes = Vec::new();
 
     // str
@@ -233,64 +228,7 @@ pub fn arr_initialize(
             expect_block(iter, Block::RParen)?;
         }
     }
-
-    if let TypeKind::Array(x, _, sized) = &mut dec.base_type.kind {
-        if !*sized {
-            *x = nodes.len() as u64;
-            *sized = true;
-        }
-    } else {
-        unreachable!()
-    }
-    ctx.push_front(
-        dec.clone(),
-        ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
-    );
-
-    if let TypeKind::Array(x, _, _) = &mut dec.base_type.kind {
-        let lvar = ctx.s.find_lvar(&dec.ident.name).unwrap();
-        let mut idx = 0;
-        let mut assign_nodes = Vec::new();
-        let len = nodes.len();
-        for node in nodes {
-            assign_nodes.push(Node::new_unary(
-                NodeKind::ExprStmt,
-                Node::new(
-                    NodeKind::Assign,
-                    Node::new_unary(NodeKind::Deref, make_array_idx_node(idx, lvar.clone())),
-                    node,
-                ),
-            ));
-            idx += 1;
-        }
-        if *x < assign_nodes.len() as u64 {
-            return Err(Error::invalid_initialization(
-                iter.filepath,
-                iter.s,
-                iter.pos,
-                lvar,
-                format!("length is: {}", assign_nodes.len()),
-            ));
-        }
-
-        for _ in 0..(*x - len as u64) {
-            assign_nodes.push(Node::new_unary(
-                NodeKind::ExprStmt,
-                Node::new(
-                    NodeKind::Assign,
-                    Node::new_unary(NodeKind::Deref, make_array_idx_node(idx, lvar.clone())),
-                    Node::new_num(0),
-                ),
-            ));
-            idx += 1;
-        }
-        return Ok(Node::new_init(
-            NodeKind::Declaration(dec.clone()),
-            assign_nodes,
-        ));
-    } else {
-        unreachable!()
-    }
+    Ok(nodes)
 }
 
 // expr
@@ -375,12 +313,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     expect(iter, Operator::LParen)?;
                     let mut node = Node::new_none(NodeKind::For);
                     if !consume_semi(iter) {
-                        if let Some(init) = consume_initialize(iter, ctx)? {
-                            node.init = Some(vec![init]);
-                        } else {
-                            node.init = Some(vec![read_expr_stmt(iter, ctx)?]);
-                            expect_semi(iter)?;
-                        }
+                        node.init = Some(vec![stmt(iter, ctx)?]);
                     }
                     if !consume_semi(iter) {
                         node.cond = Some(Box::new(expr(iter, ctx)?));
@@ -419,8 +352,54 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         }
     }
 
-    if let Some(node) = consume_initialize(iter, ctx)? {
-        return Ok(node);
+    if let Some(mut dec) = consume_declaration(iter) {
+        // todo re declaration err handling
+        if consume_semi(iter) {
+            ctx.push_front(
+                dec.clone(),
+                ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+            );
+            return Ok(Node::new_leaf(NodeKind::Declaration(dec)));
+        }
+        expect(iter, Operator::Assign)?;
+        match &mut dec.base_type.kind {
+            TypeKind::Array(size, _, sized) => {
+                let nodes = multi_field_initialize(iter, ctx)?;
+                expect_semi(iter)?;
+
+                if !*sized {
+                    *sized = true;
+                    *size = nodes.len() as u64;
+                }
+                ctx.push_front(
+                    dec.clone(),
+                    ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+                );
+                let lvar = ctx.s.find_lvar(&dec.ident.name).unwrap();
+                let node = make_arr_init(lvar.clone(), &dec, nodes).map_err(|size| {
+                    Error::invalid_initialization(
+                        iter.filepath,
+                        iter.s,
+                        iter.pos,
+                        lvar,
+                        format!("length is: {}", size),
+                    )
+                })?;
+                return Ok(node);
+            }
+            _ => {
+                let node = expr(iter, ctx)?;
+                expect_semi(iter)?;
+                // todo err handling
+                ctx.push_front(
+                    dec.clone(),
+                    ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+                );
+                let lvar = ctx.s.find_lvar(&dec.ident.name).unwrap();
+                let node = make_unary_init(lvar, &dec, node).unwrap();
+                return Ok(node);
+            }
+        }
     }
 
     let node = read_expr_stmt(iter, ctx)?;

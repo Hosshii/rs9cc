@@ -1,6 +1,6 @@
 use super::error::Error;
 use super::{
-    Context, Declaration, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident, Lvar, Node, NodeKind,
+    Declaration, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident, Lvar, Node, NodeKind,
 };
 use crate::base_types;
 use crate::base_types::{BaseType, TypeKind};
@@ -108,58 +108,6 @@ pub(crate) fn consume_base_type(iter: &mut TokenIter) -> Option<base_types::Base
         return Some(btype);
     }
     None
-}
-
-/// declaration ("=" initialize)? ";"
-pub(crate) fn consume_initialize(
-    iter: &mut TokenIter,
-    ctx: &mut Context,
-) -> Result<Option<Node>, Error> {
-    if let Some(mut dec) = consume_declaration(iter) {
-        // todo error handling of re declaration
-        // ブロックの中とかの再定義もエラーになるので今はやめてる
-        // ex
-        // int x; {int x;}  // cause err
-
-        // if let Some(_) = ctx.s.find_lvar(&dec.ident.name) {
-        //     // consume_declaration calls iter.next();
-        //     // so if the variable is not defined, the error position is not correct.
-        //     // ex
-        //     // a = 3;
-        //     //   ^ variable a is not defined
-        //     // to prevent this, subtract from iter.pos.bytes.
-        //     // but now i dont have good solution.
-        //     return Err(Error::re_declare(
-        //         iter.filepath,
-        //         iter.s,
-        //         dec.ident,
-        //         iter.pos,
-        //         None,
-        //     ));
-        // } else {
-        if consume_semi(iter) {
-            ctx.push_front(
-                dec.clone(),
-                ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
-            );
-            return Ok(Some(Node::new_leaf(NodeKind::Declaration(dec))));
-        }
-        expect(iter, Operator::Assign)?;
-        match &dec.base_type.kind {
-            TypeKind::Array(_, _, _) => {
-                let node = super::ast::arr_initialize(iter, ctx, &mut dec)?;
-                expect_semi(iter)?;
-                return Ok(Some(node));
-            }
-            _ => {
-                let node = super::ast::unary_initialize(iter, ctx, &mut dec)?;
-                expect_semi(iter)?;
-                return Ok(Some(node));
-            }
-        }
-        // }
-    }
-    Ok(None)
 }
 
 pub(crate) fn consume_declaration(iter: &mut TokenIter) -> Option<Declaration> {
@@ -360,32 +308,6 @@ pub(crate) fn expect_base_type(iter: &mut TokenIter) -> Result<base_types::BaseT
     Ok(btype)
 }
 
-/// `**x` returns 2
-/// `*&x` returns 0
-/// `&&x` returns -2
-pub(crate) fn count_deref(node: &Node) -> (usize, Result<Rc<Lvar>, NodeKind>) {
-    let mut count = 0;
-    let mut ref_node = node;
-
-    loop {
-        if ref_node.kind == NodeKind::Deref {
-            count += 1;
-            ref_node = ref_node.lhs.as_ref().unwrap();
-        }
-        if ref_node.kind == NodeKind::Addr {
-            count -= 1;
-            ref_node = ref_node.lhs.as_ref().unwrap();
-        } else {
-            break;
-        }
-    }
-
-    if let NodeKind::Lvar(ref lvar) = ref_node.kind {
-        return (count, Ok(lvar.clone()));
-    }
-    (count, Err(ref_node.kind.clone()))
-}
-
 /// if global var is already exist, then return error
 pub(crate) fn check_g_var(
     iter: &mut TokenIter,
@@ -452,4 +374,50 @@ pub(crate) fn make_array_idx_node(idx: u64, lvar: Rc<Lvar>) -> Node {
         Node::new_leaf(NodeKind::Lvar(lvar)),
         Node::new_num(idx),
     )
+}
+
+pub(crate) fn make_arr_init(
+    lvar: Rc<Lvar>,
+    dec: &Declaration,
+    nodes: Vec<Node>,
+) -> Result<Node, usize> {
+    if let TypeKind::Array(size, _, _) = dec.base_type.kind {
+        let mut assign_nodes = Vec::new();
+        let len = nodes.len();
+        let mut idx = 0;
+        for node in nodes {
+            assign_nodes.push(Node::new_expr_stmt(Node::new_assign(
+                Node::new_unary(NodeKind::Deref, make_array_idx_node(idx, lvar.clone())),
+                node,
+            )));
+            idx += 1;
+        }
+        if size < assign_nodes.len() as u64 {
+            return Err(assign_nodes.len());
+        }
+        for _ in 0..(size - len as u64) {
+            assign_nodes.push(Node::new_expr_stmt(Node::new_assign(
+                Node::new_unary(NodeKind::Deref, make_array_idx_node(idx, lvar.clone())),
+                Node::new_num(0),
+            )));
+            idx += 1;
+        }
+        return Ok(Node::new_init(
+            NodeKind::Declaration(dec.clone()),
+            assign_nodes,
+        ));
+    } else {
+        unreachable!()
+    }
+}
+
+pub(crate) fn make_unary_init(lvar: Rc<Lvar>, dec: &Declaration, node: Node) -> Result<Node, ()> {
+    let node = Node::new_unary(
+        NodeKind::ExprStmt,
+        Node::new(NodeKind::Assign, Node::new_leaf(NodeKind::Lvar(lvar)), node),
+    );
+    Ok(Node::new_init(
+        NodeKind::Declaration(dec.clone()),
+        vec![node],
+    ))
 }

@@ -190,6 +190,14 @@ impl Node {
         node
     }
 
+    pub fn new_expr_stmt(node: Node) -> Node {
+        Node::new_unary(ExprStmt, node)
+    }
+
+    pub fn new_assign(lhs: Node, rhs: Node) -> Node {
+        Node::new(Assign, lhs, rhs)
+    }
+
     pub fn new_none(kind: NodeKind) -> Node {
         Node {
             kind,
