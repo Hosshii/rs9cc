@@ -351,6 +351,10 @@ struct() {
     assert 6 'int main(){struct square {int x; int y;} square; square.x = 3; square.y = 2; return square.y *square.x;}'
     assert 6 'int main(){struct  {int x; int y;} square; square.x = 3; square.y = 2; return square.y *square.x;}'
     assert 80 'int main(){struct  subject {int math[10]; int English[10];} subject; return sizeof(subject);}'
+    assert 1 'int main(){struct  subject {int math[10]; int English[10];} subject; subject.math[0]=1; return subject.math[0];}'
+    assert 90 'int main(){struct  subject {int math[10]; int English[10];} subject; for(int i = 0; i < 10; i = i+1){subject.math[i]= i; subject.English[9-i]=i;} int result = 0;for(int i = 0;i<10;i=i+1){result = result + subject.math[i] + subject.English[i];} return result;}'
+    assert 32 'int main(){ struct hoge {struct {int a; int b[10]; }hoge; int a;  } hoge; hoge.hoge.a = 19; hoge.hoge.b[0] = 1; hoge.hoge.b[2]= 2; hoge.hoge.b[9]=10;return hoge.hoge.a + hoge.hoge.b[0]+hoge.hoge.b[2] +hoge.hoge.b[9];}'
+    assert 12 'int main(){struct hoge{int a; int b;}hoge[10]; hoge[1].a = 2; hoge[2].b =  10; return hoge[1].a + hoge[2].b;}'
 }
 
 build() {

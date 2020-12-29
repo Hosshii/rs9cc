@@ -55,6 +55,10 @@ impl Member {
             ident,
         }
     }
+
+    pub fn get_type(&self) -> Rc<TypeKind> {
+        self.type_kind.clone()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -94,12 +98,12 @@ impl TagContext {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Struct {
     ident: Rc<Ident>,
-    members: Rc<Vec<Member>>,
+    members: Rc<Vec<Rc<Member>>>,
     is_anonymous: bool,
 }
 
 impl Struct {
-    pub fn new(ident: Rc<Ident>, members: Rc<Vec<Member>>) -> Self {
+    pub fn new(ident: Rc<Ident>, members: Rc<Vec<Rc<Member>>>) -> Self {
         Self {
             ident,
             members,
@@ -107,7 +111,7 @@ impl Struct {
         }
     }
 
-    pub fn new_anonymous(members: Rc<Vec<Member>>) -> Self {
+    pub fn new_anonymous(members: Rc<Vec<Rc<Member>>>) -> Self {
         Self {
             ident: Rc::new(Ident::new(".struct.anonymous")),
             members,
@@ -115,7 +119,7 @@ impl Struct {
         }
     }
 
-    pub fn find_field(&self, ident: &Ident) -> Option<Member> {
+    pub fn find_field(&self, ident: &Ident) -> Option<Rc<Member>> {
         for member in &*self.members {
             if &member.ident == ident {
                 return Some(member.clone());

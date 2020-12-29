@@ -1,7 +1,7 @@
 use self::NodeKind::*;
 
 use crate::base_types;
-use crate::base_types::{TagContext, TypeKind};
+use crate::base_types::{Member, TagContext, TypeKind};
 use crate::token::Operator;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -37,7 +37,7 @@ pub enum NodeKind {
     TkString(Rc<String>), // text, label, idx of ctx.tk_string
     StmtExpr(Vec<Node>),
     ExprStmt,
-    Member(Ident, u64), // member name, offset
+    Member(Ident, Rc<Member>), // member name, offset
 }
 
 impl NodeKind {
@@ -247,6 +247,7 @@ impl Node {
                     Err("expr stmt")
                 }
             }
+            Member(_, member) => Ok(member.get_type().as_ref().clone()), // todo他のところもrcにしていく
             _ => Err("err"),
         }
     }

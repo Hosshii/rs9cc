@@ -128,32 +128,20 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             println!("    push {}", x);
             return Ok(());
         }
-        NodeKind::Lvar(lvar) => {
-            println!("# NodeKind::Lvar");
+        NodeKind::Lvar(_) | NodeKind::Gvar(_) => {
+            println!("# NodeKind::Lvar, Gvar");
             gen_val(node, ctx)?;
-            if let TypeKind::Array(_, _, _) = lvar.dec.base_type.kind {
+            if let Ok(TypeKind::Array(_, _, _)) = node.get_type() {
                 return Ok(());
             }
             load(node);
             return Ok(());
         }
-        NodeKind::Gvar(gvar) => {
-            println!("# NodeKind::Gvar");
-            gen_val(node, ctx)?;
-            if let TypeKind::Array(_, _, _) = gvar.dec.base_type.kind {
-                return Ok(());
-            }
-            load(node);
-            return Ok(());
-        }
-        NodeKind::Member(_, _) => {
+        NodeKind::Member(_, member) => {
             println!("# NodeKind::Member");
-            let lhs = node.lhs.as_ref().unwrap();
             gen_val(node, ctx)?;
-            if let NodeKind::Lvar(lvar) = &lhs.kind {
-                if let TypeKind::Array(_, _, _) = lvar.dec.base_type.kind {
-                    return Ok(());
-                }
+            if let TypeKind::Array(_, _, _) = &*member.get_type() {
+                return Ok(());
             }
             load(node);
             return Ok(());
@@ -478,12 +466,12 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 Err(Error::not_found())
             }
         }
-        NodeKind::Member(_, offset) => {
+        NodeKind::Member(_, member) => {
             println!("# member");
             if let Some(lhs) = &node.lhs {
                 gen_val(&lhs, ctx)?;
                 println!("    pop rax");
-                println!("    add rax, {}", offset);
+                println!("    add rax, {}", member.offset);
                 println!("    push rax");
                 return Ok(());
             } else {

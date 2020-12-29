@@ -174,13 +174,13 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>,
         expect_semi(iter)?;
     }
     let mut offset = 0;
-    let members: Vec<Member> = members
+    let members: Vec<Rc<Member>> = members
         .into_iter()
         .map(|m| {
             let _offset = offset;
             offset += m.base_type.kind.size();
             let mem = Member::new(Rc::new(m.base_type.kind), _offset, m.ident);
-            mem
+            Rc::new(mem)
         })
         .collect();
     let members = Rc::new(members);
@@ -610,26 +610,25 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         if consume_period(iter) {
             let member_name = expect_ident(iter)?;
             #[allow(unused_assignments)]
-            let mut offset = 0;
-            if let NodeKind::Lvar(x) = &pri.kind {
-                if let TypeKind::Struct(_struct) = &x.dec.base_type.kind {
-                    offset = _struct
-                        .find_field(&member_name)
-                        .ok_or(Error::undefined_member(
-                            iter.filepath,
-                            iter.s,
-                            iter.pos,
-                            member_name.clone(),
-                            None,
-                        ))?
-                        .offset;
-                } else {
-                    todo!()
-                }
-            } else {
-                todo!()
+            match &pri.get_type() {
+                Ok(type_kind) => match type_kind {
+                    TypeKind::Struct(_struct) => {
+                        let member =
+                            _struct
+                                .find_field(&member_name)
+                                .ok_or(Error::undefined_member(
+                                    iter.filepath,
+                                    iter.s,
+                                    iter.pos,
+                                    member_name.clone(),
+                                    None,
+                                ))?;
+                        pri = Node::new_unary(NodeKind::Member(member_name, member), pri);
+                    }
+                    _ => todo!(),
+                },
+                Err(_) => todo!(),
             }
-            pri = Node::new_unary(NodeKind::Member(member_name, offset), pri);
             continue;
         }
         return Ok(pri);
@@ -975,8 +974,8 @@ mod tests {
         use TypeKind::{Char, Int, Ptr};
 
         let members = Rc::new(vec![
-            make_member(Int, "first", 0),
-            make_member(Int, "second", 4),
+            Rc::new(make_member(Int, "first", 0)),
+            Rc::new(make_member(Int, "second", 4)),
         ]);
         let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
         let input = "struct hoge {int first; int second;}";
@@ -985,10 +984,10 @@ mod tests {
         assert_eq!(8, actual.get_size());
 
         let members = Rc::new(vec![
-            make_member(Int, "first", 0),
-            make_member(Int, "second", 4),
-            make_member(Char, "third", 8),
-            make_member(Int, "four", 9),
+            Rc::new(make_member(Int, "first", 0)),
+            Rc::new(make_member(Int, "second", 4)),
+            Rc::new(make_member(Char, "third", 8)),
+            Rc::new(make_member(Int, "four", 9)),
         ]);
         let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
         let input = "struct hoge {int first; int second; char third; int four;}";
@@ -997,9 +996,9 @@ mod tests {
         assert_eq!(16, actual.get_size());
 
         let members = Rc::new(vec![
-            make_member(Int, "first", 0),
-            make_member(Ptr(Rc::new(BaseType::new(Int))), "second", 4),
-            make_member(Int, "four", 12),
+            Rc::new(make_member(Int, "first", 0)),
+            Rc::new(make_member(Ptr(Rc::new(BaseType::new(Int))), "second", 4)),
+            Rc::new(make_member(Int, "four", 12)),
         ]);
         let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
         let input = "struct hoge {int first; int *second; int four;}";
