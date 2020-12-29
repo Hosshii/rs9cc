@@ -2,7 +2,7 @@ use super::error::Error;
 use super::util::*;
 use super::NodeKind;
 use super::{Context, Declaration, FuncPrototype, Function, Ident, LocalContext, Node, Program};
-use crate::base_types::{BaseType, Member, Struct, TypeKind};
+use crate::base_types::{BaseType, Member, Struct, TagContext, TagTypeKind, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::rc::Rc;
 
@@ -16,7 +16,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
         // then peek next token.
         // if next token is ; or [], it is global variable
         // if next token is ( , it is function
-        let mut b_type = expect_base_type(iter)?;
+        let mut b_type = expect_base_type(iter, ctx)?;
         let ident = expect_ident(iter)?;
         if let Some(next) = iter.next() {
             match next.kind {
@@ -24,7 +24,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                 TokenKind::Reserved(Operator::LParen) => {
                     let mut fn_params = Vec::new();
                     if !consume(iter, Operator::RParen) {
-                        fn_params = params(iter)?;
+                        fn_params = params(iter, ctx)?;
                         expect(iter, Operator::RParen)?;
                     }
 
@@ -129,8 +129,8 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
 
 // typekind    = "int" | "char | struct-dec"
 // basetype    = typekind "*"*
-pub fn base_type(iter: &mut TokenIter) -> Result<Node, Error> {
-    let type_kind = expect_type_kind(iter)?;
+pub fn base_type(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let type_kind = expect_type_kind(iter, ctx)?;
     let mut btype = BaseType::new(type_kind);
     loop {
         if consume(iter, Operator::Mul) {
@@ -143,14 +143,34 @@ pub fn base_type(iter: &mut TokenIter) -> Result<Node, Error> {
 }
 
 // struct-dec      = "struct" ident? "{" declaration ";" "}"
-pub fn struct_dec(iter: &mut TokenIter) -> Result<Rc<Struct>, Error> {
+//                 | "struct" ident
+pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>, Error> {
     expect_keyword(iter, KeyWord::Struct)?;
     let ident = consume_ident(iter);
+    if !consume_block(iter, Block::LParen) {
+        match &ident {
+            Some(x) => {
+                if let Some(tag) = ctx.t.find_tag(&x) {
+                    if let TagTypeKind::Struct(_struct) = &**tag {
+                        return Ok(_struct.clone());
+                    }
+                } else {
+                    return Err(Error::undefined_tag(
+                        iter.filepath,
+                        iter.s,
+                        iter.pos,
+                        x.clone(),
+                        None,
+                    ));
+                }
+            }
+            None => todo!(),
+        }
+    }
 
-    expect_block(iter, Block::LParen)?;
     let mut members = Vec::new();
     while !consume_block(iter, Block::RParen) {
-        members.push(declaration(iter)?);
+        members.push(declaration(iter, ctx)?);
         expect_semi(iter)?;
     }
     let mut offset = 0;
@@ -178,8 +198,8 @@ pub fn struct_dec(iter: &mut TokenIter) -> Result<Rc<Struct>, Error> {
 }
 
 //declaration = basetype ident ("[" num? "]")*
-pub(crate) fn declaration(iter: &mut TokenIter) -> Result<Declaration, Error> {
-    let b_type = expect_base_type(iter)?;
+pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration, Error> {
+    let b_type = expect_base_type(iter, ctx)?;
     let ident = expect_ident(iter)?;
     let type_kind = read_arr_type(iter, b_type.kind)?;
     Ok(Declaration::new(BaseType::new(type_kind), ident))
@@ -210,8 +230,9 @@ pub fn function(
 ) -> Result<Function, Error> {
     expect_block(iter, Block::LParen)?;
 
-    let l_ctx = LocalContext::new();
-    ctx.l = l_ctx;
+    ctx.l = LocalContext::new();
+    ctx.s = LocalContext::new();
+    ctx.t = TagContext::new();
     for fn_param in func_prototype.params.clone() {
         let l = ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0);
         ctx.push_front(fn_param, l)
@@ -232,10 +253,10 @@ pub fn function(
 }
 
 // params      = declaration ("," declaration)*
-pub fn params(iter: &mut TokenIter) -> Result<Vec<Declaration>, Error> {
-    let mut params = vec![declaration(iter)?];
+pub fn params(iter: &mut TokenIter, ctx: &mut Context) -> Result<Vec<Declaration>, Error> {
+    let mut params = vec![declaration(iter, ctx)?];
     while consume_comma(iter) {
-        params.push(declaration(iter)?);
+        params.push(declaration(iter, ctx)?);
     }
     Ok(params)
 }
@@ -368,10 +389,12 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     iter.next();
                     let mut stmt_vec = Vec::new();
                     let sc = ctx.s.clone();
+                    let tag_sc = ctx.t.clone();
                     while !consume_block(iter, Block::RParen) {
                         stmt_vec.push(stmt(iter, ctx)?);
                     }
                     ctx.s = sc;
+                    ctx.t = tag_sc;
                     return Ok(Node::new_none(NodeKind::Block(stmt_vec)));
                 }
                 _ => {
@@ -387,7 +410,8 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         }
     }
 
-    if let Some(mut dec) = consume_declaration(iter) {
+    if let Some(mut dec) = consume_declaration(iter, ctx) {
+        ctx.t.register(&dec);
         // todo re declaration err handling
         if consume_semi(iter) {
             ctx.push_front(
@@ -617,6 +641,7 @@ pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error>
     // expect(iter, Operator::LParen)?;
     // expect_block(iter, Block::LParen)?;
     let sc = ctx.s.clone();
+    let tag_sc = ctx.t.clone();
     let mut nodes = vec![stmt(iter, ctx)?];
     while !consume_block(iter, Block::RParen) {
         nodes.push(stmt(iter, ctx)?);
@@ -631,6 +656,7 @@ pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error>
         Node::new_num(0),
     );
     ctx.s = sc;
+    ctx.t = tag_sc;
     Ok(Node::new_leaf(NodeKind::StmtExpr(nodes)))
 }
 
@@ -938,7 +964,7 @@ mod tests {
         for (input, expected) in &tests {
             assert_eq!(
                 *expected,
-                declaration(&mut token::tokenize(input, "")).unwrap()
+                declaration(&mut token::tokenize(input, ""), &mut Context::new()).unwrap()
             );
         }
     }
@@ -954,7 +980,7 @@ mod tests {
         ]);
         let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
         let input = "struct hoge {int first; int second;}";
-        let actual = struct_dec(&mut token::tokenize(input, "")).unwrap();
+        let actual = struct_dec(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
         assert_eq!(expected, actual);
         assert_eq!(8, actual.get_size());
 
@@ -966,7 +992,7 @@ mod tests {
         ]);
         let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
         let input = "struct hoge {int first; int second; char third; int four;}";
-        let actual = struct_dec(&mut token::tokenize(input, "")).unwrap();
+        let actual = struct_dec(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
         assert_eq!(expected, actual);
         assert_eq!(16, actual.get_size());
 
@@ -977,7 +1003,7 @@ mod tests {
         ]);
         let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
         let input = "struct hoge {int first; int *second; int four;}";
-        let actual = struct_dec(&mut token::tokenize(input, "")).unwrap();
+        let actual = struct_dec(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
         assert_eq!(expected, actual);
         assert_eq!(16, actual.get_size());
     }
@@ -1232,7 +1258,7 @@ mod tests {
 
         let input = "int hoge";
         let iter = &mut token::tokenize(input, "");
-        let actual = params(iter).unwrap();
+        let actual = params(iter, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
 
@@ -1243,7 +1269,7 @@ mod tests {
         ];
         let input = "int foo,int bar,int hoge";
         let iter = &mut token::tokenize(input, "");
-        let actual = params(iter).unwrap();
+        let actual = params(iter, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
     }

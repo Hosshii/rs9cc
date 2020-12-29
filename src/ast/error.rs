@@ -14,6 +14,7 @@ pub enum ErrorKind {
     UndefinedVariable(Ident),
     UndefinedFunction(Ident),
     UndefinedMember(Ident),
+    UndefinedTag(Ident),
     ReDeclare(Ident),
     InvalidVariableDereference(Lvar, usize),
     InvalidValueDereference(String),
@@ -109,6 +110,22 @@ impl Error {
         Error {
             filepath: filepath.into(),
             kind: UndefinedMember(ident),
+            pos,
+            input: input.into(),
+            msg,
+        }
+    }
+
+    pub fn undefined_tag(
+        filepath: impl Into<String>,
+        input: impl Into<String>,
+        pos: TokenPos,
+        ident: Ident,
+        msg: Option<String>,
+    ) -> Error {
+        Error {
+            filepath: filepath.into(),
+            kind: UndefinedTag(ident),
             pos,
             input: input.into(),
             msg,
@@ -221,6 +238,7 @@ impl fmt::Display for Error {
             UndefinedVariable(ident) => undefined_variable_err_format(&self, ident, f),
             UndefinedFunction(ident) => undefined_function_err_format(&self, ident, f),
             UndefinedMember(ident) => undefined_member_err_format(&self, ident, f),
+            UndefinedTag(ident) => undefined_tag_err_format(&self, ident, f),
             ReDeclare(ident) => re_declare_err_format(&self, ident, f),
             InvalidVariableDereference(lvar, actual_deref_count) => {
                 invalid_variable_dereference_err_format(&self, lvar, *actual_deref_count, f)
@@ -308,6 +326,14 @@ fn undefined_member_err_format(err: &Error, ident: &Ident, f: &mut fmt::Formatte
     err_format(
         err,
         format!("struct member {} is not defined", ident.name),
+        f,
+    )
+}
+
+fn undefined_tag_err_format(err: &Error, ident: &Ident, f: &mut fmt::Formatter) -> fmt::Result {
+    err_format(
+        err,
+        format!("the tag named {} is not defined", ident.name),
         f,
     )
 }

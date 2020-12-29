@@ -9,7 +9,8 @@ mini C compiler written in Rust. This is my hobby project. I use [compilerbook](
 program         = (function | declaration ("=" initialize)? ";" | func-prototype )*
 typekind        = "int" | "char | struct-dec"
 basetype        = typekind "*"*
-struct-dec      = "struct" "{" declaration ";" "}"
+struct-dec      = "struct" ident? "{" declaration ";" "}"
+                | "struct" ident
 declaration     = basetype ident ("[" num? "]")*
 initialize      = "{" (expr ("," expr)*)? "}" 
                 | expr 

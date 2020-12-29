@@ -1,7 +1,7 @@
 use self::NodeKind::*;
 
 use crate::base_types;
-use crate::base_types::TypeKind;
+use crate::base_types::{TagContext, TypeKind};
 use crate::token::Operator;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -321,6 +321,7 @@ pub struct Context {
     pub g: GlobalContext,
     pub l: LocalContext,
     pub s: LocalContext,
+    pub t: TagContext,
 }
 
 impl Context {
@@ -329,6 +330,7 @@ impl Context {
             g: GlobalContext::new(),
             l: LocalContext::new(),
             s: LocalContext::new(),
+            t: TagContext::new(),
         }
     }
 

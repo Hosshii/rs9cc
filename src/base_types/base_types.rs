@@ -1,5 +1,5 @@
 use self::TypeKind::*;
-use crate::ast::Ident;
+use crate::ast::{Declaration, Ident};
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
@@ -54,6 +54,40 @@ impl Member {
             offset,
             ident,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum TagTypeKind {
+    Struct(Rc<Struct>),
+    Enum,
+}
+
+#[derive(Debug, Clone)]
+pub struct TagContext {
+    pub tag_list: HashMap<Rc<Ident>, Rc<TagTypeKind>>,
+}
+
+impl TagContext {
+    pub fn new() -> Self {
+        Self {
+            tag_list: HashMap::new(),
+        }
+    }
+
+    pub fn register(&mut self, dec: &Declaration) {
+        if let TypeKind::Struct(_struct) = &dec.base_type.kind {
+            if !_struct.is_anonymous {
+                self.tag_list.insert(
+                    _struct.ident.clone(),
+                    Rc::new(TagTypeKind::Struct(_struct.clone())),
+                );
+            }
+        }
+    }
+
+    pub fn find_tag(&self, ident: &Ident) -> Option<&Rc<TagTypeKind>> {
+        self.tag_list.get(ident)
     }
 }
 

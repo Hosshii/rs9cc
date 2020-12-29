@@ -1,6 +1,6 @@
 use super::error::Error;
 use super::{
-    Declaration, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident, Lvar, Node, NodeKind,
+    Context, Declaration, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident, Lvar, Node, NodeKind,
 };
 use crate::base_types;
 use crate::base_types::{BaseType, TypeKind};
@@ -120,8 +120,8 @@ pub(crate) fn consume_base_type(iter: &mut TokenIter) -> Option<base_types::Base
     None
 }
 
-pub(crate) fn consume_declaration(iter: &mut TokenIter) -> Option<Declaration> {
-    crate::ast::ast::declaration(iter).ok()
+pub(crate) fn consume_declaration(iter: &mut TokenIter, ctx: &mut Context) -> Option<Declaration> {
+    crate::ast::ast::declaration(iter, ctx).ok() // todo エラー握りつぶしてるので注意
 }
 
 pub(crate) fn _consume_token_kind(iter: &mut TokenIter, kind: TokenKind) -> Option<TokenKind> {
@@ -304,13 +304,16 @@ pub(crate) fn expect_block(iter: &mut TokenIter, block: Block) -> Result<(), Err
     ))
 }
 
-pub(crate) fn expect_type_kind(iter: &mut TokenIter) -> Result<base_types::TypeKind, Error> {
+pub(crate) fn expect_type_kind(
+    iter: &mut TokenIter,
+    ctx: &mut Context,
+) -> Result<base_types::TypeKind, Error> {
     if let Some(x) = iter.peek() {
         if let TokenKind::TypeKind(bt) = x.kind {
             iter.next();
             return Ok(bt);
         } else if x.kind == TokenKind::KeyWord(KeyWord::Struct) {
-            return Ok(TypeKind::Struct(crate::ast::ast::struct_dec(iter)?));
+            return Ok(TypeKind::Struct(crate::ast::ast::struct_dec(iter, ctx)?));
         } else {
             return Err(Error::unexpected_token(
                 iter.filepath,
@@ -329,8 +332,11 @@ pub(crate) fn expect_type_kind(iter: &mut TokenIter) -> Result<base_types::TypeK
     ))
 }
 
-pub(crate) fn expect_base_type(iter: &mut TokenIter) -> Result<base_types::BaseType, Error> {
-    let kind = expect_type_kind(iter)?;
+pub(crate) fn expect_base_type(
+    iter: &mut TokenIter,
+    ctx: &mut Context,
+) -> Result<base_types::BaseType, Error> {
+    let kind = expect_type_kind(iter, ctx)?;
     let mut btype = BaseType::new(kind);
     loop {
         if consume(iter, Operator::Mul) {
