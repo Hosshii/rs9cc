@@ -164,11 +164,11 @@ int main() {
   assert( 2,({int foo; int *bar; foo=1; bar = &foo;  *bar+1;}), "({int foo; int *bar; foo=1; bar = &foo;  *bar+1;})");
   assert( 3,( {int x; x=3; *&x; }), "( {int x; x=3; *&x; })");
   assert( 3,( {int x; x=3; int *y;y=&x;  int **z;z=&y;  **z; }), "( {int x; x=3; int *y;y=&x;  int **z;z=&y;  **z; })");
-  assert( 5,( { int x; int y; x=3; y=5;  *(&x-2); }), "( { int x; int y; x=3; y=5;  *(&x-8); })"); // コンパイラ 依存
-  assert( 3,( { int x; int y; x=3; y=5;  *(&y+2); }), "( { int x; int y; x=3; y=5;  *(&y+8); })"); // コンパイラ 依存
+  assert( 5,( { int x; int y; x=3; y=5;  *(&x-1); }), "( { int x; int y; x=3; y=5;  *(&x-1); })"); // コンパイラ依存
+  assert( 3,( { int x; int y; x=3; y=5;  *(&y+1); }), "( { int x; int y; x=3; y=5;  *(&y+1); })"); // コンパイラ依存
   assert( 5,( { int x; int *y; x=3; y=&x; *y=5;  x; }), "( { int x; int *y; x=3; y=&x; *y=5;  x; })");
-  assert( 7,( { int x; int y; x=3; y=5; *(&x-2)=7; y; }), "( { int x; int y; x=3; y=5; *(&x-8)=7; y; })"); // コンパイラ 依存
-  assert( 7,( { int x; int y; x=3; y=5; *(&y+2)=7; x; }), "( { int x; int y; x=3; y=5; *(&y+8)=7; x; })"); // コンパイラ 依存
+  assert( 7,( { int x; int y; x=3; y=5; *(&x-1)=7; y; }), "( { int x; int y; x=3; y=5; *(&x-1)=7; y; })"); // コンパイラ依存
+  assert( 7,( { int x; int y; x=3; y=5; *(&y+1)=7; x; }), "( { int x; int y; x=3; y=5; *(&y+1)=7; x; })"); // コンパイラ依存
 
 
   // #17

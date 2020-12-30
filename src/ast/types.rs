@@ -374,7 +374,8 @@ impl LocalContext {
 
     pub fn push_front(&mut self, dec: Declaration, offset: u64) {
         self.lvar_count += 1;
-        let offset = offset + dec.base_type.kind.eight_size();
+        let offset = offset + dec.base_type.kind.size();
+        let offset = base_types::align_to(offset, dec.base_type.kind.align());
         self.lvar = Some(Rc::new(Lvar {
             next: self.lvar.take(),
             dec,
@@ -463,30 +464,16 @@ impl Function {
         }
     }
 
-    /// return all variable size  
-    /// `int: 4`  
-    /// `ptr: 8`  
-    /// `int x[10]: 4*10 = 40`
+    /// パディング込みでのサイズを計算する
+    /// 最後には8バイト境界になるようにパディングが追加される
     pub fn get_all_var_size(&self) -> u64 {
-        let mut result = 0;
-        let mut lvar_ref = &self.all_vars;
-        while let Some(ref lvar) = lvar_ref {
-            result += lvar.dec.base_type.kind.size();
-            lvar_ref = &lvar.next;
+        if let Some(ref lvar) = self.all_vars {
+            let size = lvar.offset + lvar.dec.base_type.kind.size();
+            let size = base_types::align_to(size, 8);
+            return size;
+        } else {
+            0
         }
-        result
-    }
-
-    /// 配列以外は8バイト以下は8バイトにする
-    pub fn _get_all_var_size(&self) -> u64 {
-        let mut result = 0;
-        let mut lvar_ref = &self.all_vars;
-
-        while let Some(ref lvar) = lvar_ref {
-            result += lvar.dec.base_type.kind.eight_size();
-            lvar_ref = &lvar.next;
-        }
-        result
     }
 
     pub fn get_param_size(&self) -> u64 {

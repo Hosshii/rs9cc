@@ -1,6 +1,6 @@
 use super::error::Error;
 use crate::ast::{Node, NodeKind, Program};
-use crate::base_types::TypeKind;
+use crate::base_types::{self, TypeKind};
 
 // jump の連番とかを格納しておく
 pub struct Context {
@@ -13,9 +13,9 @@ impl Context {
     }
 }
 
-const _ARGREG1: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
-const _ARGREG2: [&str; 6] = ["di", "si", "dx", "cx", "r8w", "r9w"];
-const _ARGREG4: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
+const ARGREG1: [&str; 6] = ["dil", "sil", "dl", "cl", "r8b", "r9b"];
+const ARGREG2: [&str; 6] = ["di", "si", "dx", "cx", "r8w", "r9w"];
+const ARGREG4: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
 const ARGREG8: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 
 pub fn code_gen(program: Program) -> Result<(), Error> {
@@ -93,17 +93,26 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
         println!("    mov rbp, rsp");
         // スタックのpush popが8バイト単位なのでとりあえず引数はint とかも8バイトにする
         // println!("    sub rsp, {}", function.get_all_var_size());
-        println!("    sub rsp, {}", function._get_all_var_size());
+        println!("    sub rsp, {}", function.get_all_var_size());
 
         // 引数をローカル変数としてスタックに載せる
         let mut offset = 0;
         for i in 0..function.def.param_num {
-            offset += function.def.params[i].base_type.kind.eight_size();
+            let type_kind = &function.def.params[i].base_type.kind;
+            offset += type_kind.size();
+            offset = base_types::align_to(offset, type_kind.align());
             println!("    mov rax, rbp");
             // スタックのpush popが8バイト単位なのでとりあえずint とかも8バイトにする
             // println!("    sub rax, {}", function.params[i].base_type.kind.size());
             println!("    sub rax, {}", offset);
-            println!("    mov [rax], {}", ARGREG8[i]);
+            let reg = match type_kind.size() {
+                1 => ARGREG1[i],
+                2 => ARGREG2[i],
+                4 => ARGREG4[i],
+                8 => ARGREG8[i],
+                _ => unreachable!(),
+            };
+            println!("    mov [rax], {}", reg);
         }
 
         println!("# end prologue");

@@ -988,7 +988,7 @@ mod tests {
             Rc::new(make_member(Int, "first", 0)),
             Rc::new(make_member(Int, "second", 4)),
             Rc::new(make_member(Char, "third", 8)),
-            Rc::new(make_member(Int, "four", 9)),
+            Rc::new(make_member(Int, "four", 12)),
         ]);
         let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
         let input = "struct hoge {int first; int second; char third; int four;}";
@@ -998,14 +998,14 @@ mod tests {
 
         let members = Rc::new(vec![
             Rc::new(make_member(Int, "first", 0)),
-            Rc::new(make_member(Ptr(Rc::new(BaseType::new(Int))), "second", 4)),
-            Rc::new(make_member(Int, "four", 12)),
+            Rc::new(make_member(Ptr(Rc::new(BaseType::new(Int))), "second", 8)),
+            Rc::new(make_member(Int, "four", 16)),
         ]);
         let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
         let input = "struct hoge {int first; int *second; int four;}";
         let actual = struct_dec(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
         assert_eq!(expected, actual);
-        assert_eq!(16, actual.get_size());
+        assert_eq!(24, actual.get_size());
     }
 
     fn make_member(type_kind: TypeKind, name: impl Into<String>, offset: u64) -> Member {
@@ -1118,7 +1118,7 @@ mod tests {
             Node::new_unary(NodeKind::ExprStmt, Node::new_num(1)),
             Node::new_unary(NodeKind::ExprStmt, Node::new_num(2)),
             Node::new_leaf(NodeKind::Declaration(make_int_dec("hoge"))),
-            Node::new_unary(NodeKind::ExprStmt, make_assign_node("hoge", 4, 8)),
+            Node::new_unary(NodeKind::ExprStmt, make_assign_node("hoge", 4, 4)),
         ];
         let expected = vec![Node::new_none(NodeKind::Block(expected))];
         let mut iter = token::tokenize(input, "");
@@ -1213,11 +1213,11 @@ mod tests {
             Ident::new("main"),
             vec![],
         ));
-        let lvar1 = Lvar::new_leaf(make_int_dec("foo"), 8);
-        let lvar2 = Lvar::new(lvar1.clone(), make_int_dec("bar"), 16);
+        let lvar1 = Lvar::new_leaf(make_int_dec("foo"), 4);
+        let lvar2 = Lvar::new(lvar1.clone(), make_int_dec("bar"), 8);
         let expected_lvar = Rc::new(lvar2.clone());
         let node1 = Node::new_leaf(NodeKind::Declaration(make_int_dec("foo")));
-        let node2 = Node::new_unary(NodeKind::ExprStmt, make_assign_node("foo", 1, 8));
+        let node2 = Node::new_unary(NodeKind::ExprStmt, make_assign_node("foo", 1, 4));
         let node3 = Node::new_leaf(NodeKind::Declaration(make_int_dec("bar")));
         let node4 = Node::new_unary(
             NodeKind::ExprStmt,
@@ -1306,7 +1306,7 @@ mod tests {
             )],
         ));
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(0))];
-        let expected_lvar = Lvar::new_leaf(make_int_dec("foo"), 8);
+        let expected_lvar = Lvar::new_leaf(make_int_dec("foo"), 4);
         let expected = Function::new(
             func_prototype,
             Some(Rc::new(expected_lvar)),
@@ -1343,15 +1343,15 @@ mod tests {
         let expected_lvar = Lvar::new(
             Lvar::new(
                 Lvar::new(
-                    Lvar::new_leaf(make_int_dec("foo"), 8),
+                    Lvar::new_leaf(make_int_dec("foo"), 4),
                     make_int_dec("bar"),
-                    16,
+                    8,
                 ),
                 make_int_dec("hoge"),
-                24,
+                12,
             ),
             make_int_dec("hey"),
-            32,
+            16,
         );
         let expected = Function::new(
             expected_func_prototype,

@@ -186,11 +186,11 @@ unary_deref_addr() {
     assert 2 'int main(){int foo; int *bar; foo=1; bar = &foo; return *bar+1;}'
     assert 3 'int main() {int x; x=3; return *&x; }'
     assert 3 'int main() {int x; x=3; int *y;y=&x;  int **z;z=&y; return **z; }'
-    assert 5 'int main() { int x; int y; x=3; y=5; return *(&x-2); }' # コンパイラ 依存
-    assert 3 'int main() { int x; int y; x=3; y=5; return *(&y+2); }' # コンパイラ 依存
+    assert 5 'int main() { int x; int y; x=3; y=5; return *(&x-1); }' # コンパイラ依存
+    assert 3 'int main() { int x; int y; x=3; y=5; return *(&y+1); }' # コンパイラ依存
     assert 5 'int main() { int x; int *y; x=3; y=&x; *y=5; return x; }'
-    assert 7 'int main() { int x; int y; x=3; y=5; *(&x-2)=7; return y; }' # コンパイラ 依存
-    assert 7 'int main() { int x; int y; x=3; y=5; *(&y+2)=7; return x; }' # コンパイラ 依存
+    assert 7 'int main() { int x; int y; x=3; y=5; *(&x-1)=7; return y; }' # コンパイラ依存
+    assert 7 'int main() { int x; int y; x=3; y=5; *(&y+1)=7; return x; }' # コンパイラ依存
 }
 
 # 17

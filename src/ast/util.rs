@@ -367,7 +367,7 @@ pub(crate) fn check_g_var(
             ))
         }
         None => {
-            let size = b_type.kind.eight_size();
+            let size = b_type.kind.size();
             let dec = Declaration::new(b_type, ident);
             return Ok(Gvar::new(dec, size, init));
         }
