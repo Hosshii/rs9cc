@@ -2,7 +2,7 @@ use super::error::Error;
 use super::util::*;
 use super::NodeKind;
 use super::{Context, Declaration, FuncPrototype, Function, Ident, LocalContext, Node, Program};
-use crate::base_types::{BaseType, Member, Struct, TagContext, TagTypeKind, TypeKind};
+use crate::base_types::{self, BaseType, Member, Struct, TagContext, TagTypeKind, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::rc::Rc;
 
@@ -177,6 +177,7 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>,
     let members: Vec<Rc<Member>> = members
         .into_iter()
         .map(|m| {
+            offset = base_types::align_to(offset, m.base_type.kind.align());
             let _offset = offset;
             offset += m.base_type.kind.size();
             let mem = Member::new(Rc::new(m.base_type.kind), _offset, m.ident);

@@ -4,6 +4,11 @@ use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 
+// https://ja.wikipedia.org/wiki/データ構造アライメント#パディングの計算
+pub fn align_to(offset: u64, align: u64) -> u64 {
+    (offset + (align - 1)) & !(align - 1)
+}
+
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct BaseType {
     pub kind: TypeKind,
@@ -221,6 +226,17 @@ impl TypeKind {
         }
     }
 
+    pub fn align(&self) -> u64 {
+        match self {
+            Char => 1,
+            Int => 4,
+            Ptr(_) => 8,
+            Array(_, base_type, _) => base_type.kind.align(),
+            Struct(_) => 8,
+            _ => unreachable!(),
+        }
+    }
+
     fn is_num_type(&self) -> bool {
         match self {
             Char | Int => true,
@@ -358,5 +374,21 @@ pub mod tests {
 
     fn make_array(size: u64, type_kind: TypeKind, initialized: bool) -> TypeKind {
         TypeKind::Array(size, Rc::new(BaseType::new(type_kind)), initialized)
+    }
+
+    #[test]
+    fn test_align_to() {
+        let tests = [
+            (0, Char, 0),
+            (0, Int, 0),
+            (3, Char, 3),
+            (3, Int, 4),
+            (4, Int, 4),
+            (4, Char, 4),
+            (4, Ptr(Rc::new(BaseType::new(TypeKind::Int))), 8),
+        ];
+        for (offset, type_kind, expected) in &tests {
+            assert_eq!(align_to(*offset, type_kind.align()), *expected);
+        }
     }
 }

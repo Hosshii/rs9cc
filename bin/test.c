@@ -311,6 +311,8 @@ int main() {
   assert( 90,({struct  subject {int math[10]; int English[10];} subject; for(int i = 0; i < 10; i = i+1){subject.math[i]= i; subject.English[9-i]=i;} int result = 0;for(int i = 0;i<10;i=i+1){result = result + subject.math[i] + subject.English[i];} result;}), "({struct  subject {int math[10]; int English[10];} subject; for(int i = 0; i < 10; i = i+1){subject.math[i]= i; subject.English[10-i]=i;} int result = 0;for(int i = 0;i<10;i=i+1){result = result + subject.math[i] + subject.English[i];} result;})");
   assert( 32,({ struct hoge {struct {int a; int b[10]; }hoge; int a;  } hoge; hoge.hoge.a = 19; hoge.hoge.b[0] = 1; hoge.hoge.b[2]= 2; hoge.hoge.b[9]=10;hoge.hoge.a + hoge.hoge.b[0]+hoge.hoge.b[2] +hoge.hoge.b[9];}), "({ struct hoge {struct {int a; int b[10]; }hoge; int a;  } hoge; hoge.hoge.a = 19; hoge.hoge.b[0] = 1; hoge.hoge.b[2]= 2; hoge.hoge.b[9]=10;hoge.hoge.a + hoge.hoge.b[0]+hoge.hoge.b[2] +hoge.hoge.b[9];})");
   assert( 12, ({struct hoge{int a; int b;}hoge[10]; hoge[1].a = 2; hoge[2].b =  10;  hoge[1].a + hoge[2].b;}),"({struct hoge{int a; int b;}hoge[10]; hoge[1].a = 2; hoge[2].b =  10;  hoge[1].a + hoge[2].b;})");
+  assert( 8,({struct {char a; int b;}hoge; sizeof(hoge);}), "({struct {char a; int b;}hoge; sizeof(hoge);})");
+  assert( 16,({struct {char a; int b; char c; }hoge; sizeof(hoge);}), "({struct {char a; int b; char c; }hoge; sizeof(hoge);})");
 
 
   return 0;
