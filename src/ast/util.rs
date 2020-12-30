@@ -73,7 +73,7 @@ pub(crate) fn consume_comma(iter: &mut TokenIter) -> bool {
     false
 }
 
-pub(crate) fn consume_period(iter: &mut TokenIter) -> bool {
+pub(crate) fn _consume_period(iter: &mut TokenIter) -> bool {
     if let Some(x) = iter.peek() {
         if x.kind == TokenKind::Period {
             iter.next();

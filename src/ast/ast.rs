@@ -188,7 +188,11 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>,
 
     let mut _struct = if let Some(ident) = ident {
         let ident = Rc::new(ident);
-        Rc::new(Struct::new(ident.clone(), members))
+        let _struct = Rc::new(Struct::new(ident.clone(), members));
+        ctx.t
+            .tag_list
+            .insert(ident, Rc::new(TagTypeKind::Struct(_struct.clone())));
+        _struct
     } else {
         Rc::new(Struct::new(
             Rc::new(Ident::new(".struct.anonymous")),
@@ -412,7 +416,6 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     }
 
     if let Some(mut dec) = consume_declaration(iter, ctx) {
-        ctx.t.register(&dec);
         // todo re declaration err handling
         if consume_semi(iter) {
             ctx.push_front(
@@ -597,7 +600,7 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     return postfix(iter, ctx);
 }
 
-// postfix     = primary ("[" expr "]" | "." ident)*
+// postfix     = primary ("[" expr "]" | "." ident | "->" ident)*
 pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let mut pri = primary(iter, ctx)?;
     loop {
@@ -608,30 +611,44 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             continue;
         }
 
-        if consume_period(iter) {
-            let member_name = expect_ident(iter)?;
-            #[allow(unused_assignments)]
-            match &pri.get_type() {
-                Ok(type_kind) => match type_kind {
-                    TypeKind::Struct(_struct) => {
-                        let member =
-                            _struct
-                                .find_field(&member_name)
-                                .ok_or(Error::undefined_member(
-                                    iter.filepath,
-                                    iter.s,
-                                    iter.pos,
-                                    member_name.clone(),
-                                    None,
-                                ))?;
-                        pri = Node::new_unary(NodeKind::Member(member_name, member), pri);
-                    }
-                    _ => todo!(),
-                },
-                Err(_) => todo!(),
+        if let Some(x) = iter.peek() {
+            match x.kind {
+                TokenKind::Period => {
+                    iter.next();
+                }
+                TokenKind::Reserved(Operator::Arrow) => {
+                    iter.next();
+                    pri = Node::new_unary(NodeKind::Deref, pri);
+                }
+                _ => (),
             }
-            continue;
+            match x.kind {
+                TokenKind::Period | TokenKind::Reserved(Operator::Arrow) => {
+                    let member_name = expect_ident(iter)?;
+                    match &pri.get_type() {
+                        Ok(type_kind) => match type_kind {
+                            TypeKind::Struct(_struct) => {
+                                let member = _struct.find_field(&member_name).ok_or(
+                                    Error::undefined_member(
+                                        iter.filepath,
+                                        iter.s,
+                                        iter.pos,
+                                        member_name.clone(),
+                                        None,
+                                    ),
+                                )?;
+                                pri = Node::new_unary(NodeKind::Member(member_name, member), pri);
+                                continue;
+                            }
+                            _ => todo!(),
+                        },
+                        Err(_) => todo!(),
+                    }
+                }
+                _ => (),
+            }
         }
+
         return Ok(pri);
     }
 }

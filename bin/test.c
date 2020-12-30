@@ -313,6 +313,8 @@ int main() {
   assert( 12, ({struct hoge{int a; int b;}hoge[10]; hoge[1].a = 2; hoge[2].b =  10;  hoge[1].a + hoge[2].b;}),"({struct hoge{int a; int b;}hoge[10]; hoge[1].a = 2; hoge[2].b =  10;  hoge[1].a + hoge[2].b;})");
   assert( 8,({struct {char a; int b;}hoge; sizeof(hoge);}), "({struct {char a; int b;}hoge; sizeof(hoge);})");
   assert( 16,({struct {char a; int b; char c; }hoge; sizeof(hoge);}), "({struct {char a; int b; char c; }hoge; sizeof(hoge);})");
+  assert( 30, ({struct hoge {int x; int y;} *obj; struct hoge a; obj = &a;(*obj).x = 10;(*obj).y = 20; a.x+a.y;}),"({struct hoge {int x; int y;} *obj; struct hoge a; obj = &a;(*obj).x = 10;(*obj).y = 20; a.x+a.y;})");
+  assert( 30, ({struct hoge {int x; int y;} *obj; struct hoge a; obj = &a;obj->x = 10;obj->y = 20; a.x+a.y;}),"({struct hoge {int x; int y;} *obj; struct hoge a; obj = &a;obj->x = 10;obj->y = 20; a.x+a.y;})");
 
 
   return 0;

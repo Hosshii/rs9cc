@@ -357,6 +357,8 @@ struct() {
     assert 12 'int main(){struct hoge{int a; int b;}hoge[10]; hoge[1].a = 2; hoge[2].b =  10; return hoge[1].a + hoge[2].b;}'
     assert 8 'int main(){struct {char a; int b;}hoge; return sizeof(hoge);}'
     assert 16 'int main(){struct {char a; int b; char c; }hoge; return sizeof(hoge);}'
+    assert 30 'int main(){struct hoge {int x; int y;} *obj; struct hoge a; obj = &a;(*obj).x = 10;(*obj).y = 20; return a.x+a.y;}'
+    assert 30 'int main(){struct hoge {int x; int y;} *obj; struct hoge a; obj = &a;obj->x = 10;obj->y = 20; return a.x+a.y;}'
 }
 
 build() {
