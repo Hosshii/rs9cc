@@ -28,6 +28,8 @@ int fib(int n){
 // }
 int echo(int x){return x;}
 char echo2(char x){return x;}
+short sub_short(short a, short b){return a-b;}
+long sub_long(long a, long b){return a-b;}
 
 int g_1;
 int g_2;
@@ -323,6 +325,17 @@ int main() {
   assert( 1,({typedef struct hoge {int a;} HOGE; HOGE x; x.a = 1; x.a;}), "({typedef struct hoge {int a;} HOGE; HOGE x; x.a = 1; x.a;})");
   // assert( 1,({typedef int t; t t = 1; t;}), "({typedef int t; t t = 1; t;})"); // this cause err
   assert( 2,({typedef struct {int a;} t; { typedef int t; } t x; x.a=2; x.a; }), "({typedef struct {int a;} t; { typedef int t; } t x; x.a=2; x.a; })");
+
+  // #32
+  printf("\n\n#32\n");
+  assert( 2, ({short a = 2;  a;}), "({short a = 2;  a;})");
+  assert( 10, ({long a = 10; a;}), "({long a = 10; a;})");
+  assert( 2, ({short a; sizeof(a);}), "({short a; sizeof(a);})");
+  assert( 8, ({long a; sizeof(a);}), "({long a; sizeof(a);})");
+  assert( 20, ({short a[10]; sizeof a;}), "({short a[10]; sizeof a;})");
+  assert( 80, ({long a[10]; sizeof a;}), "({long a[10]; sizeof a;})");
+  assert( 1, ({sub_short(4,3);}), "({sub_short(4,3);})");
+  assert( 1, ({sub_long(4,3);}), "({sub_long(4,3);})");
 
   return 0;
 }

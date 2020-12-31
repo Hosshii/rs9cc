@@ -766,7 +766,7 @@ mod tests {
         }
         assert_eq!(None, iter.next());
 
-        let input = "{ { } ,hoge, int int1 char char1";
+        let input = "{ { } ,hoge, int int1 char char1 short long";
         let expected = vec![
             TokenKind::Block(Block::LParen),
             TokenKind::Block(Block::LParen),
@@ -778,6 +778,8 @@ mod tests {
             TokenKind::Ident(Ident::new("int1")),
             TokenKind::TypeKind(TypeKind::Char),
             TokenKind::Ident(Ident::new("char1")),
+            TokenKind::TypeKind(TypeKind::Short),
+            TokenKind::TypeKind(TypeKind::Long),
         ];
         let mut iter = tokenize(input, "");
         for i in expected {

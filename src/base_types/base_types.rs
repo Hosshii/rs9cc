@@ -148,7 +148,9 @@ impl Struct {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub enum TypeKind {
     Char,
+    Short,
     Int,
+    Long,
     Ptr(Rc<BaseType>),
     Array(u64, Rc<BaseType>, bool), // bool is whether initialized or not
     Struct(Rc<Struct>),
@@ -168,8 +170,7 @@ pub enum TypeKind {
 impl fmt::Display for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Char => write!(f, "{}", self.as_str()),
-            Int => write!(f, "{}", self.as_str()),
+            Char | Short | Int | Long => write!(f, "{}", self.as_str()),
             Ptr(x) => {
                 let (count, b_type) = x.count_deref();
                 let ptr = format!("{:*<width$}", "*", width = count + 1);
@@ -198,7 +199,9 @@ impl TypeKind {
     pub fn as_str(&self) -> &'static str {
         match self {
             Char => "char",
+            Short => "short",
             Int => "int",
+            Long => "long",
             Ptr(_) => "Ptr",
             Array(_, _, _) => "Array",
             Struct(_) => "struct",
@@ -210,7 +213,9 @@ impl TypeKind {
     pub fn from_starts(s: &str) -> Result<TypeKind, ()> {
         match s {
             x if x.starts_with(Char.as_str()) => Ok(Char),
+            x if x.starts_with(Short.as_str()) => Ok(Short),
             x if x.starts_with(Int.as_str()) => Ok(Int),
+            x if x.starts_with(Long.as_str()) => Ok(Long),
             _ => Err(()),
         }
     }
@@ -218,7 +223,9 @@ impl TypeKind {
     pub fn size(&self) -> u64 {
         match self {
             Char => 1,
+            Short => 2,
             Int => 4,
+            Long => 8,
             Ptr(_) => 8,
             Array(size, base_type, _) => size * base_type.kind.size(),
             Struct(s) => s.get_size(),
@@ -230,7 +237,9 @@ impl TypeKind {
     pub fn align(&self) -> u64 {
         match self {
             Char => 1,
+            Short => 2,
             Int => 4,
+            Long => 8,
             Ptr(_) => 8,
             Array(_, base_type, _) => base_type.kind.align(),
             Struct(_) => 8,
@@ -240,15 +249,14 @@ impl TypeKind {
 
     fn is_num_type(&self) -> bool {
         match self {
-            Char | Int => true,
+            Char | Short | Int | Long => true,
             _ => false,
         }
     }
 
     pub fn get_deref_type(&self) -> Self {
         match self {
-            Char => TypeKind::_Deref(Rc::new(BaseType::new(self.clone()))),
-            Int => TypeKind::_Deref(Rc::new(BaseType::new(self.clone()))),
+            Char | Short | Int | Long => TypeKind::_Deref(Rc::new(BaseType::new(self.clone()))),
             Ptr(b_type) => b_type.kind.clone(),
             Array(_, b_type, _) => b_type.kind.clone(),
             Struct(_) => TypeKind::_Deref(Rc::new(BaseType::new(self.clone()))),
@@ -270,8 +278,7 @@ impl TypeKind {
     /// `int x[10]: 4 * 10 = 40`
     pub fn eight_size(&self) -> u64 {
         match self {
-            Char => 8,
-            Int => 8,
+            Char | Short | Int | Long => 8,
             Ptr(_) => 8,
             Array(_size, base_type, _) => {
                 let mut size = _size * base_type.kind.size();
@@ -343,10 +350,14 @@ pub mod tests {
     fn test_size() {
         let tests = [
             (Char, 1),
+            (Short, 2),
             (Int, 4),
+            (Long, 8),
             (Ptr(Rc::new(BaseType::new(Int))), 8),
             (make_array(5, Char, false), 5),
+            (make_array(5, Short, false), 10),
             (make_array(5, Int, false), 20),
+            (make_array(5, Long, false), 40),
             (make_array(4, make_array(4, Int, false), false), 64),
             (make_array(5, make_array(5, Int, false), false), 100),
         ];
@@ -381,10 +392,14 @@ pub mod tests {
     fn test_align_to() {
         let tests = [
             (0, Char, 0),
+            (0, Short, 0),
             (0, Int, 0),
+            (0, Long, 0),
             (3, Char, 3),
+            (3, Short, 4),
             (3, Int, 4),
             (4, Int, 4),
+            (3, Long, 8),
             (4, Char, 4),
             (4, Ptr(Rc::new(BaseType::new(TypeKind::Int))), 8),
         ];

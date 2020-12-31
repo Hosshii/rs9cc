@@ -525,6 +525,7 @@ fn gen_load_asm(size: u64, signed: bool) -> Option<&'static str> {
                 Some("movzx rax, byte ptr [rax]")
             }
         }
+        2 => Some("movsx rax, word ptr [rax]"),
         4 => Some("movsxd rax, dword ptr [rax]"),
         8 => Some("mov rax, [rax]"),
         _ => None,
@@ -551,6 +552,7 @@ fn store(node: &Node) {
 fn gen_store_asm(size: u64) -> Option<&'static str> {
     match size {
         1 => Some("mov [rax], dil"),
+        2 => Some("mov [rax], di"),
         4 => Some("mov [rax], edi"),
         8 => Some("mov [rax], rdi"),
         _ => None,

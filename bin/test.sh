@@ -370,6 +370,22 @@ typedef() {
     assert 2 'int main(){typedef struct {int a;} t; { typedef int t; } t x; x.a=2; return x.a; }'
 }
 
+# 32
+short_long() {
+    assert 2 'int main(){short a = 2; return a;}'
+    assert 10 'int main(){long a = 10; return a;}'
+    assert 2 'int main(){short a; return sizeof(a);}'
+    assert 8 'int main(){long a; return sizeof(a);}'
+    assert 20 'int main(){short a[10]; return sizeof a;}'
+    assert 80 'int main(){long a[10]; return sizeof a;}'
+    assert 1 'short sub_short(short a,  short c) {return a-c;} int main(){return sub_short(4,3);}'
+    assert 1 'long sub_long(long a,  long c) {return a-c;} int main(){return sub_long(4,3);}'
+    assert 1 'short rt_short(short a){return a;} int rt_int(int a){return a;}int main(){return rt_int(({rt_short(1);}));}'
+    assert 1 'short sub_short(short a,  short c) {return a-c;} int main(){return sub_short(4,3);}'
+    assert 20 'int test(int a, int b, int c){return c;} short ttt(){return 1;} int main(){return test(10,ttt(),20);}'
+    assert 1 'short test(short a){return a;} int main(){return test(1)==1;}'
+}
+
 build() {
     cargo build
 }
@@ -422,6 +438,7 @@ if [ $# -eq 0 ]; then
     multi_dimension_arr
     struct
     typedef
+    short_long
 fi
 
 while [ $# -ne 0 ]; do
@@ -457,6 +474,7 @@ while [ $# -ne 0 ]; do
     "29") multi_dimension_arr ;;
     "30") struct ;;
     "31") typedef ;;
+    "32") short_long ;;
     esac
     shift
 done
