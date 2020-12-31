@@ -3,7 +3,7 @@ use super::{
     Context, Declaration, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident, Lvar, Node, NodeKind,
 };
 use crate::base_types;
-use crate::base_types::{BaseType, TypeKind};
+use crate::base_types::{BaseType, TagTypeKind, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::rc::Rc;
 
@@ -19,7 +19,7 @@ pub(crate) fn consume(iter: &mut TokenIter, op: Operator) -> bool {
     return false;
 }
 
-pub(crate) fn _consume_keyword(iter: &mut TokenIter, key: KeyWord) -> bool {
+pub(crate) fn consume_keyword(iter: &mut TokenIter, key: KeyWord) -> bool {
     if let Some(x) = iter.peek() {
         if let TokenKind::KeyWord(x) = x.kind {
             if x == key {
@@ -314,6 +314,24 @@ pub(crate) fn expect_type_kind(
             return Ok(bt);
         } else if x.kind == TokenKind::KeyWord(KeyWord::Struct) {
             return Ok(TypeKind::Struct(crate::ast::ast::struct_dec(iter, ctx)?));
+        } else if let TokenKind::Ident(ident) = x.kind {
+            let ident = Ident::from(ident);
+            if let Some(type_def) = ctx.t.find_tag(&ident) {
+                if let TagTypeKind::Typedef(dec) = type_def.as_ref() {
+                    iter.next();
+                    return Ok(dec.base_type.kind.clone());
+                } else {
+                    // todo error handling
+                }
+            } else {
+                return Err(Error::undefined_tag(
+                    iter.filepath,
+                    iter.s,
+                    iter.pos,
+                    ident,
+                    None,
+                ));
+            }
         } else {
             return Err(Error::unexpected_token(
                 iter.filepath,

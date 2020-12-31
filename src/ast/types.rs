@@ -38,6 +38,7 @@ pub enum NodeKind {
     StmtExpr(Vec<Node>),
     ExprStmt,
     Member(Ident, Rc<Member>), // member name, offset
+    Null,
 }
 
 impl NodeKind {
@@ -75,6 +76,7 @@ impl NodeKind {
             StmtExpr(_) => "stmt expr".to_string(),
             ExprStmt => "expression statement".to_string(),
             Member(_, _) => "member".to_string(),
+            Null => "null".to_string(),
         }
     }
     /// convert NodeKind to token::Operator
@@ -113,14 +115,32 @@ impl NodeKind {
     }
 }
 
+const IDENT_ANONYMOUS: &str = ".ident.anonymous";
+
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
 pub struct Ident {
     pub name: String,
 }
 
+impl From<crate::token::Ident> for Ident {
+    fn from(ident: crate::token::Ident) -> Self {
+        Ident::new(ident.name)
+    }
+}
+
 impl Ident {
     pub fn new(name: impl Into<String>) -> Self {
         Self { name: name.into() }
+    }
+
+    pub fn new_anonymous() -> Self {
+        Self {
+            name: IDENT_ANONYMOUS.to_string(),
+        }
+    }
+
+    pub fn is_anonymous(&self) -> bool {
+        self.name == IDENT_ANONYMOUS
     }
 }
 

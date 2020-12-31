@@ -316,6 +316,13 @@ int main() {
   assert( 30, ({struct hoge {int x; int y;} *obj; struct hoge a; obj = &a;(*obj).x = 10;(*obj).y = 20; a.x+a.y;}),"({struct hoge {int x; int y;} *obj; struct hoge a; obj = &a;(*obj).x = 10;(*obj).y = 20; a.x+a.y;})");
   assert( 30, ({struct hoge {int x; int y;} *obj; struct hoge a; obj = &a;obj->x = 10;obj->y = 20; a.x+a.y;}),"({struct hoge {int x; int y;} *obj; struct hoge a; obj = &a;obj->x = 10;obj->y = 20; a.x+a.y;})");
 
+  // #31
+  printf("\n\n#31\n");
+  assert( 1,({typedef int INT; INT x = 1; x;}), "({typedef int INT; INT x = 1; x;})");
+  assert( 1,({ struct hoge {int a;}; typedef struct hoge HOGE; HOGE x; x.a = 1; x.a;}), "({ struct hoge {int a;}; typedef struct hoge HOGE; HOGE x; x.a = 1; x.a;})");
+  assert( 1,({typedef struct hoge {int a;} HOGE; HOGE x; x.a = 1; x.a;}), "({typedef struct hoge {int a;} HOGE; HOGE x; x.a = 1; x.a;})");
+  // assert( 1,({typedef int t; t t = 1; t;}), "({typedef int t; t t = 1; t;})"); // this cause err
+  assert( 2,({typedef struct {int a;} t; { typedef int t; } t x; x.a=2; x.a; }), "({typedef struct {int a;} t; { typedef int t; } t x; x.a=2; x.a; })");
 
   return 0;
 }

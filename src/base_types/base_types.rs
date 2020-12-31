@@ -70,6 +70,7 @@ impl Member {
 pub enum TagTypeKind {
     Struct(Rc<Struct>),
     Enum,
+    Typedef(Rc<Declaration>),
 }
 
 #[derive(Debug, Clone)]

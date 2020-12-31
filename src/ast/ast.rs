@@ -127,7 +127,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
     Ok(program)
 }
 
-// typekind    = "int" | "char | struct-dec"
+// typekind    = "int" | "char | struct-dec | typedef-name"
 // basetype    = typekind "*"*
 pub fn base_type(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let type_kind = expect_type_kind(iter, ctx)?;
@@ -203,11 +203,15 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>,
 }
 
 //declaration = basetype ident ("[" num? "]")*
+//            | basetype
 pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration, Error> {
     let b_type = expect_base_type(iter, ctx)?;
-    let ident = expect_ident(iter)?;
-    let type_kind = read_arr_type(iter, b_type.kind)?;
-    Ok(Declaration::new(BaseType::new(type_kind), ident))
+    if let Some(ident) = consume_ident(iter) {
+        let type_kind = read_arr_type(iter, b_type.kind)?;
+        Ok(Declaration::new(BaseType::new(type_kind), ident))
+    } else {
+        Ok(Declaration::new(b_type, Ident::new_anonymous()))
+    }
 }
 
 fn read_arr_type(iter: &mut TokenIter, base: TypeKind) -> Result<TypeKind, Error> {
@@ -337,6 +341,7 @@ pub fn unary_initialize(
 //             | "for" "(" expr? ";" expr? ";" expr? ")" stmt
 //             | "{" stmt* "}"
 //             | declaration ("=" initialize)? ";"
+//             | "typedef" declaration ";"
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(x) = iter.peek() {
         match x.kind {
@@ -418,6 +423,9 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(mut dec) = consume_declaration(iter, ctx) {
         // todo re declaration err handling
         if consume_semi(iter) {
+            if dec.ident.is_anonymous() {
+                return Ok(Node::new_leaf(NodeKind::Null));
+            }
             ctx.push_front(
                 dec.clone(),
                 ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
@@ -463,6 +471,17 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 return Ok(node);
             }
         }
+    }
+
+    if consume_keyword(iter, KeyWord::Typedef) {
+        let dec = declaration(iter, ctx)?;
+        expect_semi(iter)?;
+        // println!("{:?}", dec);
+        ctx.t.tag_list.insert(
+            Rc::new(dec.ident.clone()),
+            Rc::new(TagTypeKind::Typedef(Rc::new(dec))),
+        );
+        return Ok(Node::new_leaf(NodeKind::Null));
     }
 
     let node = read_expr_stmt(iter, ctx)?;

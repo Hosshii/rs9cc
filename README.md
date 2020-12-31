@@ -7,11 +7,12 @@ mini C compiler written in Rust. This is my hobby project. I use [compilerbook](
 ## EBNF
 ```
 program         = (function | declaration ("=" initialize)? ";" | func-prototype )*
-typekind        = "int" | "char | struct-dec"
+typekind        = "int" | "char | struct-dec | typedef-name"
 basetype        = typekind "*"*
 struct-dec      = "struct" ident? "{" declaration ";" "}"
                 | "struct" ident
 declaration     = basetype ident ("[" num? "]")*
+                | basetype 
 initialize      = "{" (expr ("," expr)*)? "}" 
                 | expr 
 func-prototype  = declaration "(" params? ")" 
@@ -24,6 +25,7 @@ stmt            = expr ";"
                 | "for" "(" (expr | declaration "=" initialize)? ";" expr? ";" expr? ")" stmt
                 | "{" stmt* "}"
                 | declaration ("=" initialize)? ";"
+                | "typedef" declaration ";"
 expr            = assign
 assign          = equality ("=" assign)?
 equality        = relational ("==" relational | "!=" relational)*

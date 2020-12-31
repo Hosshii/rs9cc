@@ -383,6 +383,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             }
             return Ok(());
         }
+        NodeKind::Null => return Ok(()),
         _ => (),
     }
 

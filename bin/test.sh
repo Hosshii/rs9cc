@@ -361,6 +361,15 @@ struct() {
     assert 30 'int main(){struct hoge {int x; int y;} *obj; struct hoge a; obj = &a;obj->x = 10;obj->y = 20; return a.x+a.y;}'
 }
 
+# 31
+typedef() {
+    assert 1 'int main(){typedef int INT; INT x = 1; return x;}'
+    assert 1 'int main(){ struct hoge {int a;}; typedef struct hoge HOGE; HOGE x; x.a = 1; return x.a;}'
+    assert 1 'int main(){typedef struct hoge {int a;} HOGE; HOGE x; x.a = 1; return x.a;}'
+    assert 1 'int main(){typedef int t; t t = 1; return t;}'
+    assert 2 'int main(){typedef struct {int a;} t; { typedef int t; } t x; x.a=2; return x.a; }'
+}
+
 build() {
     cargo build
 }
@@ -412,6 +421,7 @@ if [ $# -eq 0 ]; then
     var_scope
     multi_dimension_arr
     struct
+    typedef
 fi
 
 while [ $# -ne 0 ]; do
@@ -446,6 +456,7 @@ while [ $# -ne 0 ]; do
     "28") var_scope ;;
     "29") multi_dimension_arr ;;
     "30") struct ;;
+    "31") typedef ;;
     esac
     shift
 done

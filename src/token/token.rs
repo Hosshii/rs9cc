@@ -140,6 +140,12 @@ pub struct Ident {
     pub name: String,
 }
 
+impl From<crate::ast::Ident> for Ident {
+    fn from(ident: crate::ast::Ident) -> Self {
+        Ident::new(ident.name)
+    }
+}
+
 impl Ident {
     pub fn new(name: impl Into<String>) -> Self {
         Self { name: name.into() }
@@ -154,6 +160,7 @@ pub enum KeyWord {
     While,
     For,
     Struct,
+    Typedef,
 }
 
 impl KeyWord {
@@ -166,6 +173,7 @@ impl KeyWord {
             While => "while",
             For => "for",
             Struct => "struct",
+            Typedef => "typedef",
         }
     }
 
@@ -178,6 +186,7 @@ impl KeyWord {
             x if x.starts_with(While.as_str()) => Ok(While),
             x if x.starts_with(For.as_str()) => Ok(For),
             x if x.starts_with(Struct.as_str()) => Ok(Struct),
+            x if x.starts_with(Typedef.as_str()) => Ok(Typedef),
             _ => Err(()),
         }
     }
@@ -194,6 +203,7 @@ impl FromStr for KeyWord {
             x if x == While.as_str() => Ok(While),
             x if x == For.as_str() => Ok(For),
             x if x == Struct.as_str() => Ok(Struct),
+            x if x == Typedef.as_str() => Ok(Typedef),
             _ => Err(()),
         }
     }
@@ -371,7 +381,7 @@ impl<'a> TokenIter<'a> {
     fn is_keyword(&self, s: &str) -> Option<(Token, TokenPos)> {
         if let Ok(keyword) = KeyWord::from_starts(s) {
             let len = keyword.as_str().len();
-            if !is_alnum(s.chars().nth(len).unwrap_or_else(|| '1')) {
+            if !is_alnum(s.chars().nth(len).unwrap_or_else(|| ' ')) {
                 let kind = TokenKind::KeyWord(keyword);
                 return Some((Token::new(kind, self.pos), TokenPos::new_bytes(len)));
             }
@@ -484,8 +494,8 @@ impl<'a> TokenIter<'a> {
     fn is_base_type(&self, s: &str) -> Option<(Token, TokenPos)> {
         if let Ok(base_type) = TypeKind::from_starts(s) {
             let len = base_type.as_str().len();
-            // specify '1' in unwrap_of_else because !is_alnum('1') is true at anytime
-            if !is_alnum(s.chars().nth(len).unwrap_or_else(|| '1')) {
+            // specify ' ' in unwrap_of_else because !is_alnum(' ') is true at anytime
+            if !is_alnum(s.chars().nth(len).unwrap_or_else(|| ' ')) {
                 return Some((
                     Token::new(TokenKind::TypeKind(base_type), self.pos),
                     TokenPos::new_bytes(len),
@@ -706,7 +716,7 @@ mod tests {
         assert_eq!(None, iter.next());
 
         let input = "
-            return; returnx return1 return 1 for while if else force whilet ifelse elseif \"aaaaa\"a \'a\'a struct .";
+            return; returnx return1 return 1 for while if else force whilet ifelse elseif \"aaaaa\"a \'a\'a struct . typedef";
 
         let expected = vec![
             KeyWord(Return),
@@ -729,6 +739,7 @@ mod tests {
             TokenKind::Ident(Ident::new('a')),
             KeyWord(Struct),
             TokenKind::Period,
+            KeyWord(Typedef),
         ];
         let mut iter = tokenize(input, "");
         for i in expected {
