@@ -18,7 +18,8 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
         // if next token is ; or [], it is global variable
         // if next token is ( , it is function
 
-        let type_kind = Rc::new(RefCell::new(type_specifier(iter, ctx)?));
+        let (type_kind, _) = type_specifier(iter, ctx)?;
+        let type_kind = Rc::new(RefCell::new(type_kind));
         let mut ident = Ident::new_anonymous();
         let dec = declarator(iter, ctx, type_kind, &mut ident)?;
 
@@ -122,39 +123,77 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
     Ok(program)
 }
 // type-specifier  = builtin-type | struct-dec | typedef-name"
-// builtin-type    = "char" | "short" | "int" | "long"
-pub fn type_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<TypeKind, Error> {
-    if let Some(x) = iter.peek() {
-        if let TokenKind::TypeKind(bt) = x.kind {
+// builtin-type    = "void"
+//                 | "_Bool"
+//                 | "char"
+//                 | "short" | "short" "int" | "int" "short"
+//                 | "int"
+//                 | "long" | "int" "long" | "long" "int"
+pub fn type_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<(TypeKind, bool), Error> {
+    let mut ty_vec = Vec::new();
+    let mut is_typedef = false;
+    let mut ty = None;
+    while let Some(x) = iter.peek() {
+        if let TokenKind::TypeKind(ref type_kind) = x.kind {
             iter.next();
-            return Ok(bt);
+            ty_vec.push(type_kind.clone());
         } else if x.kind == TokenKind::KeyWord(KeyWord::Struct) {
-            return Ok(TypeKind::Struct(crate::ast::ast::struct_dec(iter, ctx)?));
-        } else if let TokenKind::Ident(ident) = x.kind {
-            let ident = Ident::from(ident);
-            if let Some(type_def) = ctx.t.find_tag(&ident) {
-                if let TagTypeKind::Typedef(dec) = type_def.as_ref() {
-                    iter.next();
-                    return Ok(dec.type_kind.clone());
-                } else {
-                    // todo error handling
-                }
-            } else {
-                return Err(Error::undefined_tag(
-                    iter.filepath,
-                    iter.s,
-                    iter.pos,
-                    ident,
-                    None,
-                ));
-            }
-        } else {
-            return Err(Error::unexpected_token(
-                iter.filepath,
-                iter.s,
-                x.clone(),
-                TokenKind::TypeKind(base_types::TypeKind::Int),
+            return Ok((
+                TypeKind::Struct(crate::ast::ast::struct_dec(iter, ctx)?),
+                is_typedef,
             ));
+        } else if x.kind == TokenKind::KeyWord(KeyWord::Typedef) {
+            iter.next();
+            is_typedef = true;
+            continue;
+        } else {
+            if let Some(xx) = ty {
+                return Ok((xx, is_typedef));
+            }
+            if let TokenKind::Ident(ref ident) = x.kind {
+                let ident = Ident::from(ident.clone());
+                if let Some(type_def) = ctx.t.find_tag(&ident) {
+                    if let TagTypeKind::Typedef(dec) = type_def.as_ref() {
+                        iter.next();
+                        return Ok((dec.type_kind.clone(), is_typedef));
+                    } else {
+                        // todo error handling
+                    }
+                }
+                // else {
+                //     return Err(Error::undefined_tag(
+                //         iter.filepath,
+                //         iter.s,
+                //         iter.pos,
+                //         ident,
+                //         None,
+                //     ));
+                // }
+            }
+        }
+        {
+            use TypeKind::*;
+            let type_kind = match ty_vec.as_slice() {
+                [Void] => Void,
+                [_Bool] => _Bool,
+                [Char] => Char,
+                [Short] | [Short, Int] | [Int, Short] => Short,
+                [Int] => Int,
+                [Long] | [Long, Int] | [Int, Long] => Long,
+                [] if is_typedef => match ty {
+                    Some(x) => x,
+                    None => Int,
+                },
+                _ => {
+                    return Err(Error::unexpected_token(
+                        iter.filepath,
+                        iter.s,
+                        x.clone(),
+                        TokenKind::TypeKind(base_types::TypeKind::Int),
+                    ))
+                }
+            };
+            ty = Some(type_kind);
         }
     }
     Err(Error::eof(
@@ -277,16 +316,25 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>,
 // declaration     = type-specifier declarator type-suffix
 //                 | type-specifier
 pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration, Error> {
-    let type_kind = Rc::new(RefCell::new(type_specifier(iter, ctx)?));
+    let (type_kind, is_typedef) = type_specifier(iter, ctx)?;
+    let type_kind = Rc::new(RefCell::new(type_kind));
     let mut ident = Ident::new_anonymous();
-    if let Some(dec) = consume_declarator(iter, ctx, type_kind.clone(), &mut ident) {
+    let mut dec = if let Some(dec) = consume_declarator(iter, ctx, type_kind.clone(), &mut ident) {
         let type_suffix = type_suffix(iter, ctx, dec)?;
         let type_suffix = type_suffix.borrow().clone();
-        Ok(Declaration::new(type_suffix, ident)) // todo
+        Declaration::new(type_suffix, ident) // todo
     } else {
         let type_kind = type_kind.borrow().clone();
-        Ok(Declaration::new(type_kind, ident))
+        Declaration::new(type_kind, ident)
+    };
+    if is_typedef {
+        ctx.t.tag_list.insert(
+            Rc::new(dec.ident.clone()),
+            Rc::new(TagTypeKind::Typedef(Rc::new(dec.clone()))),
+        );
+        dec.is_typedef = is_typedef;
     }
+    Ok(dec)
 }
 
 // function    =  type-specifier declarator "(" params? ")" "{" stmt* "}"
@@ -399,7 +447,6 @@ pub fn unary_initialize(
 //             | "for" "(" expr? ";" expr? ";" expr? ")" stmt
 //             | "{" stmt* "}"
 //             | declaration ("=" initialize)? ";"
-//             | "typedef" declaration ";"
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(x) = iter.peek() {
         match x.kind {
@@ -481,7 +528,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(mut dec) = consume_declaration(iter, ctx) {
         // todo re declaration err handling
         if consume_semi(iter) {
-            if dec.ident.is_anonymous() {
+            if dec.ident.is_anonymous() || dec.is_typedef {
                 return Ok(Node::new_leaf(NodeKind::Null));
             }
             ctx.push_front(
@@ -529,17 +576,6 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 return Ok(node);
             }
         }
-    }
-
-    if consume_keyword(iter, KeyWord::Typedef) {
-        let dec = declaration(iter, ctx)?;
-        expect_semi(iter)?;
-        // println!("{:?}", dec);
-        ctx.t.tag_list.insert(
-            Rc::new(dec.ident.clone()),
-            Rc::new(TagTypeKind::Typedef(Rc::new(dec))),
-        );
-        return Ok(Node::new_leaf(NodeKind::Null));
     }
 
     let node = read_expr_stmt(iter, ctx)?;

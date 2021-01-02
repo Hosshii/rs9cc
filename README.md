@@ -8,7 +8,12 @@ mini C compiler written in Rust. This is my hobby project. I use [compilerbook](
 ```
 program         = (function | declaration ("=" initialize)? ";" | func-prototype )*
 type-specifier  = builtin-type | struct-dec | typedef-name"
-builtin-type    = "char" | "short" | "int" | "long"  
+builtin-type    = "void" 
+                | "_Bool"
+                | "char" 
+                | "short" | "short" "int" | "int" "short" 
+                | "int" 
+                | "long" | "int" "long" | "long" "int" 
 declarator      = "*"* ("(" declarator ")" | ident) type-suffix
 type-suffix     = ("[" num? "]" type-suffix)?
 struct-dec      = "struct" ident? "{" declaration ";" "}"
@@ -27,7 +32,6 @@ stmt            = expr ";"
                 | "for" "(" (expr | declaration "=" initialize)? ";" expr? ";" expr? ")" stmt
                 | "{" stmt* "}"
                 | declaration ("=" initialize)? ";"
-                | "typedef" declaration ";"
 expr            = assign
 assign          = equality ("=" assign)?
 equality        = relational ("==" relational | "!=" relational)*

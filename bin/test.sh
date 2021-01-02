@@ -403,6 +403,20 @@ bool() {
     assert 1 'int main(){_Bool x = 2; return x;}'
     assert 1 'int main(){_Bool x = 2==2; return x;}'
     assert 0 'int main(){_Bool x = 2==3; return x;}'
+    assert 'int main(){_Bool x = 1; return sizeof _Bool;}'
+}
+
+# 35
+complex_type2() {
+    assert 1 'int main(){char x = 1; return sizeof x;}'
+    assert 2 'int main(){short int x = 1; return sizeof(x);}'
+    assert 2 'int main(){int short x = 1; return sizeof(x);}'
+    assert 4 'int main(){int x = 1; return sizeof(x);}'
+    assert 8 'int main(){long x = 1; return sizeof(x);}'
+    assert 8 'int main(){long int x = 1; return sizeof(x);}'
+    assert 8 'int main(){int long x = 1; return sizeof(x);}'
+    assert 1 'int main(){char typedef CHAR; CHAR x = 1; return sizeof x;}'
+    assert 4 'int main(){typedef A ; A x = 1; return sizeof x;}'
 }
 
 build() {
@@ -460,6 +474,7 @@ if [ $# -eq 0 ]; then
     short_long
     complex_type
     bool
+    complex_type2
 fi
 
 while [ $# -ne 0 ]; do
@@ -498,6 +513,7 @@ while [ $# -ne 0 ]; do
     "32") short_long ;;
     "33") complex_type ;;
     "34") bool ;;
+    "35") complex_type2 ;;
     esac
     shift
 done

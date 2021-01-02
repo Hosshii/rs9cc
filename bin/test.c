@@ -354,5 +354,17 @@ int main() {
   assert( 1, ({_Bool x = 2==2; x;}),"({_Bool x = 2==2; x;})");
   assert( 0, ({_Bool x = 2==3; x;}),"({_Bool x = 2==3; x;})");
 
+  // #35
+  printf("\n\n#35\n");
+  assert( 1,({char x = 1; sizeof x;}), "({char x = 1; sizeof x;})");
+  assert( 2,({short int x = 1; sizeof(x);}), "({short int x = 1; sizeof(x);})");
+  assert( 2,({int short x = 1; sizeof(x);}), "({int short x = 1; sizeof(x);})");
+  assert( 4,({int x = 1; sizeof(x);}), "({int x = 1; sizeof(x);})");
+  assert( 8,({long x = 1; sizeof(x);}), "({long x = 1; sizeof(x);})");
+  assert( 8,({long int x = 1; sizeof(x);}), "({long int x = 1; sizeof(x);})");
+  assert( 8,({int long x = 1; sizeof(x);}), "({int long x = 1; sizeof(x);})");
+  assert( 1, ({char typedef CHAR; CHAR x = 1;sizeof x;}),"({char typedef CHAR; CHAR x = 1;sizeof x;})");
+  assert( 4, ({typedef A ; A x = 1;sizeof x;}),"({typedef A ; A x = 1;sizeof x;})");
+
   return 0;
 }

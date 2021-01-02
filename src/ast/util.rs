@@ -19,7 +19,7 @@ pub(crate) fn consume(iter: &mut TokenIter, op: Operator) -> bool {
     return false;
 }
 
-pub(crate) fn consume_keyword(iter: &mut TokenIter, key: KeyWord) -> bool {
+pub(crate) fn _consume_keyword(iter: &mut TokenIter, key: KeyWord) -> bool {
     if let Some(x) = iter.peek() {
         if let TokenKind::KeyWord(x) = x.kind {
             if x == key {

@@ -530,11 +530,16 @@ pub type FuncPrototypeMp = HashMap<String, Rc<FuncPrototype>>;
 pub struct Declaration {
     pub type_kind: TypeKind,
     pub ident: Ident,
+    pub is_typedef: bool,
 }
 
 impl Declaration {
     pub fn new(type_kind: TypeKind, ident: Ident) -> Self {
-        Self { type_kind, ident }
+        Self {
+            type_kind,
+            ident,
+            is_typedef: false,
+        }
     }
 
     // todo: remove clone
