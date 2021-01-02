@@ -117,6 +117,7 @@ impl Struct {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum TypeKind {
+    Void,
     Char,
     Short,
     Int,
@@ -141,7 +142,7 @@ pub enum TypeKind {
 impl fmt::Display for TypeKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Char | Short | Int | Long => write!(f, "{}", self.as_str()),
+            Void | Char | Short | Int | Long => write!(f, "{}", self.as_str()),
             Ptr(x) => {
                 let (count, type_kind) = x.borrow().count_deref();
                 let ptr = format!("{:*<width$}", "*", width = count + 1);
@@ -176,6 +177,7 @@ impl Default for TypeKind {
 impl TypeKind {
     pub fn as_str(&self) -> &'static str {
         match self {
+            Void => "void",
             Char => "char",
             Short => "short",
             Int => "int",
@@ -189,6 +191,7 @@ impl TypeKind {
 
     pub fn from_starts(s: &str) -> Result<TypeKind, ()> {
         match s {
+            x if x.starts_with(Void.as_str()) => Ok(Void),
             x if x.starts_with(Char.as_str()) => Ok(Char),
             x if x.starts_with(Short.as_str()) => Ok(Short),
             x if x.starts_with(Int.as_str()) => Ok(Int),
@@ -248,7 +251,7 @@ impl TypeKind {
 
     pub fn get_deref_type(&self) -> Rc<RefCell<Self>> {
         match self {
-            Char | Short | Int | Long => Rc::new(RefCell::new(TypeKind::_Deref(Rc::new(
+            Void | Char | Short | Int | Long => Rc::new(RefCell::new(TypeKind::_Deref(Rc::new(
                 RefCell::new(self.clone()),
             )))),
             Ptr(type_kind) => type_kind.clone(),
