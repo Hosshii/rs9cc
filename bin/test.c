@@ -337,5 +337,12 @@ int main() {
   assert( 1, ({sub_short(4,3);}), "({sub_short(4,3);})");
   assert( 1, ({sub_long(4,3);}), "({sub_long(4,3);})");
 
+  // #33
+  printf("\n\n#33\n");
+  assert(24, ({ int *x[3]; sizeof(x); }), "int *x[3]; sizeof(x);");
+  assert(8, ({ int (*x)[3]; sizeof(x); }), "int (*x)[3]; sizeof(x);");
+  assert(3, ({ int *x[3]; int y; x[0]=&y; y=3; x[0][0]; }), "int *x[3]; int y; x[0]=&y; y=3; x[0][0];");
+  assert(4, ({ int x[3]; int (*y)[3]=x; y[0][0]=4; y[0][0]; }), "int x[3]; int (*y)[3]=x; y[0][0]=4; y[0][0];");
+
   return 0;
 }

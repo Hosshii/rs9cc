@@ -386,6 +386,14 @@ short_long() {
     assert 1 'short test(short a){return a;} int main(){return test(1)==1;}'
 }
 
+# 33
+complex_type() {
+    assert 24 'int main(){int *x[3]; return sizeof(x);}'
+    assert 8 'int main(){int (*x)[3]; return sizeof(x);}'
+    assert 3 'int main(){int *x[3]; int y; x[0]=&y; y=3; return x[0][0];}'
+    assert 4 'int main(){int x[3]; int (*y)[3]=x; y[0][0]=4;return  y[0][0];}'
+}
+
 build() {
     cargo build
 }
@@ -439,6 +447,7 @@ if [ $# -eq 0 ]; then
     struct
     typedef
     short_long
+    complex_type
 fi
 
 while [ $# -ne 0 ]; do
@@ -475,6 +484,7 @@ while [ $# -ne 0 ]; do
     "30") struct ;;
     "31") typedef ;;
     "32") short_long ;;
+    "33") complex_type ;;
     esac
     shift
 done

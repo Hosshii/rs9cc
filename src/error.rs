@@ -1,7 +1,7 @@
 use crate::ast::Error as AstError;
 use crate::token::Error as TokenError;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum Error {
     AstError(AstError),
     TokenError(TokenError),

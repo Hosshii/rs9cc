@@ -26,9 +26,9 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
     // define global variable
     for (name, gvar) in program.ctx.g.gvar_mp {
         println!("{}:", name);
-        match &gvar.dec.base_type.kind {
-            TypeKind::Array(size, b_type, _) => {
-                let word = match &b_type.kind.size() {
+        match &gvar.dec.type_kind {
+            TypeKind::Array(size, type_kind, _) => {
+                let word = match &type_kind.borrow().size() {
                     1 => "byte",
                     4 => "long",
                     8 => "quad",
@@ -98,7 +98,7 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
         // 引数をローカル変数としてスタックに載せる
         let mut offset = 0;
         for i in 0..function.def.param_num {
-            let type_kind = &function.def.params[i].base_type.kind;
+            let type_kind = &function.def.params[i].type_kind;
             offset += type_kind.size();
             offset = base_types::align_to(offset, type_kind.align());
             println!("    mov rax, rbp");
@@ -499,12 +499,11 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 // }
 
 fn load(node: &Node) {
-    println!("# load");
     let mut word = "mov rax, [rax]";
     if let Ok(type_kind) = node.get_type() {
         match type_kind {
-            TypeKind::Array(_, b_type, _) => {
-                word = gen_load_asm(b_type.kind.size(), true).unwrap_or(word)
+            TypeKind::Array(_, type_kind, _) => {
+                word = gen_load_asm(type_kind.borrow().size(), true).unwrap_or(word)
             }
             x => word = gen_load_asm(x.size(), true).unwrap_or(word),
         }
@@ -565,7 +564,7 @@ fn ptr_op(node: &Node) {
         if let Ok(type_kind) = &lhs.get_type() {
             match type_kind {
                 TypeKind::Ptr(ptr) | TypeKind::Array(_, ptr, _) => {
-                    println!("    imul rdi, {}", ptr.kind.size());
+                    println!("    imul rdi, {}", ptr.borrow().size());
                 }
                 _ => (),
             }

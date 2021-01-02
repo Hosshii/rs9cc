@@ -6,7 +6,7 @@ use crate::token::Operator;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum NodeKind {
     Assign,
     Equal,
@@ -31,7 +31,7 @@ pub enum NodeKind {
     Num(u64),
     // Ident(Ident),
     Lvar(Rc<Lvar>), // usize はベースポインタからのオフセット
-    BaseType(base_types::BaseType),
+    TypeKind(TypeKind),
     Declaration(Declaration),
     Gvar(Rc<Gvar>),
     TkString(Rc<String>), // text, label, idx of ctx.tk_string
@@ -69,7 +69,7 @@ impl NodeKind {
             Num(num) => format!("{}", num),
             // Ident(Ident),
             Lvar(lvar) => format!("{:?}", lvar), // usize はベースポインタからのオフセット
-            BaseType(b_type) => format!("{}", b_type.kind),
+            TypeKind(type_kind) => format!("{}", type_kind),
             Declaration(dec) => format!("{:?}", dec),
             Gvar(x) => format!("{:?}", x),
             TkString(string) => string.to_string(),
@@ -144,7 +144,7 @@ impl Ident {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Node {
     pub kind: NodeKind,
     pub lhs: Option<Box<Node>>,
@@ -244,14 +244,14 @@ impl Node {
             }
             Deref => {
                 if let Some(ref lhs) = self.lhs {
-                    Ok(lhs.get_type()?.get_deref_type())
+                    Ok(lhs.get_type()?.get_deref_type().borrow().clone())
                 } else {
                     Err("deref")
                 }
             }
             Addr => {
                 if let Some(ref lhs) = self.lhs {
-                    Ok(lhs.get_type()?.get_addr_type())
+                    Ok(lhs.get_type()?.get_addr_type().borrow().clone())
                 } else {
                     Err("addr")
                 }
@@ -289,7 +289,7 @@ impl Node {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Lvar {
     next: Option<Rc<Lvar>>,
     pub dec: Declaration,
@@ -318,7 +318,7 @@ impl Lvar {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Gvar {
     pub dec: Declaration,
     pub size: u64,
@@ -394,8 +394,8 @@ impl LocalContext {
 
     pub fn push_front(&mut self, dec: Declaration, offset: u64) {
         self.lvar_count += 1;
-        let offset = offset + dec.base_type.kind.size();
-        let offset = base_types::align_to(offset, dec.base_type.kind.align());
+        let offset = offset + dec.type_kind.size();
+        let offset = base_types::align_to(offset, dec.type_kind.align());
         self.lvar = Some(Rc::new(Lvar {
             next: self.lvar.take(),
             dec,
@@ -450,7 +450,7 @@ impl Program {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Function {
     pub def: Rc<FuncPrototype>,
     pub all_vars: Option<Rc<Lvar>>,
@@ -488,7 +488,7 @@ impl Function {
     /// 最後には8バイト境界になるようにパディングが追加される
     pub fn get_all_var_size(&self) -> u64 {
         if let Some(ref lvar) = self.all_vars {
-            let size = lvar.offset + lvar.dec.base_type.kind.size();
+            let size = lvar.offset + lvar.dec.type_kind.size();
             let size = base_types::align_to(size, 8);
             return size;
         } else {
@@ -499,13 +499,13 @@ impl Function {
     pub fn get_param_size(&self) -> u64 {
         let mut result = 0;
         for dec in &self.def.params {
-            result += dec.base_type.kind.size();
+            result += dec.type_kind.size();
         }
         result
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct FuncPrototype {
     pub type_kind: TypeKind,
     pub ident: Ident,
@@ -526,20 +526,20 @@ impl FuncPrototype {
 }
 pub type FuncPrototypeMp = HashMap<String, Rc<FuncPrototype>>;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Declaration {
-    pub base_type: base_types::BaseType,
+    pub type_kind: TypeKind,
     pub ident: Ident,
 }
 
 impl Declaration {
-    pub fn new(base_type: base_types::BaseType, ident: Ident) -> Self {
-        Self { base_type, ident }
+    pub fn new(type_kind: TypeKind, ident: Ident) -> Self {
+        Self { type_kind, ident }
     }
 
     // todo: remove clone
     fn get_type(&self) -> TypeKind {
-        self.base_type.kind.clone()
+        self.type_kind.clone()
     }
 }
 
@@ -550,8 +550,9 @@ mod tests {
     #[test]
     fn test_get_type() {
         use crate::ast::ast;
-        use crate::base_types::{BaseType, TypeKind};
+        use crate::base_types::TypeKind;
         use crate::token;
+        use std::cell::RefCell;
 
         let input = "&*1;";
         let mut ctx = Context::new();
@@ -562,7 +563,7 @@ mod tests {
         let mut ctx = Context::new();
         ctx.push_front(
             Declaration::new(
-                BaseType::new(TypeKind::Ptr(Rc::new(BaseType::new(TypeKind::Int)))),
+                TypeKind::Ptr(Rc::new(RefCell::new(TypeKind::Int))),
                 Ident::new("y"),
             ),
             8,

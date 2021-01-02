@@ -3,9 +3,9 @@ use super::{
     Context, Declaration, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident, Lvar, Node, NodeKind,
 };
 use crate::base_types;
-use crate::base_types::{BaseType, TagTypeKind, TypeKind};
+use crate::base_types::TypeKind;
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 pub(crate) fn consume(iter: &mut TokenIter, op: Operator) -> bool {
     if let Some(x) = iter.peek() {
@@ -93,6 +93,23 @@ pub(crate) fn consume_string(iter: &mut TokenIter) -> Option<String> {
     None
 }
 
+pub(crate) fn consume_declarator(
+    iter: &mut TokenIter,
+    ctx: &mut Context,
+    type_kind: Rc<RefCell<TypeKind>>,
+    ident: &mut Ident,
+) -> Option<Rc<RefCell<TypeKind>>> {
+    match crate::ast::ast::declarator(
+        &mut iter.clone(),
+        &mut ctx.clone(),
+        type_kind.clone(),
+        &mut ident.clone(),
+    ) {
+        Ok(_) => Some(crate::ast::ast::declarator(iter, ctx, type_kind, ident).unwrap()),
+        Err(_) => None,
+    }
+}
+
 #[allow(dead_code)]
 pub(crate) fn consume_type_kind(iter: &mut TokenIter) -> Option<base_types::TypeKind> {
     if let Some(x) = iter.peek() {
@@ -100,22 +117,6 @@ pub(crate) fn consume_type_kind(iter: &mut TokenIter) -> Option<base_types::Type
             iter.next();
             return Some(bt);
         }
-    }
-    None
-}
-
-#[allow(dead_code)]
-pub(crate) fn consume_base_type(iter: &mut TokenIter) -> Option<base_types::BaseType> {
-    if let Some(kind) = consume_type_kind(iter) {
-        let mut btype = BaseType::new(kind);
-        loop {
-            if consume(iter, Operator::Mul) {
-                btype = BaseType::new(TypeKind::Ptr(Rc::new(btype)));
-            } else {
-                break;
-            }
-        }
-        return Some(btype);
     }
     None
 }
@@ -304,73 +305,11 @@ pub(crate) fn expect_block(iter: &mut TokenIter, block: Block) -> Result<(), Err
     ))
 }
 
-pub(crate) fn expect_type_kind(
-    iter: &mut TokenIter,
-    ctx: &mut Context,
-) -> Result<base_types::TypeKind, Error> {
-    if let Some(x) = iter.peek() {
-        if let TokenKind::TypeKind(bt) = x.kind {
-            iter.next();
-            return Ok(bt);
-        } else if x.kind == TokenKind::KeyWord(KeyWord::Struct) {
-            return Ok(TypeKind::Struct(crate::ast::ast::struct_dec(iter, ctx)?));
-        } else if let TokenKind::Ident(ident) = x.kind {
-            let ident = Ident::from(ident);
-            if let Some(type_def) = ctx.t.find_tag(&ident) {
-                if let TagTypeKind::Typedef(dec) = type_def.as_ref() {
-                    iter.next();
-                    return Ok(dec.base_type.kind.clone());
-                } else {
-                    // todo error handling
-                }
-            } else {
-                return Err(Error::undefined_tag(
-                    iter.filepath,
-                    iter.s,
-                    iter.pos,
-                    ident,
-                    None,
-                ));
-            }
-        } else {
-            return Err(Error::unexpected_token(
-                iter.filepath,
-                iter.s,
-                x.clone(),
-                TokenKind::TypeKind(base_types::TypeKind::Int),
-            ));
-        }
-    }
-    Err(Error::eof(
-        iter.filepath,
-        iter.s,
-        iter.pos,
-        TokenKind::TypeKind(base_types::TypeKind::Int),
-        None,
-    ))
-}
-
-pub(crate) fn expect_base_type(
-    iter: &mut TokenIter,
-    ctx: &mut Context,
-) -> Result<base_types::BaseType, Error> {
-    let kind = expect_type_kind(iter, ctx)?;
-    let mut btype = BaseType::new(kind);
-    loop {
-        if consume(iter, Operator::Mul) {
-            btype = BaseType::new(TypeKind::Ptr(Rc::new(btype)));
-        } else {
-            break;
-        }
-    }
-    Ok(btype)
-}
-
 /// if global var is already exist, then return error
 pub(crate) fn check_g_var(
     iter: &mut TokenIter,
     g_var: &GvarMp,
-    b_type: BaseType,
+    type_kind: TypeKind,
     ident: Ident,
     init: Vec<Node>,
 ) -> Result<Gvar, Error> {
@@ -385,8 +324,8 @@ pub(crate) fn check_g_var(
             ))
         }
         None => {
-            let size = b_type.kind.size();
-            let dec = Declaration::new(b_type, ident);
+            let size = type_kind.size();
+            let dec = Declaration::new(type_kind, ident);
             return Ok(Gvar::new(dec, size, init));
         }
     }
@@ -414,11 +353,7 @@ pub(crate) fn check_func_prototype(
 pub(crate) fn make_string_node(label: impl Into<String>, size: u64, init: Vec<Node>) -> NodeKind {
     NodeKind::Gvar(Rc::new(Gvar::new(
         Declaration::new(
-            BaseType::new(TypeKind::Array(
-                size,
-                Rc::new(BaseType::new(TypeKind::Char)),
-                true,
-            )),
+            TypeKind::Array(size, Rc::new(RefCell::new(TypeKind::Char)), true),
             Ident::new(label),
         ),
         size,
@@ -439,7 +374,7 @@ pub(crate) fn make_arr_init(
     dec: &Declaration,
     nodes: Vec<Node>,
 ) -> Result<Node, usize> {
-    if let TypeKind::Array(size, _, _) = dec.base_type.kind {
+    if let TypeKind::Array(size, _, _) = dec.type_kind {
         let mut assign_nodes = Vec::new();
         let len = nodes.len();
         let mut idx = 0;

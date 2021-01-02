@@ -5,7 +5,7 @@ use crate::token::{Token, TokenKind, TokenPos};
 use std::fmt;
 use std::rc::Rc;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum ErrorKind {
     UnexpectedToken {
         expected: TokenKind,
@@ -24,7 +24,7 @@ pub enum ErrorKind {
     EOF(TokenKind),
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Error {
     filepath: String,
     kind: ErrorKind,
@@ -359,7 +359,7 @@ fn invalid_variable_dereference_err_format(
 define: {}
 actual: {}
    ",
-        lvar.dec.base_type.kind, ptr
+        lvar.dec.type_kind, ptr
     );
     err_format(err, msg, f)
 }
@@ -394,7 +394,7 @@ fn invalid_initialization_err_format(
 ) -> fmt::Result {
     let msg = format!(
         "invalid initialization. lhs: {}, rhs: {}",
-        lvar.dec.base_type.kind, rhs
+        lvar.dec.type_kind, rhs
     );
     err_format(err, msg, f)
 }

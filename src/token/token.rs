@@ -3,7 +3,7 @@ use crate::base_types::TypeKind;
 use std::ops::{Add, AddAssign};
 use std::str::FromStr;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum TokenKind {
     Reserved(Operator),
     Ident(Ident),

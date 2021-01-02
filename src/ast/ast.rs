@@ -2,8 +2,9 @@ use super::error::Error;
 use super::util::*;
 use super::NodeKind;
 use super::{Context, Declaration, FuncPrototype, Function, Ident, LocalContext, Node, Program};
-use crate::base_types::{self, BaseType, Member, Struct, TagContext, TagTypeKind, TypeKind};
+use crate::base_types::{self, Member, Struct, TagContext, TagTypeKind, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 // program         = (function | declaration ("=" initialize)? ";" | func-prototype )*
@@ -16,8 +17,11 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
         // then peek next token.
         // if next token is ; or [], it is global variable
         // if next token is ( , it is function
-        let mut b_type = expect_base_type(iter, ctx)?;
-        let ident = expect_ident(iter)?;
+
+        let type_kind = Rc::new(RefCell::new(type_specifier(iter, ctx)?));
+        let mut ident = Ident::new_anonymous();
+        let dec = declarator(iter, ctx, type_kind, &mut ident)?;
+
         if let Some(next) = iter.next() {
             match next.kind {
                 // function
@@ -28,7 +32,8 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                         expect(iter, Operator::RParen)?;
                     }
 
-                    let func_prototype = FuncPrototype::new(b_type.kind, ident, fn_params);
+                    let func_prototype =
+                        FuncPrototype::new(dec.replace(TypeKind::Int), ident, fn_params);
                     let checked_func_prototype = Rc::new(check_func_prototype(
                         iter,
                         &ctx.g.func_prototype_mp,
@@ -44,102 +49,170 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                     let func = function(iter, checked_func_prototype, &mut ctx)?;
                     program.functions.push(func);
                 }
-                x => match x {
-                    TokenKind::SemiColon | TokenKind::Reserved(Operator::Assign) => {
-                        // int x;
-                        // int y = x; is not valid
-                        let mut init = vec![];
-                        if x == TokenKind::Reserved(Operator::Assign) {
-                            if let Some(xx) = iter.peek() {
-                                if let TokenKind::String(_) = xx.kind {
-                                    init.push(expr(iter, ctx)?);
-                                } else {
-                                    let node = expr(iter, ctx)?;
-                                    match &node.kind {
-                                        NodeKind::Gvar(_) | NodeKind::Lvar(_) => {
-                                            // todo error handling.
-                                            todo!();
-                                        }
-                                        _ => (),
+                x => {
+                    let mut dec = dec.replace(TypeKind::Int);
+                    match &mut dec {
+                        TypeKind::Array(size, _, sized) => {
+                            let mut init = Vec::new();
+
+                            if x == TokenKind::Reserved(Operator::Assign) {
+                                let mut nodes = Vec::new();
+
+                                // str
+                                if let Some(string) = consume_string(iter) {
+                                    for i in string.chars() {
+                                        nodes.push(Node::new_num(i as u64))
                                     }
-                                    init.push(node);
                                 }
-                            }
-
-                            expect_semi(iter)?;
-                        }
-                        ctx.g.gvar_mp.insert(
-                            ident.name.clone(),
-                            Rc::new(check_g_var(iter, &ctx.g.gvar_mp, b_type, ident, init)?),
-                        );
-                    }
-                    TokenKind::Reserved(Operator::LArr) => {
-                        if consume(iter, Operator::RArr) {
-                            b_type.kind.to_arr(0, false);
-                        } else {
-                            b_type.kind.to_arr(expect_num(iter)?, true);
-                            expect(iter, Operator::RArr)?;
-                        }
-                        let mut init = Vec::new();
-                        if consume(iter, Operator::Assign) {
-                            let mut nodes = Vec::new();
-
-                            // str
-                            if let Some(string) = consume_string(iter) {
-                                for i in string.chars() {
-                                    nodes.push(Node::new_num(i as u64))
-                                }
-                            }
-                            // num
-                            else {
-                                expect_block(iter, Block::LParen)?;
-                                if !consume_block(iter, Block::RParen) {
-                                    nodes.push(expr(iter, ctx)?);
-
-                                    while consume_comma(iter) {
+                                // num
+                                else {
+                                    expect_block(iter, Block::LParen)?;
+                                    if !consume_block(iter, Block::RParen) {
                                         nodes.push(expr(iter, ctx)?);
-                                    }
-                                    expect_block(iter, Block::RParen)?;
-                                }
-                            }
 
-                            if let TypeKind::Array(x, _, sized) = &mut b_type.kind {
+                                        while consume_comma(iter) {
+                                            nodes.push(expr(iter, ctx)?);
+                                        }
+                                        expect_block(iter, Block::RParen)?;
+                                    }
+                                }
+                                expect_semi(iter)?;
                                 if !*sized {
-                                    *x = nodes.len() as u64;
+                                    *size = nodes.len() as u64;
                                     *sized = true;
                                 }
-                            } else {
-                                unreachable!()
+                                init = nodes
                             }
-                            init = nodes;
+
+                            ctx.g.gvar_mp.insert(
+                                ident.name.clone(),
+                                Rc::new(check_g_var(iter, &ctx.g.gvar_mp, dec, ident, init)?),
+                            );
                         }
-                        ctx.g.gvar_mp.insert(
-                            ident.name.clone(),
-                            Rc::new(check_g_var(iter, &ctx.g.gvar_mp, b_type, ident, init)?),
-                        );
-                        expect_semi(iter)?;
+                        _ => {
+                            let mut init = vec![];
+                            if x == TokenKind::Reserved(Operator::Assign) {
+                                if let Some(xx) = iter.peek() {
+                                    if let TokenKind::String(_) = xx.kind {
+                                        init.push(expr(iter, ctx)?);
+                                    } else {
+                                        let node = expr(iter, ctx)?;
+                                        match &node.kind {
+                                            NodeKind::Gvar(_) | NodeKind::Lvar(_) => {
+                                                // todo error handling.
+                                                todo!();
+                                            }
+                                            _ => (),
+                                        }
+                                        init.push(node);
+                                    }
+                                }
+                                expect_semi(iter)?;
+                            }
+                            ctx.g.gvar_mp.insert(
+                                ident.name.clone(),
+                                Rc::new(check_g_var(iter, &ctx.g.gvar_mp, dec, ident, init)?),
+                            );
+                        }
                     }
-                    _ => (),
-                },
+                }
             }
         }
     }
     Ok(program)
 }
+// type-specifier  = builtin-type | struct-dec | typedef-name"
+// builtin-type    = "char" | "short" | "int" | "long"
+pub fn type_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<TypeKind, Error> {
+    if let Some(x) = iter.peek() {
+        if let TokenKind::TypeKind(bt) = x.kind {
+            iter.next();
+            return Ok(bt);
+        } else if x.kind == TokenKind::KeyWord(KeyWord::Struct) {
+            return Ok(TypeKind::Struct(crate::ast::ast::struct_dec(iter, ctx)?));
+        } else if let TokenKind::Ident(ident) = x.kind {
+            let ident = Ident::from(ident);
+            if let Some(type_def) = ctx.t.find_tag(&ident) {
+                if let TagTypeKind::Typedef(dec) = type_def.as_ref() {
+                    iter.next();
+                    return Ok(dec.type_kind.clone());
+                } else {
+                    // todo error handling
+                }
+            } else {
+                return Err(Error::undefined_tag(
+                    iter.filepath,
+                    iter.s,
+                    iter.pos,
+                    ident,
+                    None,
+                ));
+            }
+        } else {
+            return Err(Error::unexpected_token(
+                iter.filepath,
+                iter.s,
+                x.clone(),
+                TokenKind::TypeKind(base_types::TypeKind::Int),
+            ));
+        }
+    }
+    Err(Error::eof(
+        iter.filepath,
+        iter.s,
+        iter.pos,
+        TokenKind::TypeKind(base_types::TypeKind::Int),
+        None,
+    ))
+}
 
-// typekind    = "int" | "char | struct-dec | typedef-name"
-// basetype    = typekind "*"*
-pub fn base_type(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
-    let type_kind = expect_type_kind(iter, ctx)?;
-    let mut btype = BaseType::new(type_kind);
+// declarator      = "*"* ("(" declarator ")" | ident) type-suffix
+pub fn declarator(
+    iter: &mut TokenIter,
+    ctx: &mut Context,
+    mut type_kind: Rc<RefCell<TypeKind>>,
+    ident: &mut Ident,
+) -> Result<Rc<RefCell<TypeKind>>, Error> {
     loop {
         if consume(iter, Operator::Mul) {
-            btype = BaseType::new(TypeKind::Ptr(Rc::new(btype)));
+            type_kind = Rc::new(RefCell::new(TypeKind::Ptr(type_kind)));
         } else {
             break;
         }
     }
-    Ok(Node::new_leaf(NodeKind::BaseType(btype)))
+
+    if consume(iter, Operator::LParen) {
+        let placeholder = Rc::new(RefCell::new(TypeKind::PlaceHolder));
+        let new = declarator(iter, ctx, placeholder.clone(), ident)?;
+        expect(iter, Operator::RParen)?;
+        *placeholder.borrow_mut() = type_suffix(iter, ctx, type_kind)?.borrow().clone();
+        return Ok(new);
+    }
+    *ident = expect_ident(iter)?;
+    type_suffix(iter, ctx, type_kind)
+}
+
+// type-suffix     = ("[" num? "]" type-suffix)?
+pub fn type_suffix(
+    iter: &mut TokenIter,
+    ctx: &mut Context,
+    type_kind: Rc<RefCell<TypeKind>>,
+) -> Result<Rc<RefCell<TypeKind>>, Error> {
+    if !consume(iter, Operator::LArr) {
+        return Ok(type_kind);
+    }
+    if consume(iter, Operator::RArr) {
+        let type_kind = type_suffix(iter, ctx, type_kind)?;
+        return Ok(Rc::new(RefCell::new(TypeKind::array_of(
+            0, type_kind, false,
+        ))));
+    }
+    let idx = expect_num(iter)?;
+    expect(iter, Operator::RArr)?;
+    let type_kind = type_suffix(iter, ctx, type_kind)?;
+    return Ok(Rc::new(RefCell::new(TypeKind::array_of(
+        idx, type_kind, true,
+    ))));
 }
 
 // struct-dec      = "struct" ident? "{" declaration ";" "}"
@@ -151,7 +224,7 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>,
         match &ident {
             Some(x) => {
                 if let Some(tag) = ctx.t.find_tag(&x) {
-                    if let TagTypeKind::Struct(_struct) = &**tag {
+                    if let TagTypeKind::Struct(_struct) = tag.as_ref() {
                         return Ok(_struct.clone());
                     }
                 } else {
@@ -177,10 +250,10 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>,
     let members: Vec<Rc<Member>> = members
         .into_iter()
         .map(|m| {
-            offset = base_types::align_to(offset, m.base_type.kind.align());
+            offset = base_types::align_to(offset, m.type_kind.align());
             let _offset = offset;
-            offset += m.base_type.kind.size();
-            let mem = Member::new(Rc::new(m.base_type.kind), _offset, m.ident);
+            offset += m.type_kind.size();
+            let mem = Member::new(Rc::new(m.type_kind), _offset, m.ident);
             Rc::new(mem)
         })
         .collect();
@@ -201,37 +274,22 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>,
     };
     Ok(_struct)
 }
-
-//declaration = basetype ident ("[" num? "]")*
-//            | basetype
+// declaration     = type-specifier declarator type-suffix
+//                 | type-specifier
 pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration, Error> {
-    let b_type = expect_base_type(iter, ctx)?;
-    if let Some(ident) = consume_ident(iter) {
-        let type_kind = read_arr_type(iter, b_type.kind)?;
-        Ok(Declaration::new(BaseType::new(type_kind), ident))
+    let type_kind = Rc::new(RefCell::new(type_specifier(iter, ctx)?));
+    let mut ident = Ident::new_anonymous();
+    if let Some(dec) = consume_declarator(iter, ctx, type_kind.clone(), &mut ident) {
+        let type_suffix = type_suffix(iter, ctx, dec)?;
+        let type_suffix = type_suffix.borrow().clone();
+        Ok(Declaration::new(type_suffix, ident)) // todo
     } else {
-        Ok(Declaration::new(b_type, Ident::new_anonymous()))
+        let type_kind = type_kind.borrow().clone();
+        Ok(Declaration::new(type_kind, ident))
     }
 }
 
-fn read_arr_type(iter: &mut TokenIter, base: TypeKind) -> Result<TypeKind, Error> {
-    if !consume(iter, Operator::LArr) {
-        return Ok(base);
-    }
-    if consume(iter, Operator::RArr) {
-        let mut base = read_arr_type(iter, base)?;
-        base.to_arr(0, false);
-        Ok(base)
-    } else {
-        let idx = expect_num(iter)?;
-        expect(iter, Operator::RArr)?;
-        let mut base = read_arr_type(iter, base)?;
-        base.to_arr(idx, true);
-        Ok(base)
-    }
-}
-
-// function    = basetype ident "(" params? ")" "{" stmt* "}"
+// function    =  type-specifier declarator "(" params? ")" "{" stmt* "}"
 pub fn function(
     iter: &mut TokenIter,
     func_prototype: Rc<FuncPrototype>,
@@ -433,7 +491,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             return Ok(Node::new_leaf(NodeKind::Declaration(dec)));
         }
         expect(iter, Operator::Assign)?;
-        match &mut dec.base_type.kind {
+        match &mut dec.type_kind {
             TypeKind::Array(size, _, sized) => {
                 let nodes = multi_field_initialize(iter, ctx)?;
                 expect_semi(iter)?;
@@ -921,77 +979,67 @@ mod tests {
         use crate::token;
         use TypeKind::*;
         let tests = [
-            (
-                "int hoge",
-                Declaration::new(BaseType::new(Int), Ident::new("hoge")),
-            ),
+            ("int hoge", Declaration::new(Int, Ident::new("hoge"))),
             ("int *hoge", make_ptr_lvar("hoge", 8).dec),
             (
                 "int **hoge",
                 Declaration::new(
-                    BaseType::new(Ptr(Rc::new(BaseType::new(Ptr(Rc::new(BaseType::new(
-                        Int,
-                    ))))))),
+                    Ptr(Rc::new(RefCell::new(Ptr(Rc::new(RefCell::new(Int)))))),
                     Ident::new("hoge"),
                 ),
             ),
             (
                 "int hoge[1]",
                 Declaration::new(
-                    BaseType::new(Array(1, Rc::new(BaseType::new(Int)), true)),
+                    Array(1, Rc::new(RefCell::new(Int)), true),
                     Ident::new("hoge"),
                 ),
             ),
             (
                 "int *hoge[1]",
                 Declaration::new(
-                    BaseType::new(Array(
+                    Array(
                         1,
-                        Rc::new(BaseType::new(Ptr(Rc::new(BaseType::new(Int))))),
+                        Rc::new(RefCell::new(Ptr(Rc::new(RefCell::new(Int))))),
                         true,
-                    )),
+                    ),
                     Ident::new("hoge"),
                 ),
             ),
-            (
-                "char hoge",
-                Declaration::new(BaseType::new(Char), Ident::new("hoge")),
-            ),
+            ("char hoge", Declaration::new(Char, Ident::new("hoge"))),
             (
                 "char **hoge",
                 Declaration::new(
-                    BaseType::new(Ptr(Rc::new(BaseType::new(Ptr(Rc::new(BaseType::new(
-                        Char,
-                    ))))))),
+                    Ptr(Rc::new(RefCell::new(Ptr(Rc::new(RefCell::new(Char)))))),
                     Ident::new("hoge"),
                 ),
             ),
             (
                 "char hoge[1]",
                 Declaration::new(
-                    BaseType::new(Array(1, Rc::new(BaseType::new(Char)), true)),
+                    Array(1, Rc::new(RefCell::new(Char)), true),
                     Ident::new("hoge"),
                 ),
             ),
             (
                 "char *hoge[1]",
                 Declaration::new(
-                    BaseType::new(Array(
+                    Array(
                         1,
-                        Rc::new(BaseType::new(Ptr(Rc::new(BaseType::new(Char))))),
+                        Rc::new(RefCell::new(Ptr(Rc::new(RefCell::new(Char))))),
                         true,
-                    )),
+                    ),
                     Ident::new("hoge"),
                 ),
             ),
             (
                 "int hoge[2][2]",
                 Declaration::new(
-                    BaseType::new(Array(
+                    Array(
                         2,
-                        Rc::new(BaseType::new(Array(2, Rc::new(BaseType::new(Int)), true))),
+                        Rc::new(RefCell::new(Array(2, Rc::new(RefCell::new(Int)), true))),
                         true,
-                    )),
+                    ),
                     Ident::new("hoge"),
                 ),
             ),
@@ -1034,7 +1082,7 @@ mod tests {
 
         let members = Rc::new(vec![
             Rc::new(make_member(Int, "first", 0)),
-            Rc::new(make_member(Ptr(Rc::new(BaseType::new(Int))), "second", 8)),
+            Rc::new(make_member(Ptr(Rc::new(RefCell::new(Int))), "second", 8)),
             Rc::new(make_member(Int, "four", 16)),
         ]);
         let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
@@ -1205,9 +1253,9 @@ mod tests {
                 TypeKind::Int,
                 Ident::new("three"),
                 vec![
-                    Declaration::new(BaseType::new(TypeKind::Int), Ident::new("a")),
-                    Declaration::new(BaseType::new(TypeKind::Int), Ident::new("a")),
-                    Declaration::new(BaseType::new(TypeKind::Int), Ident::new("a")),
+                    Declaration::new(TypeKind::Int, Ident::new("a")),
+                    Declaration::new(TypeKind::Int, Ident::new("a")),
+                    Declaration::new(TypeKind::Int, Ident::new("a")),
                 ],
             )),
         );
@@ -1336,10 +1384,7 @@ mod tests {
         let func_prototype = Rc::new(FuncPrototype::new(
             TypeKind::Int,
             Ident::new("main"),
-            vec![Declaration::new(
-                BaseType::new(TypeKind::Int),
-                Ident::new("foo"),
-            )],
+            vec![Declaration::new(TypeKind::Int, Ident::new("foo"))],
         ));
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(0))];
         let expected_lvar = Lvar::new_leaf(make_int_dec("foo"), 4);
@@ -1353,10 +1398,7 @@ mod tests {
         let expected_func_prototype = Rc::new(FuncPrototype::new(
             TypeKind::Int,
             Ident::new("main"),
-            vec![Declaration::new(
-                BaseType::new(TypeKind::Int),
-                Ident::new("foo"),
-            )],
+            vec![Declaration::new(TypeKind::Int, Ident::new("foo"))],
         ));
         let input = "{return 0;}";
         let iter = &mut token::tokenize(input, "");
@@ -1426,10 +1468,7 @@ mod tests {
             Rc::new(FuncPrototype::new(
                 TypeKind::Int,
                 Ident::new("foo"),
-                vec![Declaration::new(
-                    BaseType::new(TypeKind::Int),
-                    Ident::new("a"),
-                )],
+                vec![Declaration::new(TypeKind::Int, Ident::new("a"))],
             )),
         );
         let mut g_ctx_3 = GlobalContext::new();
@@ -1439,8 +1478,8 @@ mod tests {
                 TypeKind::Int,
                 Ident::new("foo"),
                 vec![
-                    Declaration::new(BaseType::new(TypeKind::Int), Ident::new("a")),
-                    Declaration::new(BaseType::new(TypeKind::Int), Ident::new("a")),
+                    Declaration::new(TypeKind::Int, Ident::new("a")),
+                    Declaration::new(TypeKind::Int, Ident::new("a")),
                 ],
             )),
         );
@@ -1475,6 +1514,54 @@ mod tests {
             let mut ctx = Context::new();
             ctx.g = g.clone();
             assert_eq!(expected, &primary(iter, &mut ctx).unwrap());
+        }
+    }
+
+    #[test]
+    fn test_declarator() {
+        use crate::token::tokenize;
+        use TypeKind::*;
+        let tests = [
+            (Int, "hoge", Int),
+            (Char, "hoge", Char),
+            (Int, "*hoge", Ptr(Rc::new(RefCell::new(Int)))),
+            (Char, "hoge[1]", Array(1, Rc::new(RefCell::new(Char)), true)),
+            (
+                Int,
+                "**hoge[4][5]",
+                TypeKind::array_of(
+                    4,
+                    Rc::new(RefCell::new(TypeKind::array_of(
+                        5,
+                        Int.get_addr_type().borrow().get_addr_type(),
+                        true,
+                    ))),
+                    true,
+                ),
+            ),
+            (
+                Char,
+                "(*hoge)[3]",
+                TypeKind::array_of(3, Rc::new(RefCell::new(Char)), true)
+                    .get_addr_type()
+                    .replace(Int),
+            ),
+        ];
+
+        for (sp, ipt, expected) in &tests {
+            let mut ident = Ident::new_anonymous();
+            assert_eq!(
+                expected,
+                &*declarator(
+                    &mut tokenize(ipt, ""),
+                    &mut Context::new(),
+                    Rc::new(RefCell::new(sp.clone())),
+                    &mut ident
+                )
+                .unwrap()
+                .borrow()
+            );
+            assert_eq!(Ident::new("hoge"), ident);
         }
     }
 
@@ -1528,10 +1615,7 @@ mod tests {
     fn make_fn_node(name: impl Into<String>, args: Vec<Node>) -> Node {
         let mut dec = vec![];
         for _ in 0..args.len() {
-            dec.push(Declaration::new(
-                BaseType::new(TypeKind::Int),
-                Ident::new("a"),
-            ));
+            dec.push(Declaration::new(TypeKind::Int, Ident::new("a")));
         }
         Node::new_none(NodeKind::Func(
             Rc::new(FuncPrototype::new(TypeKind::Int, Ident::new(name), dec)),
@@ -1540,14 +1624,11 @@ mod tests {
     }
 
     fn make_int_dec(name: impl Into<String>) -> Declaration {
-        Declaration::new(BaseType::new(TypeKind::Int), Ident::new(name.into()))
+        Declaration::new(TypeKind::Int, Ident::new(name.into()))
     }
 
     fn make_lvar(name: impl Into<String>, offset: u64, kind: TypeKind) -> Lvar {
-        Lvar::new_leaf(
-            Declaration::new(BaseType::new(kind), Ident::new(name)),
-            offset,
-        )
+        Lvar::new_leaf(Declaration::new(kind, Ident::new(name)), offset)
     }
 
     fn make_int_lvar(name: impl Into<String>, offset: u64) -> Lvar {
@@ -1558,7 +1639,7 @@ mod tests {
         make_lvar(
             name,
             offset,
-            TypeKind::Ptr(Rc::new(BaseType::new(TypeKind::Int))),
+            TypeKind::Ptr(Rc::new(RefCell::new(TypeKind::Int))),
         )
     }
 }
