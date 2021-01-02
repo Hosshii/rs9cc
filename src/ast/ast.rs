@@ -231,6 +231,30 @@ pub fn declarator(
     type_suffix(iter, ctx, type_kind)
 }
 
+// abstract-declarator     = "*"* ("(" declarator ")")? type-suffix
+pub fn abstract_declarator(
+    iter: &mut TokenIter,
+    ctx: &mut Context,
+    mut type_kind: Rc<RefCell<TypeKind>>,
+) -> Result<Rc<RefCell<TypeKind>>, Error> {
+    loop {
+        if consume(iter, Operator::Mul) {
+            type_kind = Rc::new(RefCell::new(TypeKind::Ptr(type_kind)));
+        } else {
+            break;
+        }
+    }
+
+    if consume(iter, Operator::LParen) {
+        let placeholder = Rc::new(RefCell::new(TypeKind::PlaceHolder));
+        let new = abstract_declarator(iter, ctx, placeholder.clone())?;
+        expect(iter, Operator::RParen)?;
+        *placeholder.borrow_mut() = type_suffix(iter, ctx, type_kind)?.borrow().clone();
+        return Ok(new);
+    }
+    type_suffix(iter, ctx, type_kind)
+}
+
 // type-suffix     = ("[" num? "]" type-suffix)?
 pub fn type_suffix(
     iter: &mut TokenIter,
@@ -252,6 +276,14 @@ pub fn type_suffix(
     return Ok(Rc::new(RefCell::new(TypeKind::array_of(
         idx, type_kind, true,
     ))));
+}
+
+// type-name               = type-specifier abstract-declarator type-suffix
+pub fn type_name(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<TypeKind>>, Error> {
+    let (type_kind, _) = type_specifier(iter, ctx)?;
+    let type_kind = Rc::new(RefCell::new(type_kind));
+    let type_kind = abstract_declarator(iter, ctx, type_kind)?;
+    type_suffix(iter, ctx, type_kind)
 }
 
 // struct-dec      = "struct" ident? "{" declaration ";" "}"
@@ -686,7 +718,7 @@ pub fn mul(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 // unary       = ("+" | "-")? postfix
 //             | "*" unary
 //             | "&" unary
-//             | "sizeof" unary
+//             | "sizeof" (unary | "(" type-name ")")
 pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::Plus) {
         return primary(iter, ctx);
@@ -701,6 +733,18 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     } else if consume(iter, Operator::Ampersand) {
         return Ok(Node::new_unary(NodeKind::Addr, unary(iter, ctx)?));
     } else if consume(iter, Operator::Sizeof) {
+        if consume(iter, Operator::LParen) {
+            if let Some(x) = iter.peek() {
+                if let TokenKind::TypeKind(_) = x.kind {
+                    let ty = type_name(iter, ctx)?;
+                    expect(iter, Operator::RParen)?;
+                    return Ok(Node::new_num(ty.borrow().size()));
+                }
+                // `(`をconsumeした分を戻す
+                iter.pos.tk -= 1;
+                iter.pos.bytes -= 1;
+            }
+        }
         let node = unary(iter, ctx)?;
         match node.get_type() {
             Ok(x) => return Ok(Node::new_num(x.size())),

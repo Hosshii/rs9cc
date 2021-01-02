@@ -419,6 +419,18 @@ complex_type2() {
     assert 4 'int main(){typedef A ; A x = 1; return sizeof x;}'
 }
 
+# 36
+sizeof2() {
+    assert 1 'int main(){return sizeof(char);}'
+    assert 2 'int main(){return sizeof(short);}'
+    assert 2 'int main(){return sizeof(short int);}'
+    assert 2 'int main(){return sizeof(int short);}'
+    assert 4 'int main(){return sizeof(int);}'
+    assert 8 'int main(){return sizeof(long);}'
+    assert 8 'int main(){return sizeof(long int);}'
+    assert 8 'int main(){return sizeof(int long);}'
+}
+
 build() {
     cargo build
 }
@@ -475,6 +487,7 @@ if [ $# -eq 0 ]; then
     complex_type
     bool
     complex_type2
+    sizeof2
 fi
 
 while [ $# -ne 0 ]; do
@@ -514,6 +527,7 @@ while [ $# -ne 0 ]; do
     "33") complex_type ;;
     "34") bool ;;
     "35") complex_type2 ;;
+    "36") sizeof2 ;;
     esac
     shift
 done

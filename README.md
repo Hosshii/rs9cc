@@ -6,51 +6,53 @@ mini C compiler written in Rust. This is my hobby project. I use [compilerbook](
 
 ## EBNF
 ```
-program         = (function | declaration ("=" initialize)? ";" | func-prototype )*
-type-specifier  = builtin-type | struct-dec | typedef-name"
-builtin-type    = "void" 
-                | "_Bool"
-                | "char" 
-                | "short" | "short" "int" | "int" "short" 
-                | "int" 
-                | "long" | "int" "long" | "long" "int" 
-declarator      = "*"* ("(" declarator ")" | ident) type-suffix
-type-suffix     = ("[" num? "]" type-suffix)?
-struct-dec      = "struct" ident? "{" declaration ";" "}"
-                | "struct" ident
-declaration     = type-specifier declarator type-suffix
-                | type-specifier  
-initialize      = "{" (expr ("," expr)*)? "}" 
-                | expr 
-func-prototype  = type-specifier declarator "(" params? ")" 
-function        = func-prototype "{" stmt* "}"
-params          = declaration ("," declaration)*
-stmt            = expr ";"
-                | "return" expr ";"
-                | "if" "(" expr ")" stmt
-                | "while" "(" expr ")" stmt
-                | "for" "(" (expr | declaration "=" initialize)? ";" expr? ";" expr? ")" stmt
-                | "{" stmt* "}"
-                | declaration ("=" initialize)? ";"
-expr            = assign
-assign          = equality ("=" assign)?
-equality        = relational ("==" relational | "!=" relational)*
-relational      = add ("<" add | "<=" | ">" add | ">=" add)*
-add             = mul ("+" mul | "-" mul)*
-mul             = unary ("*" unary | "/" unary)*
-unary           = ("+" | "-")? postfix
-                | "*" unary
-                | "&" unary
-                | "sizeof" unary
-postfix         | primary ("[" expr "]" | "." ident | "->" ident)*
-stmt-expr       = "(" "{" stmt stmt* "}" ")"
-primary         = num 
-                | ident (func-args)? 
-                | "(" expr ")"
-                | str
-                | char
-                | "(" "{" stmt-expr-tail
-func-args       = "(" (assign ("," assign)*)? ")"
+program                 = (function | declaration ("=" initialize)? ";" | func-prototype )*
+type-specifier          = builtin-type | struct-dec | typedef-name"
+builtin-type            = "void" 
+                        | "_Bool"
+                        | "char" 
+                        | "short" | "short" "int" | "int" "short" 
+                        | "int" 
+                        | "long" | "int" "long" | "long" "int" 
+declarator              = "*"* ("(" declarator ")" | ident) type-suffix
+abstract-declarator     = "*"* ("(" declarator ")")? type-suffix
+type-suffix             = ("[" num? "]" type-suffix)?
+type-name               = type-specifier abstract-declarator type-suffix
+struct-dec              = "struct" ident? "{" declaration ";" "}"
+                        | "struct" ident
+declaration             = type-specifier declarator type-suffix
+                        | type-specifier  
+initialize              = "{" (expr ("," expr)*)? "}" 
+                        | expr 
+func-prototype          = type-specifier declarator "(" params? ")" 
+function                = func-prototype "{" stmt* "}"
+params                  = declaration ("," declaration)*
+stmt                    = expr ";"
+                        | "return" expr ";"
+                        | "if" "(" expr ")" stmt
+                        | "while" "(" expr ")" stmt
+                        | "for" "(" (expr | declaration "=" initialize)? ";" expr? ";" expr? ")" stmt
+                        | "{" stmt* "}"
+                        | declaration ("=" initialize)? ";"
+expr                    = assign
+assign                  = equality ("=" assign)?
+equality                = relational ("==" relational | "!=" relational)*
+relational              = add ("<" add | "<=" | ">" add | ">=" add)*
+add                     = mul ("+" mul | "-" mul)*
+mul                     = unary ("*" unary | "/" unary)*
+unary                   = ("+" | "-")? postfix
+                        | "*" unary
+                        | "&" unary
+                        | "sizeof" (unary | type-name)
+postfix                 | primary ("[" expr "]" | "." ident | "->" ident)*
+stmt-expr               = "(" "{" stmt stmt* "}" ")"
+primary                 = num 
+                        | ident (func-args)? 
+                        | "(" expr ")"
+                        | str
+                        | char
+                        | "(" "{" stmt-expr-tail
+func-args               = "(" (assign ("," assign)*)? ")"
 ```
 
 ## build 

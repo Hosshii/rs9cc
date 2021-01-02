@@ -366,5 +366,16 @@ int main() {
   assert( 1, ({char typedef CHAR; CHAR x = 1;sizeof x;}),"({char typedef CHAR; CHAR x = 1;sizeof x;})");
   assert( 4, ({typedef A ; A x = 1;sizeof x;}),"({typedef A ; A x = 1;sizeof x;})");
 
+  // #36
+  printf("\n\n#36\n");
+  assert (1, ({sizeof(char);}),"({sizeof(char);})");
+  assert (2, ({sizeof(short);}),"({sizeof(short);})");
+  assert (2, ({sizeof(short int);}),"({sizeof(short int);})");
+  assert (2, ({sizeof(int short);}),"({sizeof(int short);})");
+  assert (4, ({sizeof(int);}),"({sizeof(int);})");
+  assert (8, ({sizeof(long);}),"({sizeof(long);})");
+  assert (8, ({sizeof(long int);}),"({sizeof(long int);})");
+  assert (8, ({sizeof(int long);}),"({sizeof(int long);})");
+
   return 0;
 }
