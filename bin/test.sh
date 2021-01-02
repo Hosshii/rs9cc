@@ -392,6 +392,17 @@ complex_type() {
     assert 8 'int main(){int (*x)[3]; return sizeof(x);}'
     assert 3 'int main(){int *x[3]; int y; x[0]=&y; y=3; return x[0][0];}'
     assert 4 'int main(){int x[3]; int (*y)[3]=x; y[0][0]=4;return  y[0][0];}'
+
+    assert 1 'int g = 1; int *test(){return &g;} int main(){return *test();}'
+}
+
+# 34
+bool() {
+    assert 0 'int main(){_Bool x = 0; return x;}'
+    assert 1 'int main(){_Bool x = 1; return x;}'
+    assert 1 'int main(){_Bool x = 2; return x;}'
+    assert 1 'int main(){_Bool x = 2==2; return x;}'
+    assert 0 'int main(){_Bool x = 2==3; return x;}'
 }
 
 build() {
@@ -448,6 +459,7 @@ if [ $# -eq 0 ]; then
     typedef
     short_long
     complex_type
+    bool
 fi
 
 while [ $# -ne 0 ]; do
@@ -485,6 +497,7 @@ while [ $# -ne 0 ]; do
     "31") typedef ;;
     "32") short_long ;;
     "33") complex_type ;;
+    "34") bool ;;
     esac
     shift
 done

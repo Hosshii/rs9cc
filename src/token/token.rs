@@ -766,7 +766,7 @@ mod tests {
         }
         assert_eq!(None, iter.next());
 
-        let input = "{ { } ,hoge, int int1 char char1 short long void";
+        let input = "{ { } ,hoge, int int1 char char1 short long void _Bool";
         let expected = vec![
             TokenKind::Block(Block::LParen),
             TokenKind::Block(Block::LParen),
@@ -781,6 +781,7 @@ mod tests {
             TokenKind::TypeKind(TypeKind::Short),
             TokenKind::TypeKind(TypeKind::Long),
             TokenKind::TypeKind(TypeKind::Void),
+            TokenKind::TypeKind(TypeKind::_Bool),
         ];
         let mut iter = tokenize(input, "");
         for i in expected {

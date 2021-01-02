@@ -345,5 +345,14 @@ int main() {
   assert(4, ({ int x[3]; int (*y)[3]=x; y[0][0]=4; y[0][0]; }), "int x[3]; int (*y)[3]=x; y[0][0]=4; y[0][0];");
 
   {void * x;}
+
+  // #34
+  printf("\n\n#34\n");
+  assert( 0, ({_Bool x = 0; x;}),"({_Bool x = 0; x;})");
+  assert( 1, ({_Bool x = 1; x;}),"({_Bool x = 1; x;})");
+  assert( 1, ({_Bool x = 2; x;}),"({_Bool x = 2; x;})");
+  assert( 1, ({_Bool x = 2==2; x;}),"({_Bool x = 2==2; x;})");
+  assert( 0, ({_Bool x = 2==3; x;}),"({_Bool x = 2==3; x;})");
+
   return 0;
 }

@@ -533,17 +533,22 @@ fn gen_load_asm(size: u64, signed: bool) -> Option<&'static str> {
 
 fn store(node: &Node) {
     let mut word = "mov [rax], rdi";
+    println!("# store");
+    println!("    pop rdi");
+    println!("    pop rax");
     if let Ok(type_kind) = node.get_type() {
         match type_kind {
             TypeKind::Array(_, b_type, _) => {
                 word = gen_store_asm(TypeKind::Ptr(b_type).size()).unwrap_or(word)
             }
+            TypeKind::_Bool => {
+                println!("    cmp rdi, 0");
+                println!("  setne dil");
+                println!("  movzb rdi, dil");
+            }
             x => word = gen_store_asm(x.size()).unwrap_or(word),
         }
     }
-    println!("# store");
-    println!("    pop rdi");
-    println!("    pop rax");
     println!("    {}", word);
     println!("    push rdi");
 }
