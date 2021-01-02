@@ -389,6 +389,11 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Null => return Ok(()),
+        NodeKind::Cast(type_kind) => {
+            gen(&node.lhs.as_ref().unwrap(), ctx)?;
+            cast(type_kind);
+            return Ok(());
+        }
         _ => (),
     }
 
@@ -580,4 +585,23 @@ fn ptr_op(node: &Node) {
             }
         }
     }
+}
+
+fn cast(type_kind: &TypeKind) {
+    use TypeKind::*;
+
+    println!("# cast");
+    println!("    pop rax");
+    if type_kind == &_Bool {
+        println!("    cmp rax, 0");
+        println!("    setne al");
+    }
+
+    match type_kind.size() {
+        1 => println!("    movsx rax, al"),
+        2 => println!("    movsx rax, ax"),
+        4 => println!("    movsx rax, eax"),
+        _ => (),
+    }
+    println!("    push rax");
 }

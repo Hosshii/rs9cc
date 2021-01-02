@@ -701,58 +701,52 @@ pub fn add(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     }
 }
 
-// mul         = unary ("*" unary | "/" unary)*
+// mul         = cast ("*" cast | "/" cast)*
 pub fn mul(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
-    let mut node = unary(iter, ctx)?;
+    let mut node = cast(iter, ctx)?;
     loop {
         if consume(iter, Operator::Mul) {
-            node = Node::new(NodeKind::Mul, node, unary(iter, ctx)?)
+            node = Node::new(NodeKind::Mul, node, cast(iter, ctx)?)
         } else if consume(iter, Operator::Div) {
-            node = Node::new(NodeKind::Div, node, unary(iter, ctx)?)
+            node = Node::new(NodeKind::Div, node, cast(iter, ctx)?)
         } else {
             return Ok(node);
         }
     }
 }
 
-// unary       = ("+" | "-")? postfix
-//             | "*" unary
-//             | "&" unary
-//             | "sizeof" (unary | "(" type-name ")")
+// cast                    = "(" type-name ")" cast | unary
+pub fn cast(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    if consume(iter, Operator::LParen) {
+        if let Some(x) = iter.peek() {
+            if let TokenKind::TypeKind(_) = x.kind {
+                let ty = type_name(iter, ctx)?;
+                expect(iter, Operator::RParen)?;
+                return Ok(Node::new_unary(
+                    NodeKind::Cast(ty.replace(TypeKind::Int)),
+                    cast(iter, ctx)?,
+                ));
+            }
+            // `(`をconsumeした分を戻す
+            iter.pos.tk -= 1;
+            iter.pos.bytes -= 1;
+        }
+    }
+
+    unary(iter, ctx)
+}
+
+// unary       = ("+" | "-" | "*" | "&")? cast
+//             | postfix
 pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::Plus) {
-        return primary(iter, ctx);
+        return cast(iter, ctx);
     } else if consume(iter, Operator::Minus) {
-        return Ok(Node::new(
-            NodeKind::Sub,
-            Node::new_num(0),
-            primary(iter, ctx)?,
-        ));
+        return Ok(Node::new(NodeKind::Sub, Node::new_num(0), cast(iter, ctx)?));
     } else if consume(iter, Operator::Mul) {
-        return Ok(Node::new_unary(NodeKind::Deref, unary(iter, ctx)?));
+        return Ok(Node::new_unary(NodeKind::Deref, cast(iter, ctx)?));
     } else if consume(iter, Operator::Ampersand) {
-        return Ok(Node::new_unary(NodeKind::Addr, unary(iter, ctx)?));
-    } else if consume(iter, Operator::Sizeof) {
-        if consume(iter, Operator::LParen) {
-            if let Some(x) = iter.peek() {
-                if let TokenKind::TypeKind(_) = x.kind {
-                    let ty = type_name(iter, ctx)?;
-                    expect(iter, Operator::RParen)?;
-                    return Ok(Node::new_num(ty.borrow().size()));
-                }
-                // `(`をconsumeした分を戻す
-                iter.pos.tk -= 1;
-                iter.pos.bytes -= 1;
-            }
-        }
-        let node = unary(iter, ctx)?;
-        match node.get_type() {
-            Ok(x) => return Ok(Node::new_num(x.size())),
-            Err(e) => {
-                println!("{}", e);
-                todo!()
-            }
-        }
+        return Ok(Node::new_unary(NodeKind::Addr, cast(iter, ctx)?));
     }
     return postfix(iter, ctx);
 }
@@ -839,6 +833,8 @@ pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error>
 //             | "(" expr ")"
 //             | str
 //             | "(" "{" stmt-expr-tail
+//             | sizeof unary
+//             | sizeof "(" type-name ")"
 pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     // "(" expr ")"
     if consume(iter, Operator::LParen) {
@@ -897,6 +893,29 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             (string.len() + 1) as u64,
             vec![Node::new_leaf(NodeKind::TkString(string.clone()))],
         )));
+    }
+
+    if consume(iter, Operator::Sizeof) {
+        if consume(iter, Operator::LParen) {
+            if let Some(x) = iter.peek() {
+                if let TokenKind::TypeKind(_) = x.kind {
+                    let ty = type_name(iter, ctx)?;
+                    expect(iter, Operator::RParen)?;
+                    return Ok(Node::new_num(ty.borrow().size()));
+                }
+                // `(`をconsumeした分を戻す
+                iter.pos.tk -= 1;
+                iter.pos.bytes -= 1;
+            }
+        }
+        let node = unary(iter, ctx)?;
+        match node.get_type() {
+            Ok(x) => return Ok(Node::new_num(x.size())),
+            Err(e) => {
+                println!("{}", e);
+                todo!()
+            }
+        }
     }
 
     // num

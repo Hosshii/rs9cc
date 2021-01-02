@@ -434,6 +434,17 @@ sizeof2() {
     assert 8 'int main(){return sizeof(4294967297);}'
 }
 
+# 37
+cast() {
+    assert 1 'int main(){ return (char)8590066177;}'
+    assert 1 'int main(){ return (_Bool)1;}'
+    assert 1 'int main(){ return (_Bool)2;}'
+    assert 0 'int main(){ return (_Bool)(char)256;}'
+    assert 1 'int main(){ return (long)1;}'
+    assert 0 'int main(){ return (long)&*(int *)0;}'
+    assert 5 'int main(){ int x=5; long y=(long)&x; return *(int*)y;}'
+}
+
 build() {
     cargo build
 }
@@ -491,6 +502,7 @@ if [ $# -eq 0 ]; then
     bool
     complex_type2
     sizeof2
+    caet
 fi
 
 while [ $# -ne 0 ]; do
@@ -531,6 +543,7 @@ while [ $# -ne 0 ]; do
     "34") bool ;;
     "35") complex_type2 ;;
     "36") sizeof2 ;;
+    "37") cast ;;
     esac
     shift
 done

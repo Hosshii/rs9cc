@@ -39,11 +39,10 @@ assign                  = equality ("=" assign)?
 equality                = relational ("==" relational | "!=" relational)*
 relational              = add ("<" add | "<=" | ">" add | ">=" add)*
 add                     = mul ("+" mul | "-" mul)*
-mul                     = unary ("*" unary | "/" unary)*
-unary                   = ("+" | "-")? postfix
-                        | "*" unary
-                        | "&" unary
-                        | "sizeof" (unary | type-name)
+mul                     = cast ("*" cast | "/" cast)*
+cast                    = "(" type-name ")" cast | unary
+unary                   = ("+" | "-" | "*" | "&" )? cast
+                        | postfix
 postfix                 | primary ("[" expr "]" | "." ident | "->" ident)*
 stmt-expr               = "(" "{" stmt stmt* "}" ")"
 primary                 = num 
@@ -52,6 +51,8 @@ primary                 = num
                         | str
                         | char
                         | "(" "{" stmt-expr-tail
+                        | "sizeof" unary
+                        | "sizeof "(" type-name ")"
 func-args               = "(" (assign ("," assign)*)? ")"
 ```
 

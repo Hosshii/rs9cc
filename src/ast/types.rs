@@ -38,6 +38,7 @@ pub enum NodeKind {
     StmtExpr(Vec<Node>),
     ExprStmt,
     Member(Ident, Rc<Member>), // member name, offset
+    Cast(TypeKind),
     Null,
 }
 
@@ -76,6 +77,7 @@ impl NodeKind {
             StmtExpr(_) => "stmt expr".to_string(),
             ExprStmt => "expression statement".to_string(),
             Member(_, _) => "member".to_string(),
+            Cast(_) => "cast".to_string(),
             Null => "null".to_string(),
         }
     }
