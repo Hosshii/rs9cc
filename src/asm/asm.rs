@@ -134,7 +134,12 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     match &node.kind {
         NodeKind::Num(x) => {
             println!("# number");
-            println!("    push {}", x);
+            if x > &(u32::MAX as u64) {
+                println!("    movabs rax, {}", x);
+                println!("    push rax");
+            } else {
+                println!("    push {}", x);
+            }
             return Ok(());
         }
         NodeKind::Lvar(_) | NodeKind::Gvar(_) => {

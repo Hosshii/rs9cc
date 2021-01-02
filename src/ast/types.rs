@@ -259,7 +259,13 @@ impl Node {
             Lvar(lvar) => Ok(lvar.get_type()),
             Gvar(gvar) => Ok(gvar.get_type()),
             Func(func_prototype, _) => Ok(func_prototype.type_kind.clone()),
-            Num(_) => Ok(TypeKind::Int),
+            Num(num) => {
+                if num > &(u32::MAX as u64) {
+                    Ok(TypeKind::Long)
+                } else {
+                    Ok(TypeKind::Int)
+                }
+            }
             ExprStmt => {
                 if let Some(ref lhs) = self.lhs {
                     Ok(lhs.get_type()?)

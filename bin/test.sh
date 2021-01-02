@@ -429,6 +429,9 @@ sizeof2() {
     assert 8 'int main(){return sizeof(long);}'
     assert 8 'int main(){return sizeof(long int);}'
     assert 8 'int main(){return sizeof(int long);}'
+    assert 4 'int main(){return sizeof(0);}'
+
+    assert 8 'int main(){return sizeof(4294967297);}'
 }
 
 build() {

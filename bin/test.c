@@ -377,5 +377,9 @@ int main() {
   assert (8, ({sizeof(long int);}),"({sizeof(long int);})");
   assert (8, ({sizeof(int long);}),"({sizeof(int long);})");
 
+  assert(4, sizeof(0), "sizeof(0)");
+  assert(4294967297, 4294967297, "4294967297");
+  assert(8, sizeof(4294967297), "sizeof(4294967297)");
+
   return 0;
 }
