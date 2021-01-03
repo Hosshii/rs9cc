@@ -93,6 +93,16 @@ pub(crate) fn consume_string(iter: &mut TokenIter) -> Option<String> {
     None
 }
 
+pub(crate) fn consume_char(iter: &mut TokenIter) -> Option<char> {
+    if let Some(x) = iter.peek() {
+        if let TokenKind::Char(c) = x.kind {
+            iter.next();
+            return Some(c);
+        }
+    }
+    None
+}
+
 pub(crate) fn consume_declarator(
     iter: &mut TokenIter,
     ctx: &mut Context,

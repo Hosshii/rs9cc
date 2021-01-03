@@ -417,7 +417,6 @@ pub fn multi_field_initialize(iter: &mut TokenIter, ctx: &mut Context) -> Result
         for i in string.chars() {
             nodes.push(Node::new_num(i as u64))
         }
-        nodes.push(Node::new_num('\0' as u64));
     }
     // num
     else {
@@ -832,6 +831,7 @@ pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error>
 //             | ident func-args?
 //             | "(" expr ")"
 //             | str
+//             | char
 //             | "(" "{" stmt-expr-tail
 //             | sizeof unary
 //             | sizeof "(" type-name ")"
@@ -890,9 +890,14 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             .push((string.clone(), Rc::new(label.clone())));
         return Ok(Node::new_leaf(make_string_node(
             label,
-            (string.len() + 1) as u64,
+            (string.len()) as u64,
             vec![Node::new_leaf(NodeKind::TkString(string.clone()))],
         )));
+    }
+
+    // char
+    if let Some(c) = consume_char(iter) {
+        return Ok(Node::new_num(c as u64));
     }
 
     if consume(iter, Operator::Sizeof) {
@@ -1601,7 +1606,7 @@ mod tests {
                     ".LC0",
                     4,
                     vec![Node::new_leaf(NodeKind::TkString(Rc::new(
-                        "aaa".to_string(),
+                        "aaa\u{0}".to_string(),
                     )))],
                 )),
                 GlobalContext::new(),

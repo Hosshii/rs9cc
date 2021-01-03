@@ -265,6 +265,9 @@ char() {
     assert 3 'int main(){char x[3]; x[0] = -1; x[1] = 2; int y; y = 4; return x[0] + y;}'
     assert 5 'int main(){char x[3]; x[0] = -1; x[1] = 2; int y; y = 4; return y - x[0];}'
     assert 10 'char hoge[2]; int main(){hoge[0] =1; hoge[hoge[0]]= 10; return hoge[1];}  '
+
+    assert 97 "int main(){char p = 'a';return p; }"
+    assert 10 "int main(){return '\\n';}"
 }
 
 # 25

@@ -77,7 +77,9 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
     }
     for (content, label) in program.ctx.g.tk_string {
         println!("{}:", label);
-        println!("    .string \"{}\"", content);
+        for c in content.chars() {
+            println!("    .byte {}", c as u8);
+        }
     }
 
     let mut ctx = Context::new();

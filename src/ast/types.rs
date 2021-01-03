@@ -34,7 +34,8 @@ pub enum NodeKind {
     TypeKind(TypeKind),
     Declaration(Declaration),
     Gvar(Rc<Gvar>),
-    TkString(Rc<String>), // text, label, idx of ctx.tk_string
+    TkString(Rc<String>),
+    Char(char),
     StmtExpr(Vec<Node>),
     ExprStmt,
     Member(Ident, Rc<Member>), // member name, offset
@@ -74,6 +75,7 @@ impl NodeKind {
             Declaration(dec) => format!("{:?}", dec),
             Gvar(x) => format!("{:?}", x),
             TkString(string) => string.to_string(),
+            Char(c)=>c.to_string(),
             StmtExpr(_) => "stmt expr".to_string(),
             ExprStmt => "expression statement".to_string(),
             Member(_, _) => "member".to_string(),

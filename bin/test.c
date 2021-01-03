@@ -236,6 +236,9 @@ int main() {
   assert( 5,({char x[3]; x[0] = -1; x[1] = 2; int y; y = 4; y - x[0];}), "({char x[3]; x[0] = -1; x[1] = 2; int y; y = 4; y - x[0];})");
   assert( 10,({g_hoge1[0] =1; g_hoge1[g_hoge1[0]]= 10; g_hoge1[1];}  ), "({g_hoge1[0] =1; g_hoge1[g_hoge1[0]]= 10; g_hoge1[1];}  )");
 
+  assert(97,'a',"'a'");
+  assert(10,'\n',"'\n'");
+
   // #25
   printf("\n\n#25\n");
   assert( 97, ({"abc"[0];}) , "({abc[0];})");
@@ -393,6 +396,8 @@ int main() {
   assert(1, (long)1, "(long)1");
   assert(0, (long)&*(int *)0, "(long)&*(int *)0");
   assert(5, ({ int x=5; long y=(long)&x; *(int*)y; }), "int x=5; long y=(long)&x; *(int*)y");
+
+  printf("\"\n");
 
   return 0;
 }

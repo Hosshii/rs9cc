@@ -455,15 +455,35 @@ impl<'a> TokenIter<'a> {
         let mut chars = s.chars();
         if let Some(x) = chars.next() {
             if x.to_string() == DoubleQuote.as_string() {
-                let result: String = chars.take_while(|c| c != &'\"').collect();
-                let len = result.len();
-                if len >= s.len() - 1 {
-                    self.error_at("cannot find end of \"");
+                let mut len = 1;
+                let mut result = Vec::with_capacity(1024);
+                loop {
+                    if let Some(c) = chars.next() {
+                        len += 1;
+                        if c == '\"' {
+                            break;
+                        }
+
+                        if c == '\\' {
+                            if let Some(cc) = chars.next() {
+                                len += 1;
+                                result.push(get_escape_chars(cc));
+                            } else {
+                                self.error_at("reach EOF")
+                            }
+                        } else {
+                            result.push(c);
+                        }
+                    } else {
+                        self.error_at("cannot find end of \"");
+                    }
                 }
+                let mut result = result.into_iter().collect::<String>();
+                result += "\0";
 
                 return Some((
                     Token::new(TokenKind::String(result), self.pos),
-                    TokenPos::new_bytes(len + 2),
+                    TokenPos::new_bytes(len),
                 ));
             }
         }
@@ -478,14 +498,33 @@ impl<'a> TokenIter<'a> {
             .map(|v| v.to_string() == SingleQuote.as_string())
             .unwrap_or(false)
         {
-            let result: String = chars.take_while(|c| c != &'\'').collect();
-            let len = result.len();
-            if len != 1 {
-                self.error_at("char length should be 1")
+            let result: char;
+            let mut len = 1;
+            if let Some(c) = chars.next() {
+                if c == '\\' {
+                    if let Some(cc) = chars.next() {
+                        result = get_escape_chars(cc);
+                        len += 2;
+                    } else {
+                        self.error_at("reach EOF")
+                    }
+                } else {
+                    result = c;
+                    len += 1;
+                }
+            } else {
+                self.error_at("reach EOF")
             }
+
+            if chars.next() != Some('\'') {
+                self.error_at("char length should be 1")
+            } else {
+                len += 1;
+            }
+
             return Some((
-                Token::new(TokenKind::Char(result.chars().nth(0).unwrap()), self.pos),
-                TokenPos::new_bytes(len + 2),
+                Token::new(TokenKind::Char(result), self.pos),
+                TokenPos::new_bytes(len),
             ));
         }
         None
@@ -506,12 +545,27 @@ impl<'a> TokenIter<'a> {
     }
 
     fn error_at(&self, msg: &str) -> ! {
-        eprintln!("{}", self.s);
+        let mut line_num = 1;
+        let mut bytes = 0;
+        let mut err_input = String::new();
+        for line in self.s.lines() {
+            let len = line.as_bytes().len();
+            if bytes + len >= self.pos.bytes {
+                err_input = line.to_string();
+                break;
+            }
+            line_num += 1;
+            bytes += len + 1;
+        }
+
+        let info = format!("{}: {}", self.filepath, line_num);
+        let err_input = format!("{} {}", info, err_input);
+        eprintln!("{}", err_input);
         eprintln!(
-            "{number:>width$} {msg}",
+            "{number:>width$} {err_msg}",
             number = '^',
-            width = self.pos.bytes + 1,
-            msg = msg
+            width = self.pos.bytes + 1 + info.len() - bytes,
+            err_msg = msg,
         );
         panic!()
     }
@@ -678,6 +732,21 @@ fn is_alnum(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
+fn get_escape_chars(c: char) -> char {
+    match c {
+        'a' => 7 as char,
+        'b' => 8 as char,
+        't' => 9 as char,
+        'n' => 10 as char,
+        'v' => 11 as char,
+        'f' => 12 as char,
+        'r' => 13 as char,
+        'e' => 27 as char,
+        '0' => 0 as char,
+        _ => c,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -716,7 +785,7 @@ mod tests {
         assert_eq!(None, iter.next());
 
         let input = "
-            return; returnx return1 return 1 for while if else force whilet ifelse elseif \"aaaaa\"a \'a\'a struct . typedef";
+            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef";
 
         let expected = vec![
             KeyWord(Return),
@@ -733,10 +802,6 @@ mod tests {
             TokenKind::Ident(Ident::new("whilet")),
             TokenKind::Ident(Ident::new("ifelse")),
             TokenKind::Ident(Ident::new("elseif")),
-            TokenKind::String("aaaaa".to_string()),
-            TokenKind::Ident(Ident::new("a")),
-            TokenKind::Char('a'),
-            TokenKind::Ident(Ident::new('a')),
             KeyWord(Struct),
             TokenKind::Period,
             KeyWord(Typedef),
@@ -744,6 +809,21 @@ mod tests {
         let mut iter = tokenize(input, "");
         for i in expected {
             assert_eq!(i, iter.next().unwrap().kind);
+        }
+        assert_eq!(None, iter.next());
+
+        let input = r###""hello" "hello\n" "hello\"" 'a' '\n' '\''"###;
+        let expected = [
+            TokenKind::String("hello\u{0}".to_string()),
+            TokenKind::String("hello\n\u{0}".to_string()),
+            TokenKind::String("hello\"\u{0}".to_string()),
+            TokenKind::Char('a'),
+            TokenKind::Char('\n'),
+            TokenKind::Char('\''),
+        ];
+        let mut iter = tokenize(input, "");
+        for i in &expected {
+            assert_eq!(i, &iter.next().unwrap().kind);
         }
         assert_eq!(None, iter.next());
 
