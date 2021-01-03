@@ -300,6 +300,12 @@ impl Node {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub enum Var {
+    L(Rc<Lvar>),
+    G(Rc<Gvar>),
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Lvar {
     next: Option<Rc<Lvar>>,
     pub dec: Declaration,
@@ -351,8 +357,9 @@ pub type GvarMp = HashMap<String, Rc<Gvar>>;
 pub struct Context {
     pub g: GlobalContext,
     pub l: LocalContext,
-    pub s: LocalContext,
+    pub s: Scope,
     pub t: TagContext,
+    pub static_counter: u32,
 }
 
 impl Context {
@@ -360,14 +367,29 @@ impl Context {
         Self {
             g: GlobalContext::new(),
             l: LocalContext::new(),
-            s: LocalContext::new(),
+            s: Scope::new(),
             t: TagContext::new(),
+            static_counter: 0,
         }
     }
 
     pub fn push_front(&mut self, dec: Declaration, offset: u64) {
         self.l.push_front(dec.clone(), offset);
-        self.s.push_front(dec, offset);
+        let lvar = self.l.find_lvar(dec.ident.name.clone()).unwrap();
+        self.s.insert(dec.ident, Rc::new(Var::L(lvar)));
+    }
+
+    pub fn insert_g(&mut self, dec: Declaration, init: Vec<Node>) {
+        let size = dec.type_kind.size();
+        let ident = dec.ident.name.clone();
+        let gvar = Rc::new(Gvar::new(dec, size, init));
+        self.g.gvar_mp.insert(ident.clone(), gvar.clone());
+        self.s.insert(Ident::new(ident), Rc::new(Var::G(gvar)));
+    }
+
+    pub fn make_label(&mut self) -> String {
+        self.static_counter += 1;
+        format!(".static.data{}", self.static_counter)
     }
 }
 
@@ -442,6 +464,44 @@ impl LocalContext {
                 None
             }
         }
+    }
+}
+
+type VarMp = HashMap<Ident, Rc<Var>>;
+#[derive(Clone, Debug)]
+pub struct Scope {
+    mp: VarMp,
+}
+
+impl Scope {
+    pub fn new() -> Self {
+        Self { mp: HashMap::new() }
+    }
+
+    pub fn find_lvar(&self, ident: &Ident) -> Option<Rc<Lvar>> {
+        if let Some(vr) = self.mp.get(ident) {
+            match vr.as_ref() {
+                Var::L(lvar) => Some(lvar.clone()),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn find_gvar(&self, ident: &Ident) -> Option<Rc<Gvar>> {
+        if let Some(vr) = self.mp.get(ident) {
+            match vr.as_ref() {
+                Var::G(gvar) => Some(gvar.clone()),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn insert(&mut self, ident: Ident, vr: Rc<Var>) -> Option<Rc<Var>> {
+        self.mp.insert(ident, vr)
     }
 }
 
@@ -541,6 +601,7 @@ pub struct Declaration {
     pub type_kind: TypeKind,
     pub ident: Ident,
     pub is_typedef: bool,
+    pub is_static: bool,
     pub is_const: (bool, u64), // for enum
 }
 
@@ -550,6 +611,7 @@ impl Declaration {
             type_kind,
             ident,
             is_typedef: false,
+            is_static: false,
             is_const: (false, 0),
         }
     }
@@ -559,6 +621,7 @@ impl Declaration {
             type_kind,
             ident,
             is_typedef: false,
+            is_static: false,
             is_const: (true, val),
         }
     }

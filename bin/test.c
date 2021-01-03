@@ -31,6 +31,7 @@ char echo2(char x){return x;}
 short sub_short(short a, short b){return a-b;}
 long sub_long(long a, long b){return a-b;}
 char char_fn() { return 257; }
+int count(){static int cnt; cnt = cnt+1; return cnt;}
 
 int g_1;
 int g_2;
@@ -400,6 +401,12 @@ int main() {
 
   printf("\"\n");
   assert(1, char_fn(), "char_fn()");
+
+  // #38
+  printf("\n\n#38\n");
+  assert(1, count(), "count()");
+  assert(2, count(), "count()");
+  assert(3, count(), "count()");
 
   return 0;
 }

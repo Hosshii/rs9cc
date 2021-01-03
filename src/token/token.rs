@@ -162,6 +162,7 @@ pub enum KeyWord {
     Struct,
     Enum,
     Typedef,
+    Static,
 }
 
 impl KeyWord {
@@ -176,6 +177,7 @@ impl KeyWord {
             Struct => "struct",
             Enum => "enum",
             Typedef => "typedef",
+            Static => "static",
         }
     }
 
@@ -190,6 +192,7 @@ impl KeyWord {
             x if x.starts_with(Struct.as_str()) => Ok(Struct),
             x if x.starts_with(Enum.as_str()) => Ok(Enum),
             x if x.starts_with(Typedef.as_str()) => Ok(Typedef),
+            x if x.starts_with(Static.as_str()) => Ok(Static),
             _ => Err(()),
         }
     }
@@ -208,6 +211,7 @@ impl FromStr for KeyWord {
             x if x == Struct.as_str() => Ok(Struct),
             x if x == Enum.as_str() => Ok(Enum),
             x if x == Typedef.as_str() => Ok(Typedef),
+            x if x == Static.as_str() => Ok(Static),
             _ => Err(()),
         }
     }
@@ -789,7 +793,7 @@ mod tests {
         assert_eq!(None, iter.next());
 
         let input = "
-            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum";
+            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static";
 
         let expected = vec![
             KeyWord(Return),
@@ -810,6 +814,7 @@ mod tests {
             TokenKind::Period,
             KeyWord(Typedef),
             KeyWord(Enum),
+            KeyWord(Static),
         ];
         let mut iter = tokenize(input, "");
         for i in expected {

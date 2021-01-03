@@ -1,7 +1,10 @@
 use super::error::Error;
 use super::util::*;
 use super::NodeKind;
-use super::{Context, Declaration, FuncPrototype, Function, Ident, LocalContext, Node, Program};
+use super::{
+    Context, Declaration, FuncPrototype, Function, Gvar, Ident, LocalContext, Node, Program, Scope,
+    Var,
+};
 use crate::base_types::{self, Enum, Member, Struct, TagContext, TagTypeKind, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::cell::RefCell;
@@ -85,10 +88,8 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                                 init = nodes
                             }
 
-                            ctx.g.gvar_mp.insert(
-                                ident.name.clone(),
-                                Rc::new(check_g_var(iter, &ctx.g.gvar_mp, dec, ident, init)?),
-                            );
+                            let dec = Declaration::new(dec, ident);
+                            ctx.insert_g(dec, init);
                         }
                         _ => {
                             let mut init = vec![];
@@ -110,10 +111,8 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                                 }
                                 expect_semi(iter)?;
                             }
-                            ctx.g.gvar_mp.insert(
-                                ident.name.clone(),
-                                Rc::new(check_g_var(iter, &ctx.g.gvar_mp, dec, ident, init)?),
-                            );
+                            let dec = Declaration::new(dec, ident);
+                            ctx.insert_g(dec, init);
                         }
                     }
                 }
@@ -129,32 +128,47 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
 //                 | "short" | "short" "int" | "int" "short"
 //                 | "int"
 //                 | "long" | "int" "long" | "long" "int"
-pub fn type_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<(TypeKind, bool), Error> {
+// static and typedef can appear anywhere in type-specifier
+pub fn type_specifier(
+    iter: &mut TokenIter,
+    ctx: &mut Context,
+) -> Result<(TypeKind, (bool, bool)), Error> {
     let mut ty_vec = Vec::new();
     let mut is_typedef = false;
+    let mut is_static = false;
     let mut ty = None;
     while let Some(x) = iter.peek() {
         if let TokenKind::TypeKind(ref type_kind) = x.kind {
             iter.next();
             ty_vec.push(type_kind.clone());
         } else if x.kind == TokenKind::KeyWord(KeyWord::Struct) {
-            return Ok((TypeKind::Struct(struct_dec(iter, ctx)?), is_typedef));
+            return Ok((
+                TypeKind::Struct(struct_dec(iter, ctx)?),
+                (is_typedef, is_static),
+            ));
         } else if x.kind == TokenKind::KeyWord(KeyWord::Enum) {
-            return Ok((TypeKind::Enum(enum_specifier(iter, ctx)?), is_typedef));
+            return Ok((
+                TypeKind::Enum(enum_specifier(iter, ctx)?),
+                (is_typedef, is_static),
+            ));
         } else if x.kind == TokenKind::KeyWord(KeyWord::Typedef) {
             iter.next();
             is_typedef = true;
             continue;
+        } else if x.kind == TokenKind::KeyWord(KeyWord::Static) {
+            iter.next();
+            is_static = true;
+            continue;
         } else {
             if let Some(xx) = ty {
-                return Ok((xx, is_typedef));
+                return Ok((xx, (is_typedef, is_static)));
             }
             if let TokenKind::Ident(ref ident) = x.kind {
                 let ident = Ident::from(ident.clone());
                 if let Some(type_def) = ctx.t.find_tag(&ident) {
                     if let TagTypeKind::Typedef(dec) = type_def.as_ref() {
                         iter.next();
-                        return Ok((dec.type_kind.clone(), is_typedef));
+                        return Ok((dec.type_kind.clone(), (is_typedef, is_static)));
                     } else {
                         // todo error handling
                     }
@@ -409,7 +423,7 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
 // declaration     = type-specifier declarator type-suffix
 //                 | type-specifier
 pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration, Error> {
-    let (type_kind, is_typedef) = type_specifier(iter, ctx)?;
+    let (type_kind, (is_typedef, is_static)) = type_specifier(iter, ctx)?;
     let type_kind = Rc::new(RefCell::new(type_kind));
     let mut ident = Ident::new_anonymous();
     let mut dec = if let Some(dec) = consume_declarator(iter, ctx, type_kind.clone(), &mut ident) {
@@ -425,7 +439,23 @@ pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Dec
             Rc::new(dec.ident.clone()),
             Rc::new(TagTypeKind::Typedef(Rc::new(dec.clone()))),
         );
-        dec.is_typedef = is_typedef;
+    }
+
+    dec.is_typedef = is_typedef;
+    dec.is_static = is_static;
+    if is_static {
+        //     let ident = Ident::new(ctx.make_label());
+        //     ctx.g.gvar_mp.insert(
+        //         ident.name.clone(),
+        //         Rc::new(check_g_var(
+        //             iter,
+        //             &ctx.g.gvar_mp,
+        //             dec.type_kind.clone(),
+        //             ident,
+        //             vec![],
+        //         )?),
+        //     );
+        //     // ctx.s.push_front(dec.clone(),)
     }
     Ok(dec)
 }
@@ -439,7 +469,6 @@ pub fn function(
     expect_block(iter, Block::LParen)?;
 
     ctx.l = LocalContext::new();
-    ctx.s = LocalContext::new();
     ctx.t = TagContext::new();
     for fn_param in func_prototype.params.clone() {
         let l = ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0);
@@ -522,7 +551,7 @@ pub fn unary_initialize(
         NodeKind::ExprStmt,
         Node::new(
             NodeKind::Assign,
-            Node::new_leaf(NodeKind::Lvar(ctx.s.find_lvar(&dec.ident.name).unwrap())),
+            Node::new_leaf(NodeKind::Lvar(ctx.s.find_lvar(&dec.ident).unwrap())),
             node,
         ),
     );
@@ -623,10 +652,19 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             if dec.ident.is_anonymous() || dec.is_typedef {
                 return Ok(Node::new_leaf(NodeKind::Null));
             }
-            ctx.push_front(
-                dec.clone(),
-                ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
-            );
+            if dec.is_static {
+                let size = dec.type_kind.size();
+                let mut label = ctx.make_label();
+                std::mem::swap(&mut dec.ident.name, &mut label);
+                let gvar = Rc::new(Gvar::new(dec.clone(), size, vec![]));
+                ctx.g.gvar_mp.insert(dec.ident.name.clone(), gvar.clone());
+                ctx.s.insert(Ident::new(label), Rc::new(Var::G(gvar)));
+            } else {
+                ctx.push_front(
+                    dec.clone(),
+                    ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+                );
+            }
             return Ok(Node::new_leaf(NodeKind::Declaration(dec)));
         }
         expect(iter, Operator::Assign)?;
@@ -643,7 +681,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     dec.clone(),
                     ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
                 );
-                let lvar = ctx.s.find_lvar(&dec.ident.name).unwrap();
+                let lvar = ctx.s.find_lvar(&dec.ident).unwrap();
                 let node = make_arr_init(lvar.clone(), &dec, nodes).map_err(|size| {
                     Error::invalid_initialization(
                         iter.filepath,
@@ -663,7 +701,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     dec.clone(),
                     ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
                 );
-                let lvar = ctx.s.find_lvar(&dec.ident.name).unwrap();
+                let lvar = ctx.s.find_lvar(&dec.ident).unwrap();
                 let node = make_unary_init(lvar, &dec, node).unwrap();
                 return Ok(node);
             }
@@ -926,12 +964,12 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 func_args(iter, ctx)?,
             )));
         }
-        if let Some(lvar) = ctx.s.find_lvar(&ident.name) {
+        if let Some(lvar) = ctx.s.find_lvar(&ident) {
             if lvar.dec.is_const.0 {
                 return Ok(Node::new_num(lvar.dec.is_const.1));
             }
             return Ok(Node::new_leaf(NodeKind::Lvar(lvar)));
-        } else if let Some(x) = ctx.g.gvar_mp.get(&ident.name) {
+        } else if let Some(x) = ctx.s.find_gvar(&ident) {
             return Ok(Node::new_leaf(NodeKind::Gvar(x.clone())));
         } else {
             return Err(Error::undefined_variable(
@@ -1070,6 +1108,7 @@ mod tests {
 
     #[test]
     fn test_unary() {
+        use crate::ast::Var;
         use crate::token;
         let expected = vec![
             Node::new_num(1),
@@ -1120,7 +1159,10 @@ mod tests {
         for i in expected {
             let ctx = &mut Context::new();
             ctx.l.lvar = Some(Rc::new(make_int_lvar("hoge", 8)));
-            ctx.s.lvar = Some(Rc::new(make_int_lvar("hoge", 8)));
+            ctx.s.insert(
+                Ident::new("hoge"),
+                Rc::new(Var::L(Rc::new(make_int_lvar("hoge", 8)))),
+            );
             assert_eq!(i, unary(iter, ctx).unwrap());
         }
 
@@ -1136,7 +1178,8 @@ mod tests {
         for i in expected {
             let ctx = &mut Context::new();
             ctx.l.lvar = Some(Rc::new(i.1.clone()));
-            ctx.s.lvar = Some(Rc::new(i.1));
+            ctx.s
+                .insert(i.1.dec.ident.clone(), Rc::new(Var::L(Rc::new(i.1))));
 
             assert_eq!(i.0, unary(iter, ctx).unwrap());
         }
@@ -1310,6 +1353,7 @@ mod tests {
 
     #[test]
     fn test_for() {
+        use crate::ast::Var;
         use crate::token;
 
         let init = Node::new_unary(NodeKind::ExprStmt, make_assign_node("i", 0, 8));
@@ -1356,7 +1400,10 @@ mod tests {
         let input = "for( i=0;i<10;i=i+1)return i+2;";
         let ctx = &mut Context::new();
         ctx.l.lvar = Some(Rc::new(make_int_lvar("i", 8)));
-        ctx.s.lvar = Some(Rc::new(make_int_lvar("i", 8)));
+        ctx.s.insert(
+            Ident::new("i"),
+            Rc::new(Var::L(Rc::new(make_int_lvar("i", 8)))),
+        );
         let actual = stmt(&mut token::tokenize(input, ""), ctx).unwrap();
 
         assert_eq!(expected, actual);
