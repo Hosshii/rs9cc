@@ -37,7 +37,7 @@ stmt                    = expr ";"
                         | "for" "(" stmt? ";" expr? ";" expr? ")" stmt
                         | "{" stmt* "}"
                         | declaration ("=" initialize)? ";"
-expr                    = assign
+expr                    = assign ("," assign)*
 assign                  = equality ("=" assign)?
 equality                = relational ("==" relational | "!=" relational)*
 relational              = add ("<" add | "<=" | ">" add | ">=" add)*

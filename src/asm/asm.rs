@@ -393,6 +393,10 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             cast(type_kind);
             return Ok(());
         }
+        NodeKind::Comma => {
+            gen(node.lhs.as_ref().unwrap(), ctx)?;
+            gen(node.rhs.as_ref().unwrap(), ctx)?;
+        }
         _ => (),
     }
 

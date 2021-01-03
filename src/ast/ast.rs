@@ -2,8 +2,7 @@ use super::error::Error;
 use super::util::*;
 use super::NodeKind;
 use super::{
-    Context, Declaration, FuncPrototype, Function, Gvar, Ident, LocalContext, Node, Program, Scope,
-    Var,
+    Context, Declaration, FuncPrototype, Function, Gvar, Ident, LocalContext, Node, Program, Var,
 };
 use crate::base_types::{self, Enum, Member, Struct, TagContext, TagTypeKind, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
@@ -72,10 +71,10 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                                 else {
                                     expect_block(iter, Block::LParen)?;
                                     if !consume_block(iter, Block::RParen) {
-                                        nodes.push(expr(iter, ctx)?);
+                                        nodes.push(assign(iter, ctx)?);
 
                                         while consume_comma(iter) {
-                                            nodes.push(expr(iter, ctx)?);
+                                            nodes.push(assign(iter, ctx)?);
                                         }
                                         expect_block(iter, Block::RParen)?;
                                     }
@@ -89,16 +88,23 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                             }
 
                             let dec = Declaration::new(dec, ident);
-                            ctx.insert_g(dec, init);
+                            let ident = dec.ident.clone();
+                            ctx.insert_g(Rc::new(check_g_var(
+                                iter,
+                                &ctx.g.gvar_mp,
+                                dec.type_kind,
+                                ident,
+                                init,
+                            )?));
                         }
                         _ => {
                             let mut init = vec![];
                             if x == TokenKind::Reserved(Operator::Assign) {
                                 if let Some(xx) = iter.peek() {
                                     if let TokenKind::String(_) = xx.kind {
-                                        init.push(expr(iter, ctx)?);
+                                        init.push(assign(iter, ctx)?);
                                     } else {
-                                        let node = expr(iter, ctx)?;
+                                        let node = assign(iter, ctx)?;
                                         match &node.kind {
                                             NodeKind::Gvar(_) | NodeKind::Lvar(_) => {
                                                 // todo error handling.
@@ -112,7 +118,14 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                                 expect_semi(iter)?;
                             }
                             let dec = Declaration::new(dec, ident);
-                            ctx.insert_g(dec, init);
+                            let ident = dec.ident.clone();
+                            ctx.insert_g(Rc::new(check_g_var(
+                                iter,
+                                &ctx.g.gvar_mp,
+                                dec.type_kind,
+                                ident,
+                                init,
+                            )?));
                         }
                     }
                 }
@@ -512,10 +525,10 @@ pub fn multi_field_initialize(iter: &mut TokenIter, ctx: &mut Context) -> Result
     else {
         expect_block(iter, Block::LParen)?;
         if !consume_block(iter, Block::RParen) {
-            nodes.push(expr(iter, ctx)?);
+            nodes.push(assign(iter, ctx)?);
 
             while consume_comma(iter) {
-                nodes.push(expr(iter, ctx)?);
+                nodes.push(assign(iter, ctx)?);
             }
             expect_block(iter, Block::RParen)?;
         }
@@ -535,7 +548,7 @@ pub fn unary_initialize(
         dec.clone(),
         ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
     );
-    let node = expr(iter, ctx)?;
+    let node = assign(iter, ctx)?;
     // if let Ok(x) = node.get_type() {
     //     if !TypeKind::partial_comp(&x, &type_kind) {
     //         return Err(Error::invalid_assignment(
@@ -721,9 +734,14 @@ pub fn read_expr_stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, E
     Ok(Node::new_unary(NodeKind::ExprStmt, expr(iter, ctx)?))
 }
 
-// expr        = assign
+// expr        = assign ("," assign)*
 pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
-    assign(iter, ctx)
+    let mut node = assign(iter, ctx)?;
+    while consume_comma(iter) {
+        node = Node::new_expr_stmt(node);
+        node = Node::new(NodeKind::Comma, node, assign(iter, ctx)?);
+    }
+    Ok(node)
 }
 
 // assign      = equality ("=" assign)?

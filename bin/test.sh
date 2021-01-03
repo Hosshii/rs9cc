@@ -463,9 +463,15 @@ enum() {
     assert 4 'int main(){enum hoge {zero} ; enum hoge x; return sizeof(x);}'
 }
 
+# 39
 static() {
     assert 1 'int count(){static int cnt; cnt = cnt+1; return cnt;} int main(){return count(); }'
     assert 3 'int count(){static int cnt; cnt = cnt+1; return cnt;} int main(){count();count();return count(); }'
+}
+
+# 40
+comma() {
+    assert 3 'int main(){return (1,2,3);}'
 }
 
 build() {
@@ -528,6 +534,7 @@ if [ $# -eq 0 ]; then
     caet
     enum
     static
+    comma
 fi
 
 while [ $# -ne 0 ]; do
@@ -571,6 +578,7 @@ while [ $# -ne 0 ]; do
     "37") cast ;;
     "38") enum ;;
     "39") static ;;
+    "40") comma ;;
     esac
     shift
 done

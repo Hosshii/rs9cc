@@ -404,9 +404,27 @@ int main() {
 
   // #38
   printf("\n\n#38\n");
+  assert( 0,({enum {zero,one,two}; zero;}), "({enum {zero,one,two}; zero;})");
+  assert( 1,({enum {zero,one,two}; one;}), "({enum {zero,one,two}; one;})");
+  assert( 2,({enum {zero,one,two}; two;}), "({enum {zero,one,two}; two;})");
+  assert( 5,({enum {five=5,six,seven,}; five;}), "({enum {five=5,six,seven,}; five;})");
+  assert( 6,({enum {five=5,six,seven,}; six;}), "({enum {five=5,six,seven,}; six;})");
+  assert( 7,({enum {five=5,six,seven,}; seven;}), "({enum {five=5,six,seven,}; seven;})");
+  assert( 0,({enum{zero, ten = 10 , five = 5}; zero;}), "({enum{zero, ten = 10 , five = 5}; zero;})");
+  assert( 10,({enum{zero, ten = 10 , five = 5}; ten;}), "({enum{zero, ten = 10 , five = 5}; ten;})");
+  assert( 5,({enum{zero, ten = 10 , five = 5}; five;}), "({enum{zero, ten = 10 , five = 5}; five;})");
+  assert( 4,({enum hoge {zero} x; sizeof(x);}), "({enum hoge {zero} x; sizeof(x);})");
+  assert( 4,({enum hoge {zero} ; enum hoge x; sizeof(x);}), "({enum hoge {zero} ; enum hoge x; sizeof(x);})");
+
+  // #39
+  printf("\n\n#39\n");
   assert(1, count(), "count()");
   assert(2, count(), "count()");
   assert(3, count(), "count()");
+  
+  // #40
+  printf("\n\n#40\n");
+  assert(3,(1,2,3),"(1,2,3)");
 
   return 0;
 }

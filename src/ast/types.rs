@@ -40,6 +40,7 @@ pub enum NodeKind {
     ExprStmt,
     Member(Ident, Rc<Member>), // member name, offset
     Cast(TypeKind),
+    Comma,
     Null,
 }
 
@@ -80,6 +81,7 @@ impl NodeKind {
             ExprStmt => "expression statement".to_string(),
             Member(_, _) => "member".to_string(),
             Cast(_) => "cast".to_string(),
+            Comma => ",".to_string(),
             Null => "null".to_string(),
         }
     }
@@ -379,12 +381,14 @@ impl Context {
         self.s.insert(dec.ident, Rc::new(Var::L(lvar)));
     }
 
-    pub fn insert_g(&mut self, dec: Declaration, init: Vec<Node>) {
-        let size = dec.type_kind.size();
-        let ident = dec.ident.name.clone();
-        let gvar = Rc::new(Gvar::new(dec, size, init));
-        self.g.gvar_mp.insert(ident.clone(), gvar.clone());
-        self.s.insert(Ident::new(ident), Rc::new(Var::G(gvar)));
+    pub fn insert_g(&mut self, gvar: Rc<Gvar>) {
+        // let size = dec.type_kind.size();
+        // let ident = dec.ident.name.clone();
+        // let gvar = Rc::new(Gvar::new(dec, size, init));
+        self.g
+            .gvar_mp
+            .insert(gvar.dec.ident.name.clone(), gvar.clone());
+        self.s.insert(gvar.dec.ident.clone(), Rc::new(Var::G(gvar)));
     }
 
     pub fn make_label(&mut self) -> String {
