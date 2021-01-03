@@ -30,6 +30,7 @@ int echo(int x){return x;}
 char echo2(char x){return x;}
 short sub_short(short a, short b){return a-b;}
 long sub_long(long a, long b){return a-b;}
+char char_fn() { return 257; }
 
 int g_1;
 int g_2;
@@ -398,6 +399,7 @@ int main() {
   assert(5, ({ int x=5; long y=(long)&x; *(int*)y; }), "int x=5; long y=(long)&x; *(int*)y");
 
   printf("\"\n");
+  assert(1, char_fn(), "char_fn()");
 
   return 0;
 }

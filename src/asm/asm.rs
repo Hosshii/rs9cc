@@ -93,8 +93,6 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
         // プロローグ
         println!("    push rbp");
         println!("    mov rbp, rsp");
-        // スタックのpush popが8バイト単位なのでとりあえず引数はint とかも8バイトにする
-        // println!("    sub rsp, {}", function.get_all_var_size());
         println!("    sub rsp, {}", function.get_all_var_size());
 
         // 引数をローカル変数としてスタックに載せる
@@ -104,8 +102,6 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
             offset += type_kind.size();
             offset = base_types::align_to(offset, type_kind.align());
             println!("    mov rax, rbp");
-            // スタックのpush popが8バイト単位なのでとりあえずint とかも8バイトにする
-            // println!("    sub rax, {}", function.params[i].base_type.kind.size());
             println!("    sub rax, {}", offset);
             let reg = match type_kind.size() {
                 1 => ARGREG1[i],
@@ -347,6 +343,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 println!("    push rax");
             }
             println!(".Lend{}:", jlb_num);
+            cast(&func_prototype.type_kind);
             return Ok(());
         }
         NodeKind::Addr => {
