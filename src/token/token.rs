@@ -66,6 +66,8 @@ pub enum Operator {
     LArr,
     RArr,
     Arrow,
+    PlusPlus,
+    MinusMinus,
 }
 
 impl Operator {
@@ -91,6 +93,8 @@ impl Operator {
             LArr => "[",
             RArr => "]",
             Arrow => "->",
+            PlusPlus => "++",
+            MinusMinus => "--",
         }
     }
 
@@ -130,6 +134,8 @@ impl FromStr for Operator {
             x if x == LArr.as_str() => Ok(LArr),
             x if x == RArr.as_str() => Ok(RArr),
             x if x == Arrow.as_str() => Ok(Arrow),
+            x if x == PlusPlus.as_str() => Ok(PlusPlus),
+            x if x == MinusMinus.as_str() => Ok(MinusMinus),
             _ => Err(()),
         }
     }
@@ -897,7 +903,6 @@ mod tests {
             (">=", Ok(Geq)),
             (">=>", Ok(Geq)),
             ("+", Ok(Plus)),
-            ("++", Ok(Plus)),
             ("-", Ok(Minus)),
             ("-=", Ok(Minus)),
             ("*", Ok(Mul)),
@@ -910,6 +915,8 @@ mod tests {
             ("))", Ok(RParen)),
             ("&", Ok(Ampersand)),
             ("sizeof", Ok(Sizeof)),
+            ("++", Ok(PlusPlus)),
+            ("--", Ok(MinusMinus)),
             ("foo", Err(())),
         ];
         for &(s, ref expected) in &tests {

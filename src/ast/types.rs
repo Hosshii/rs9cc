@@ -41,6 +41,10 @@ pub enum NodeKind {
     Member(Ident, Rc<Member>), // member name, offset
     Cast(TypeKind),
     Comma,
+    PreInc,
+    PreDec,
+    PostInc,
+    PostDec,
     Null,
 }
 
@@ -82,6 +86,10 @@ impl NodeKind {
             Member(_, _) => "member".to_string(),
             Cast(_) => "cast".to_string(),
             Comma => ",".to_string(),
+            PreInc => "pre ++".to_string(),
+            PreDec => "pre --".to_string(),
+            PostInc => "post ++".to_string(),
+            PostDec => "post --".to_string(),
             Null => "null".to_string(),
         }
     }

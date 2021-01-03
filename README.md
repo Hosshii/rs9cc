@@ -45,6 +45,7 @@ add                     = mul ("+" mul | "-" mul)*
 mul                     = cast ("*" cast | "/" cast)*
 cast                    = "(" type-name ")" cast | unary
 unary                   = ("+" | "-" | "*" | "&" )? cast
+                        | ("++" | "--") unary
                         | postfix
 postfix                 | primary ("[" expr "]" | "." ident | "->" ident)*
 stmt-expr               = "(" "{" stmt stmt* "}" ")"

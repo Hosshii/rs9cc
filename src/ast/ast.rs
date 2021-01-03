@@ -857,6 +857,7 @@ pub fn cast(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // unary       = ("+" | "-" | "*" | "&")? cast
+//             | ("++" | "--") unary
 //             | postfix
 pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::Plus) {
@@ -867,11 +868,15 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         return Ok(Node::new_unary(NodeKind::Deref, cast(iter, ctx)?));
     } else if consume(iter, Operator::Ampersand) {
         return Ok(Node::new_unary(NodeKind::Addr, cast(iter, ctx)?));
+    } else if consume(iter, Operator::PlusPlus) {
+        return Ok(Node::new_unary(NodeKind::PreInc, unary(iter, ctx)?));
+    } else if consume(iter, Operator::MinusMinus) {
+        return Ok(Node::new_unary(NodeKind::PreDec, unary(iter, ctx)?));
     }
     return postfix(iter, ctx);
 }
 
-// postfix     = primary ("[" expr "]" | "." ident | "->" ident)*
+// postfix     = primary ("[" expr "]" | "." ident | "->" ident | "++" | "--")*
 pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let mut pri = primary(iter, ctx)?;
     loop {
@@ -879,6 +884,15 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             let idx = expr(iter, ctx)?;
             expect(iter, Operator::RArr)?;
             pri = Node::new_unary(NodeKind::Deref, Node::new(NodeKind::Add, pri, idx));
+            continue;
+        }
+
+        if consume(iter, Operator::PlusPlus) {
+            pri = Node::new_unary(NodeKind::PostInc, pri);
+            continue;
+        }
+        if consume(iter, Operator::MinusMinus) {
+            pri = Node::new_unary(NodeKind::PostDec, pri);
             continue;
         }
 

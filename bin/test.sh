@@ -474,6 +474,24 @@ comma() {
     assert 3 'int main(){return (1,2,3);}'
 }
 
+# 41
+pp_mm() {
+    assert 1 'int main(){int i =1; return i++;}'
+    assert 2 'int main(){int i =1; return ++i;}'
+    assert 1 'int main(){int i =1; return i--;}'
+    assert 0 'int main(){int i =1; return --i;}'
+    assert 2 'int main(){int i =1; i++; return i;}'
+    assert 2 'int main(){int i =1; ++i; return i;}'
+    assert 0 'int main(){int i =1; i--; return i;}'
+    assert 0 'int main(){int i =1; --i; return i;}'
+    assert 3 'int main(){int a[] = {1,3,5};int *p = a+1; return *p++;}'
+    assert 4 'int main(){int a[] = {1,3,5};int *p = a+1; return ++*p;}'
+    assert 3 'int main(){int a[] = {1,3,5};int *p = a+1; return *p--;}'
+    assert 2 'int main(){int a[] = {1,3,5};int *p = a+1; return --*p;}'
+    assert 5 'int main(){int a[] = {1,3,5};int *p = a+1; *p++; return *p;}'
+    assert 1 'int main(){int a[] = {1,3,5};int *p = a+1; *--p; return *p;}'
+}
+
 build() {
     cargo build
 }
@@ -535,6 +553,7 @@ if [ $# -eq 0 ]; then
     enum
     static
     comma
+    pp_mm
 fi
 
 while [ $# -ne 0 ]; do
@@ -579,6 +598,7 @@ while [ $# -ne 0 ]; do
     "38") enum ;;
     "39") static ;;
     "40") comma ;;
+    "41") pp_mm ;;
     esac
     shift
 done

@@ -426,5 +426,21 @@ int main() {
   printf("\n\n#40\n");
   assert(3,(1,2,3),"(1,2,3)");
 
+  // #41
+  printf("\n\n#41\n");
+  assert(1,({int i =1;  i++;}), "({int i =1;  i++;})");
+  assert(2,({int i =1;  ++i;}), "({int i =1;  ++i;})");
+  assert(1,({int i =1;  i--;}), "({int i =1;  i--;})");
+  assert(0,({int i =1;  --i;}), "({int i =1;  --i;})");
+  assert( 2,({int i =1; i++; i;}), "({int i =1; i++; i;})");
+  assert( 2,({int i =1; ++i; i;}), "({int i =1; ++i; i;})");
+  assert( 0,({int i =1; i--; i;}), "({int i =1; i--; i;})");
+  assert( 0,({int i =1; --i; i;}), "({int i =1; --i; i;})");
+  assert( 3,({int a[] = {1,3,5};int *p = a+1; *p++;}), "({int a[] = {1,3,5};int *p = a+1; *p++;})");
+  assert( 4,({int a[] = {1,3,5};int *p = a+1; ++*p;}), "({int a[] = {1,3,5};int *p = a+1; ++*p;})");
+  assert( 3,({int a[] = {1,3,5};int *p = a+1; *p--;}), "({int a[] = {1,3,5};int *p = a+1; *p--;})");
+  assert( 2,({int a[] = {1,3,5};int *p = a+1; --*p;}), "({int a[] = {1,3,5};int *p = a+1; --*p;})");
+  assert( 5, ({int a[] = {1,3,5};int *p = a+1; *p++; *p;}),"({int a[] = {1,3,5};int *p = a+1; *p++; *p;})");
+  assert( 1, ({int a[] = {1,3,5};int *p = a+1; *--p; *p;}),"({int a[] = {1,3,5};int *p = a+1; *--p; *p;})");
   return 0;
 }

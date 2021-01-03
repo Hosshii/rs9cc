@@ -397,6 +397,40 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             gen(node.lhs.as_ref().unwrap(), ctx)?;
             gen(node.rhs.as_ref().unwrap(), ctx)?;
         }
+        NodeKind::PreInc => {
+            gen_val(node.lhs.as_ref().unwrap(), ctx)?;
+            println!("    push [rsp]");
+            load(node);
+            inc(node);
+            store(node);
+            return Ok(());
+        }
+        NodeKind::PreDec => {
+            gen_val(node.lhs.as_ref().unwrap(), ctx)?;
+            println!("    push [rsp]");
+            load(node);
+            dec(node);
+            store(node);
+            return Ok(());
+        }
+        NodeKind::PostInc => {
+            gen_val(node.lhs.as_ref().unwrap(), ctx)?;
+            println!("    push [rsp]");
+            load(node);
+            inc(node);
+            store(node);
+            dec(node);
+            return Ok(());
+        }
+        NodeKind::PostDec => {
+            gen_val(node.lhs.as_ref().unwrap(), ctx)?;
+            println!("    push [rsp]");
+            load(node);
+            dec(node);
+            store(node);
+            inc(node);
+            return Ok(());
+        }
         _ => (),
     }
 
@@ -606,5 +640,25 @@ fn cast(type_kind: &TypeKind) {
         4 => println!("    movsx rax, eax"),
         _ => (),
     }
+    println!("    push rax");
+}
+
+pub fn inc(node: &Node) {
+    println!("    pop rax");
+    println!("    push rdi"); // keep rdi
+    println!("    mov rdi, 1");
+    ptr_op(node);
+    println!("    add rax, rdi");
+    println!("    pop rdi");
+    println!("    push rax");
+}
+
+pub fn dec(node: &Node) {
+    println!("    pop rax");
+    println!("    push rdi"); // keep rdi
+    println!("    mov rdi, 1");
+    ptr_op(node);
+    println!("    sub rax, rdi");
+    println!("    pop rdi");
     println!("    push rax");
 }
