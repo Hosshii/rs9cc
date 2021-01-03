@@ -39,7 +39,7 @@ impl Member {
 #[derive(Debug, Clone)]
 pub enum TagTypeKind {
     Struct(Rc<Struct>),
-    Enum,
+    Enum(Rc<Enum>),
     Typedef(Rc<Declaration>),
 }
 
@@ -116,6 +116,31 @@ impl Struct {
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct Enum {
+    ident: Rc<Ident>,
+    list: Rc<Vec<Rc<(Ident, u64)>>>,
+    is_anonymous: bool,
+}
+
+impl Enum {
+    pub fn new(ident: Rc<Ident>, list: Rc<Vec<Rc<(Ident, u64)>>>) -> Self {
+        Self {
+            ident,
+            list,
+            is_anonymous: false,
+        }
+    }
+
+    pub fn new_anonymous(list: Rc<Vec<Rc<(Ident, u64)>>>) -> Self {
+        Self {
+            ident: Rc::new(Ident::new(".struct.anonymous")),
+            list,
+            is_anonymous: true,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum TypeKind {
     Void,
     _Bool,
@@ -126,6 +151,7 @@ pub enum TypeKind {
     Ptr(Rc<RefCell<TypeKind>>),
     Array(u64, Rc<RefCell<TypeKind>>, bool), // bool is whether initialized or not
     Struct(Rc<Struct>),
+    Enum(Rc<Enum>),
 
     PlaceHolder, // virtual type
     /// this is virtual type for `get_deref_type`
@@ -153,6 +179,12 @@ impl fmt::Display for TypeKind {
             Struct(s) => {
                 for member in &*s.members {
                     writeln!(f, "{}", member)?
+                }
+                Ok(())
+            }
+            Enum(l) => {
+                for list in l.list.as_ref() {
+                    writeln!(f, "{} {}", list.0.name, list.1)?
                 }
                 Ok(())
             }
@@ -213,6 +245,7 @@ impl TypeKind {
             Ptr(_) => 8,
             Array(size, type_kind, _) => size * type_kind.borrow().size(),
             Struct(s) => s.get_size(),
+            Enum(_) => 4,
             _ => unreachable!(),
         }
     }
@@ -227,6 +260,7 @@ impl TypeKind {
             Ptr(_) => 8,
             Array(_, type_kind, _) => type_kind.borrow().align(),
             Struct(_) => 8,
+            Enum(_) => 4,
             _ => unreachable!(),
         }
     }
@@ -262,6 +296,9 @@ impl TypeKind {
             Ptr(type_kind) => type_kind.clone(),
             Array(_, type_kind, _) => type_kind.clone(),
             Struct(_) => Rc::new(RefCell::new(TypeKind::_Deref(Rc::new(RefCell::new(
+                self.clone(),
+            ))))),
+            Enum(_) => Rc::new(RefCell::new(TypeKind::_Deref(Rc::new(RefCell::new(
                 self.clone(),
             ))))),
             _Deref(type_kind) => type_kind.clone(),

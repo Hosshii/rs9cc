@@ -160,6 +160,7 @@ pub enum KeyWord {
     While,
     For,
     Struct,
+    Enum,
     Typedef,
 }
 
@@ -173,6 +174,7 @@ impl KeyWord {
             While => "while",
             For => "for",
             Struct => "struct",
+            Enum => "enum",
             Typedef => "typedef",
         }
     }
@@ -186,6 +188,7 @@ impl KeyWord {
             x if x.starts_with(While.as_str()) => Ok(While),
             x if x.starts_with(For.as_str()) => Ok(For),
             x if x.starts_with(Struct.as_str()) => Ok(Struct),
+            x if x.starts_with(Enum.as_str()) => Ok(Enum),
             x if x.starts_with(Typedef.as_str()) => Ok(Typedef),
             _ => Err(()),
         }
@@ -203,6 +206,7 @@ impl FromStr for KeyWord {
             x if x == While.as_str() => Ok(While),
             x if x == For.as_str() => Ok(For),
             x if x == Struct.as_str() => Ok(Struct),
+            x if x == Enum.as_str() => Ok(Enum),
             x if x == Typedef.as_str() => Ok(Typedef),
             _ => Err(()),
         }
@@ -785,7 +789,7 @@ mod tests {
         assert_eq!(None, iter.next());
 
         let input = "
-            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef";
+            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum";
 
         let expected = vec![
             KeyWord(Return),
@@ -805,6 +809,7 @@ mod tests {
             KeyWord(Struct),
             TokenKind::Period,
             KeyWord(Typedef),
+            KeyWord(Enum),
         ];
         let mut iter = tokenize(input, "");
         for i in expected {

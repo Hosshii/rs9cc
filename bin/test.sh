@@ -448,6 +448,21 @@ cast() {
     assert 5 'int main(){ int x=5; long y=(long)&x; return *(int*)y;}'
 }
 
+# 38
+enum() {
+    assert 0 'int main(){enum {zero,one,two}; return zero;}'
+    assert 1 'int main(){enum {zero,one,two}; return one;}'
+    assert 2 'int main(){enum {zero,one,two}; return two;}'
+    assert 5 'int main(){enum {five=5,six,seven,}; return five;}'
+    assert 6 'int main(){enum {five=5,six,seven,}; return six;}'
+    assert 7 'int main(){enum {five=5,six,seven,}; return seven;}'
+    assert 0 'int main(){enum{zero, ten = 10 , five = 5}; return zero;}'
+    assert 10 'int main(){enum{zero, ten = 10 , five = 5}; return ten;}'
+    assert 5 'int main(){enum{zero, ten = 10 , five = 5}; return five;}'
+    assert 4 'int main(){enum hoge {zero} x; return sizeof(x);}'
+    assert 4 'int main(){enum hoge {zero} ; enum hoge x; return sizeof(x);}'
+}
+
 build() {
     cargo build
 }
@@ -506,6 +521,7 @@ if [ $# -eq 0 ]; then
     complex_type2
     sizeof2
     caet
+    enum
 fi
 
 while [ $# -ne 0 ]; do
@@ -547,6 +563,7 @@ while [ $# -ne 0 ]; do
     "35") complex_type2 ;;
     "36") sizeof2 ;;
     "37") cast ;;
+    "38") enum ;;
     esac
     shift
 done

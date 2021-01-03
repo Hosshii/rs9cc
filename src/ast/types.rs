@@ -75,7 +75,7 @@ impl NodeKind {
             Declaration(dec) => format!("{:?}", dec),
             Gvar(x) => format!("{:?}", x),
             TkString(string) => string.to_string(),
-            Char(c)=>c.to_string(),
+            Char(c) => c.to_string(),
             StmtExpr(_) => "stmt expr".to_string(),
             ExprStmt => "expression statement".to_string(),
             Member(_, _) => "member".to_string(),
@@ -541,6 +541,7 @@ pub struct Declaration {
     pub type_kind: TypeKind,
     pub ident: Ident,
     pub is_typedef: bool,
+    pub is_const: (bool, u64), // for enum
 }
 
 impl Declaration {
@@ -549,6 +550,16 @@ impl Declaration {
             type_kind,
             ident,
             is_typedef: false,
+            is_const: (false, 0),
+        }
+    }
+
+    pub fn new_const(type_kind: TypeKind, ident: Ident, val: u64) -> Self {
+        Self {
+            type_kind,
+            ident,
+            is_typedef: false,
+            is_const: (true, val),
         }
     }
 

@@ -2,7 +2,7 @@ use super::error::Error;
 use super::util::*;
 use super::NodeKind;
 use super::{Context, Declaration, FuncPrototype, Function, Ident, LocalContext, Node, Program};
-use crate::base_types::{self, Member, Struct, TagContext, TagTypeKind, TypeKind};
+use crate::base_types::{self, Enum, Member, Struct, TagContext, TagTypeKind, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -122,7 +122,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
     }
     Ok(program)
 }
-// type-specifier  = builtin-type | struct-dec | typedef-name"
+// type-specifier  = builtin-type | struct-dec | typedef-name | enum-specifier"
 // builtin-type    = "void"
 //                 | "_Bool"
 //                 | "char"
@@ -138,10 +138,9 @@ pub fn type_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<(TypeKi
             iter.next();
             ty_vec.push(type_kind.clone());
         } else if x.kind == TokenKind::KeyWord(KeyWord::Struct) {
-            return Ok((
-                TypeKind::Struct(crate::ast::ast::struct_dec(iter, ctx)?),
-                is_typedef,
-            ));
+            return Ok((TypeKind::Struct(struct_dec(iter, ctx)?), is_typedef));
+        } else if x.kind == TokenKind::KeyWord(KeyWord::Enum) {
+            return Ok((TypeKind::Enum(enum_specifier(iter, ctx)?), is_typedef));
         } else if x.kind == TokenKind::KeyWord(KeyWord::Typedef) {
             iter.next();
             is_typedef = true;
@@ -345,6 +344,68 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>,
     };
     Ok(_struct)
 }
+
+// enum-specifier          = enum ident? "{" enum-list? "}"
+//                         | enum ident
+// enum-list               = ident ("=" num)? ("," ident ("=" num)?)* ","?
+pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum>, Error> {
+    expect_keyword(iter, KeyWord::Enum)?;
+    let tag = consume_ident(iter);
+    if !consume_block(iter, Block::LParen) {
+        match &tag {
+            Some(x) => {
+                if let Some(tag) = ctx.t.find_tag(&x) {
+                    if let TagTypeKind::Enum(_enum) = tag.as_ref() {
+                        return Ok(_enum.clone());
+                    }
+                } else {
+                    return Err(Error::undefined_tag(
+                        iter.filepath,
+                        iter.s,
+                        iter.pos,
+                        x.clone(),
+                        None,
+                    ));
+                }
+            }
+            None => todo!(),
+        }
+    }
+
+    let mut enum_list = Vec::new();
+    let mut count = 0;
+    while !consume_block(iter, Block::RParen) {
+        let ident = expect_ident(iter)?;
+        if consume(iter, Operator::Assign) {
+            count = expect_num(iter)?;
+        }
+        let l = ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0);
+        ctx.push_front(
+            Declaration::new_const(TypeKind::Int, ident.clone(), count),
+            l,
+        );
+        enum_list.push(Rc::new((ident, count)));
+        count += 1;
+        consume_comma(iter);
+    }
+
+    let enum_list = Rc::new(enum_list);
+    let mut _enum = if let Some(tag) = tag {
+        let tag = Rc::new(tag);
+        let _enum = Rc::new(Enum::new(tag.clone(), enum_list));
+        ctx.t
+            .tag_list
+            .insert(tag, Rc::new(TagTypeKind::Enum(_enum.clone())));
+        _enum
+    } else {
+        Rc::new(Enum::new(
+            Rc::new(Ident::new(".struct.anonymous")),
+            enum_list,
+        ))
+    };
+    Ok(_enum)
+}
+
 // declaration     = type-specifier declarator type-suffix
 //                 | type-specifier
 pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration, Error> {
@@ -866,6 +927,9 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             )));
         }
         if let Some(lvar) = ctx.s.find_lvar(&ident.name) {
+            if lvar.dec.is_const.0 {
+                return Ok(Node::new_num(lvar.dec.is_const.1));
+            }
             return Ok(Node::new_leaf(NodeKind::Lvar(lvar)));
         } else if let Some(x) = ctx.g.gvar_mp.get(&ident.name) {
             return Ok(Node::new_leaf(NodeKind::Gvar(x.clone())));

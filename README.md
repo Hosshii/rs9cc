@@ -7,7 +7,7 @@ mini C compiler written in Rust. This is my hobby project. I use [compilerbook](
 ## EBNF
 ```
 program                 = (function | declaration ("=" initialize)? ";" | func-prototype )*
-type-specifier          = builtin-type | struct-dec | typedef-name"
+type-specifier          = builtin-type | struct-dec | typedef-name | enum-specifier"
 builtin-type            = "void" 
                         | "_Bool"
                         | "char" 
@@ -20,6 +20,9 @@ type-suffix             = ("[" num? "]" type-suffix)?
 type-name               = type-specifier abstract-declarator type-suffix
 struct-dec              = "struct" ident? "{" declaration ";" "}"
                         | "struct" ident
+enum-specifier          = enum ident? "{" enum-list? "}"
+                        | enum ident
+enum-list               = ident ("=" num)? ("," ident ("=" num)?)* ","?
 declaration             = type-specifier declarator type-suffix
                         | type-specifier  
 initialize              = "{" (expr ("," expr)*)? "}" 
