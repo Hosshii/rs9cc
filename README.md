@@ -34,7 +34,7 @@ stmt                    = expr ";"
                         | "return" expr ";"
                         | "if" "(" expr ")" stmt
                         | "while" "(" expr ")" stmt
-                        | "for" "(" (expr | declaration "=" initialize)? ";" expr? ";" expr? ")" stmt
+                        | "for" "(" stmt? ";" expr? ";" expr? ")" stmt
                         | "{" stmt* "}"
                         | declaration ("=" initialize)? ";"
 expr                    = assign

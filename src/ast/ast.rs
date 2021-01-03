@@ -565,7 +565,7 @@ pub fn unary_initialize(
 //             | "return" expr ";"
 //             | "if" "(" expr ")" stmt
 //             | "while" "(" expr ")" stmt
-//             | "for" "(" expr? ";" expr? ";" expr? ")" stmt
+//             | "for" "(" stmt? ";" expr? ";" expr? ")" stmt
 //             | "{" stmt* "}"
 //             | declaration ("=" initialize)? ";"
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
@@ -604,6 +604,8 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     iter.next();
                     expect(iter, Operator::LParen)?;
                     let mut node = Node::new_none(NodeKind::For);
+                    let sc = ctx.s.clone();
+                    let tag_sc = ctx.t.clone();
                     if !consume_semi(iter) {
                         node.init = Some(vec![stmt(iter, ctx)?]);
                     }
@@ -616,6 +618,8 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     }
                     expect(iter, Operator::RParen)?;
                     node.then = Some(Box::new(stmt(iter, ctx)?));
+                    ctx.s = sc;
+                    ctx.t = tag_sc;
                     return Ok(node);
                 }
                 _ => (),
