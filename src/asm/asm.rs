@@ -203,6 +203,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             }
             println!("    push rax");
             store(node);
+            return Ok(());
         }
         NodeKind::Return => {
             println!("# NodeKind::Return");
@@ -459,6 +460,15 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             dec(node);
             store(node);
             inc(node);
+            return Ok(());
+        }
+        NodeKind::Not => {
+            gen(node.lhs.as_ref().unwrap(), ctx)?;
+            println!("    pop rax");
+            println!("    cmp rax, 0");
+            println!("    sete al");
+            println!("    movzb rax, al");
+            println!("    push rax");
             return Ok(());
         }
         _ => (),

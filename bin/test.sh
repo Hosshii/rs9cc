@@ -505,6 +505,14 @@ cpx_assign() {
     assert 45 'int main(){int result = 0;for (int i =0;i<10 ;i++){result +=i;}return result;}'
 }
 
+# 43
+not() {
+    assert 1 'int main(){int i = 0; return !i;}'
+    assert 0 'int main(){int i = 0; return !1;}'
+    assert 0 'int main(){int i = 0; return !9;}'
+    assert 1 'int main(){int i = 0; return !0;}'
+}
+
 build() {
     cargo build
 }
@@ -568,6 +576,7 @@ if [ $# -eq 0 ]; then
     comma
     pp_mm
     cpx_assign
+    not
 fi
 
 while [ $# -ne 0 ]; do
@@ -614,6 +623,7 @@ while [ $# -ne 0 ]; do
     "40") comma ;;
     "41") pp_mm ;;
     "42") cpx_assign ;;
+    "43") not ;;
     esac
     shift
 done

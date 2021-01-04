@@ -869,7 +869,7 @@ pub fn cast(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     unary(iter, ctx)
 }
 
-// unary       = ("+" | "-" | "*" | "&")? cast
+// unary       = ("+" | "-" | "*" | "&" | "!")? cast
 //             | ("++" | "--") unary
 //             | postfix
 pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
@@ -885,6 +885,8 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         return Ok(Node::new_unary(NodeKind::PreInc, unary(iter, ctx)?));
     } else if consume(iter, Operator::MinusMinus) {
         return Ok(Node::new_unary(NodeKind::PreDec, unary(iter, ctx)?));
+    } else if consume(iter, Operator::Not) {
+        return Ok(Node::new_unary(NodeKind::Not, unary(iter, ctx)?));
     }
     return postfix(iter, ctx);
 }

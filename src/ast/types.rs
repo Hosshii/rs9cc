@@ -49,6 +49,7 @@ pub enum NodeKind {
     PreDec,
     PostInc,
     PostDec,
+    Not,
     Null,
 }
 
@@ -98,6 +99,7 @@ impl NodeKind {
             PreDec => "pre --".to_string(),
             PostInc => "post ++".to_string(),
             PostDec => "post --".to_string(),
+            Not => "!".to_string(),
             Null => "null".to_string(),
         }
     }

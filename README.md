@@ -45,7 +45,7 @@ relational              = add ("<" add | "<=" | ">" add | ">=" add)*
 add                     = mul ("+" mul | "-" mul)*
 mul                     = cast ("*" cast | "/" cast)*
 cast                    = "(" type-name ")" cast | unary
-unary                   = ("+" | "-" | "*" | "&" )? cast
+unary                   = ("+" | "-" | "*" | "&" | "!")? cast
                         | ("++" | "--") unary
                         | postfix
 postfix                 | primary ("[" expr "]" | "." ident | "->" ident)*

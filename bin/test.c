@@ -454,5 +454,12 @@ int main() {
   assert( 9,({int i = 3; i*=3; }), "({int i = 3; i*=3; })");
   assert( 1,({int i = 3; i/=3; }), "({int i = 3; i/=3; })");
   assert (45 ,({int result = 0;for (int i =0;i<10 ;i++){result +=i;}result;}),"({int result = 0;for (int i =0;i<10 ;i++){result +=i;}result;})");
+
+  // #43
+  printf("\n\n#43\n");
+  assert( 1, ({int i = 0; !i;}),"({int i = 0; !i;})");
+  assert( 0, ({int i = 0; !1;}),"({int i = 0; !1;})");
+  assert( 0, ({int i = 0; !9;}),"({int i = 0; !9;})");
+  assert( 1, ({int i = 0; !0;}),"({int i = 0; !0;})");
   return 0;
 }
