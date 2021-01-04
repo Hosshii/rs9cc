@@ -54,6 +54,8 @@ pub enum NodeKind {
     BitOr,
     BitAnd,
     BitXor,
+    LogOr,
+    LogAnd,
     Null,
 }
 
@@ -108,6 +110,8 @@ impl NodeKind {
             BitOr => "|".to_string(),
             BitAnd => "&".to_string(),
             BitXor => "^".to_string(),
+            LogOr => "||".to_string(),
+            LogAnd => "&&".to_string(),
             Null => "null".to_string(),
         }
     }

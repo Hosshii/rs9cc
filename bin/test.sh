@@ -534,6 +534,18 @@ bit_op() {
     assert 1 'int main(){return 1|1^2&0;}'
 }
 
+# 46
+log_and_or() {
+    assert 1 'int main(){return 1||0;}'
+    assert 0 'int main(){return 0||0;}'
+    assert 1 'int main(){return 1||(1-1)||0;}'
+    assert 0 'int main(){return 0||(1-1)||0;}'
+    assert 1 'int main(){return 2&&2;}'
+    assert 0 'int main(){return 0&&2;}'
+    assert 0 'int main(){return 2&&0;}'
+    assert 0 'int main(){return 1&&(2-2)&&2;}'
+}
+
 build() {
     cargo build
 }
@@ -600,6 +612,7 @@ if [ $# -eq 0 ]; then
     not
     bitnot
     bit_op
+    log_and_or
 fi
 
 while [ $# -ne 0 ]; do
@@ -649,6 +662,7 @@ while [ $# -ne 0 ]; do
     "43") not ;;
     "44") bitnot ;;
     "45") bit_op ;;
+    "46") log_and_or ;;
     esac
     shift
 done

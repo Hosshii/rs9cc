@@ -478,6 +478,42 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             println!("    push rax");
             return Ok(());
         }
+        NodeKind::LogOr => {
+            let jlb_num = ctx.jump_label;
+            ctx.jump_label += 1;
+            gen(node.lhs.as_ref().unwrap(), ctx)?;
+            println!("    pop rax");
+            println!("    cmp rax, 0");
+            println!("    jne  .Ltrue{}", jlb_num);
+            gen(node.rhs.as_ref().unwrap(), ctx)?;
+            println!("    pop rax");
+            println!("    cmp rax, 0");
+            println!("    jne  .Ltrue{}", jlb_num);
+            println!("    push 0");
+            println!("    jmp .Lend{}", jlb_num);
+            println!(".Ltrue{}:", jlb_num);
+            println!("    push 1");
+            println!(".Lend{}:", jlb_num);
+            return Ok(());
+        }
+        NodeKind::LogAnd => {
+            let jlb_num = ctx.jump_label;
+            ctx.jump_label += 1;
+            gen(node.lhs.as_ref().unwrap(), ctx)?;
+            println!("    pop rax");
+            println!("    cmp rax, 0");
+            println!("    je  .Lfalse{}", jlb_num);
+            gen(node.rhs.as_ref().unwrap(), ctx)?;
+            println!("    pop rax");
+            println!("    cmp rax, 0");
+            println!("    je  .Lfalse{}", jlb_num);
+            println!("    push 1");
+            println!("    jmp .Lend{}", jlb_num);
+            println!(".Lfalse{}:", jlb_num);
+            println!("    push 0");
+            println!(".Lend{}:", jlb_num);
+            return Ok(());
+        }
         _ => (),
     }
 

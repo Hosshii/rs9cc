@@ -744,10 +744,10 @@ pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     Ok(node)
 }
 
-// assign                  = bitor (assign-op assign)?
+// assign                  = logor (assign-op assign)?
 // assign-op               = "=" | "+=" | "-=" | "*=" | "/="
 pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
-    let mut node = bit_or(iter, ctx)?;
+    let mut node = log_or(iter, ctx)?;
     if consume(iter, Operator::Assign) {
         let rhs = assign(iter, ctx)?;
         // 左右の型が違っても受け入れる
@@ -782,6 +782,24 @@ pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     } else if consume(iter, Operator::ADiv) {
         let rhs = assign(iter, ctx)?;
         node = Node::new(NodeKind::ADiv, node, rhs);
+    }
+    return Ok(node);
+}
+
+// logor                   = logand ("||" logand)*
+pub fn log_or(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let mut node = log_and(iter, ctx)?;
+    while consume(iter, Operator::LogOr) {
+        node = Node::new(NodeKind::LogOr, node, log_and(iter, ctx)?);
+    }
+    return Ok(node);
+}
+
+// logand                  = bitor ("&&" bitor)*
+pub fn log_and(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let mut node = bit_or(iter, ctx)?;
+    while consume(iter, Operator::LogAnd) {
+        node = Node::new(NodeKind::LogAnd, node, bit_or(iter, ctx)?);
     }
     return Ok(node);
 }
