@@ -744,7 +744,8 @@ pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     Ok(node)
 }
 
-// assign      = equality ("=" assign)?
+// assign                  = equality (assign-op assign)?
+// assign-op               = "=" | "+=" | "-=" | "*=" | "/="
 pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = equality(iter, ctx)?;
     if consume(iter, Operator::Assign) {
@@ -769,6 +770,18 @@ pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         //     ));
         // }
         node = Node::new(NodeKind::Assign, node, rhs);
+    } else if consume(iter, Operator::APlus) {
+        let rhs = assign(iter, ctx)?;
+        node = Node::new(NodeKind::AAdd, node, rhs);
+    } else if consume(iter, Operator::AMinus) {
+        let rhs = assign(iter, ctx)?;
+        node = Node::new(NodeKind::ASub, node, rhs);
+    } else if consume(iter, Operator::AMul) {
+        let rhs = assign(iter, ctx)?;
+        node = Node::new(NodeKind::AMul, node, rhs);
+    } else if consume(iter, Operator::ADiv) {
+        let rhs = assign(iter, ctx)?;
+        node = Node::new(NodeKind::ADiv, node, rhs);
     }
     return Ok(node);
 }

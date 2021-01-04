@@ -174,6 +174,36 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             store(node);
             return Ok(());
         }
+        NodeKind::AAdd | NodeKind::ASub | NodeKind::AMul | NodeKind::ADiv => {
+            let lhs = node.lhs.as_ref().expect("lhs not found");
+            let rhs = node.rhs.as_ref().expect("rhs not found");
+            gen_val(lhs, ctx)?;
+            println!("    push [rsp]");
+            load(lhs);
+            gen(rhs, ctx)?;
+            println!("    pop rdi");
+            println!("    pop rax");
+            match &node.kind {
+                NodeKind::AAdd => {
+                    ptr_op(node);
+                    println!("    add rax, rdi");
+                }
+                NodeKind::ASub => {
+                    ptr_op(node);
+                    println!("    sub rax, rdi");
+                }
+                NodeKind::AMul => {
+                    println!("    imul rax, rdi");
+                }
+                NodeKind::ADiv => {
+                    println!("    cqo");
+                    println!("    idiv rdi");
+                }
+                _ => unreachable!(),
+            }
+            println!("    push rax");
+            store(node);
+        }
         NodeKind::Return => {
             println!("# NodeKind::Return");
             if let Some(lhs) = &node.lhs {
@@ -578,6 +608,8 @@ fn gen_load_asm(size: u64, signed: bool) -> Option<&'static str> {
     }
 }
 
+/// mov [rax], rdi
+/// もし`node`の要素が`array`だったら、`array`の要素のサイズに合わせてstoreする
 fn store(node: &Node) {
     let mut word = "mov [rax], rdi";
     println!("# store");

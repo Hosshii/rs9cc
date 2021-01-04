@@ -9,6 +9,10 @@ use std::rc::Rc;
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum NodeKind {
     Assign,
+    AAdd,
+    ASub,
+    AMul,
+    ADiv,
     Equal,
     Neq,
     Lesser,
@@ -54,6 +58,10 @@ impl NodeKind {
     pub fn as_str(&self) -> String {
         match self {
             Assign => "=".to_string(),
+            AAdd => "+=".to_string(),
+            ASub => "-=".to_string(),
+            AMul => "*=".to_string(),
+            ADiv => "/=".to_string(),
             Equal => "==".to_string(),
             Neq => "!=".to_string(),
             Lesser => "<".to_string(),

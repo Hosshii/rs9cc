@@ -48,6 +48,10 @@ impl TokenKind {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
 pub enum Operator {
     Assign,
+    APlus,
+    AMinus,
+    AMul,
+    ADiv,
     Equal,
     Neq,
     Lesser,
@@ -75,6 +79,10 @@ impl Operator {
         use self::Operator::*;
         match self {
             Assign => "=",
+            APlus => "+=",
+            AMinus => "-=",
+            AMul => "*=",
+            ADiv => "/=",
             Equal => "==",
             Neq => "!=",
             Lesser => "<",
@@ -123,6 +131,10 @@ impl FromStr for Operator {
             x if x == Lesser.as_str() => Ok(Lesser),
             x if x == Greater.as_str() => Ok(Greater),
             x if x == Assign.as_str() => Ok(Assign),
+            x if x == APlus.as_str() => Ok(APlus),
+            x if x == AMinus.as_str() => Ok(AMinus),
+            x if x == AMul.as_str() => Ok(AMul),
+            x if x == ADiv.as_str() => Ok(ADiv),
             x if x == Plus.as_str() => Ok(Plus),
             x if x == Minus.as_str() => Ok(Minus),
             x if x == Mul.as_str() => Ok(Mul),
@@ -770,10 +782,10 @@ mod tests {
         use self::KeyWord::*;
         use self::Operator::*;
         use self::TokenKind::{KeyWord, Num, Reserved, SemiColon};
-        let input = "== != = < <= > >= + - * / ( ) & sizeof [ ] ->";
+        let input = "== != = < <= > >= + - * / ( ) & sizeof [ ] -> ++ += -= *= /=";
         let expected = vec![
             Equal, Neq, Assign, Lesser, Leq, Greater, Geq, Plus, Minus, Mul, Div, LParen, RParen,
-            Ampersand, Sizeof, LArr, RArr, Arrow,
+            Ampersand, Sizeof, LArr, RArr, Arrow, PlusPlus, APlus, AMinus, AMul, ADiv,
         ];
         let mut iter = tokenize(input, "");
         for i in expected {
@@ -903,12 +915,14 @@ mod tests {
             (">=", Ok(Geq)),
             (">=>", Ok(Geq)),
             ("+", Ok(Plus)),
+            ("+=", Ok(APlus)),
             ("-", Ok(Minus)),
-            ("-=", Ok(Minus)),
+            ("-=", Ok(AMinus)),
             ("*", Ok(Mul)),
-            ("*=", Ok(Mul)),
+            ("*=", Ok(AMul)),
             ("/", Ok(Div)),
             ("//", Ok(Div)),
+            ("/=", Ok(ADiv)),
             ("(", Ok(LParen)),
             ("(=", Ok(LParen)),
             (")", Ok(RParen)),

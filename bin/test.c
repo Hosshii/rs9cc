@@ -442,5 +442,17 @@ int main() {
   assert( 2,({int a[] = {1,3,5};int *p = a+1; --*p;}), "({int a[] = {1,3,5};int *p = a+1; --*p;})");
   assert( 5, ({int a[] = {1,3,5};int *p = a+1; *p++; *p;}),"({int a[] = {1,3,5};int *p = a+1; *p++; *p;})");
   assert( 1, ({int a[] = {1,3,5};int *p = a+1; *--p; *p;}),"({int a[] = {1,3,5};int *p = a+1; *--p; *p;})");
+
+  // #42
+  printf("\n\n#42\n");
+  assert(6,({int i = 3; i+=3;  i;}), "({int i = 3; i+=3;  i;})");
+  assert(0,({int i = 3; i-=3;  i;}), "({int i = 3; i-=3;  i;})");
+  assert(9,({int i = 3; i*=3;  i;}), "({int i = 3; i*=3;  i;})");
+  assert(1,({int i = 3; i/=3;  i;}), "({int i = 3; i/=3;  i;})");
+  assert( 6,({int i = 3; i+=3; }), "({int i = 3; i+=3; })");
+  assert( 0,({int i = 3; i-=3; }), "({int i = 3; i-=3; })");
+  assert( 9,({int i = 3; i*=3; }), "({int i = 3; i*=3; })");
+  assert( 1,({int i = 3; i/=3; }), "({int i = 3; i/=3; })");
+  assert (45 ,({int result = 0;for (int i =0;i<10 ;i++){result +=i;}result;}),"({int result = 0;for (int i =0;i<10 ;i++){result +=i;}result;})");
   return 0;
 }

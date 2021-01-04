@@ -38,7 +38,8 @@ stmt                    = expr ";"
                         | "{" stmt* "}"
                         | declaration ("=" initialize)? ";"
 expr                    = assign ("," assign)*
-assign                  = equality ("=" assign)?
+assign                  = equality (assign-op assign)?
+assign-op               = "=" | "+=" | "-=" | "*=" | "/=" 
 equality                = relational ("==" relational | "!=" relational)*
 relational              = add ("<" add | "<=" | ">" add | ">=" add)*
 add                     = mul ("+" mul | "-" mul)*

@@ -492,6 +492,19 @@ pp_mm() {
     assert 1 'int main(){int a[] = {1,3,5};int *p = a+1; *--p; return *p;}'
 }
 
+# 42
+cpx_assign() {
+    assert 6 'int main(){int i = 3; i+=3; return i;}'
+    assert 0 'int main(){int i = 3; i-=3; return i;}'
+    assert 9 'int main(){int i = 3; i*=3; return i;}'
+    assert 1 'int main(){int i = 3; i/=3; return i;}'
+    assert 6 'int main(){int i = 3;return i+=3; }'
+    assert 0 'int main(){int i = 3;return i-=3; }'
+    assert 9 'int main(){int i = 3;return i*=3; }'
+    assert 1 'int main(){int i = 3;return i/=3; }'
+    assert 45 'int main(){int result = 0;for (int i =0;i<10 ;i++){result +=i;}return result;}'
+}
+
 build() {
     cargo build
 }
@@ -554,6 +567,7 @@ if [ $# -eq 0 ]; then
     static
     comma
     pp_mm
+    cpx_assign
 fi
 
 while [ $# -ne 0 ]; do
@@ -599,6 +613,7 @@ while [ $# -ne 0 ]; do
     "39") static ;;
     "40") comma ;;
     "41") pp_mm ;;
+    "42") cpx_assign ;;
     esac
     shift
 done
