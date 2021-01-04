@@ -744,10 +744,10 @@ pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     Ok(node)
 }
 
-// assign                  = equality (assign-op assign)?
+// assign                  = bitor (assign-op assign)?
 // assign-op               = "=" | "+=" | "-=" | "*=" | "/="
 pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
-    let mut node = equality(iter, ctx)?;
+    let mut node = bit_or(iter, ctx)?;
     if consume(iter, Operator::Assign) {
         let rhs = assign(iter, ctx)?;
         // 左右の型が違っても受け入れる
@@ -782,6 +782,33 @@ pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     } else if consume(iter, Operator::ADiv) {
         let rhs = assign(iter, ctx)?;
         node = Node::new(NodeKind::ADiv, node, rhs);
+    }
+    return Ok(node);
+}
+
+// bitor                   = bitxor ("|" bitxor)*
+pub fn bit_or(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let mut node = bit_xor(iter, ctx)?;
+    while consume(iter, Operator::BitOr) {
+        node = Node::new(NodeKind::BitOr, node, bit_xor(iter, ctx)?);
+    }
+    return Ok(node);
+}
+
+// bitxor                  = bitand ("^" bitand)*
+pub fn bit_xor(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let mut node = bit_and(iter, ctx)?;
+    while consume(iter, Operator::BitXor) {
+        node = Node::new(NodeKind::BitXor, node, bit_and(iter, ctx)?);
+    }
+    return Ok(node);
+}
+
+// bitand                  = equality ("&" equality)*
+pub fn bit_and(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let mut node = equality(iter, ctx)?;
+    while consume(iter, Operator::Ampersand) {
+        node = Node::new(NodeKind::BitAnd, node, equality(iter, ctx)?);
     }
     return Ok(node);
 }

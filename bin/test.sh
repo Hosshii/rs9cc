@@ -519,6 +519,21 @@ bitnot() {
     assert 1 'int main(){return ~~1;}'
 }
 
+# 45
+bit_op() {
+    assert 1 'int main(){return 1|0;}'
+    assert 3 'int main(){return 2|1;}'
+    assert 3 'int main(){return 3|1;}'
+    assert 0 'int main(){return 1&0;}'
+    assert 0 'int main(){return 2&1;}'
+    assert 1 'int main(){return 3&1;}'
+    assert 1 'int main(){return 1^0;}'
+    assert 3 'int main(){return 2^1;}'
+    assert 0 'int main(){return 0^0;}'
+    assert 0 'int main(){return 5^5;}'
+    assert 1 'int main(){return 1|1^2&0;}'
+}
+
 build() {
     cargo build
 }
@@ -584,6 +599,7 @@ if [ $# -eq 0 ]; then
     cpx_assign
     not
     bitnot
+    bit_op
 fi
 
 while [ $# -ne 0 ]; do
@@ -632,6 +648,7 @@ while [ $# -ne 0 ]; do
     "42") cpx_assign ;;
     "43") not ;;
     "44") bitnot ;;
+    "45") bit_op ;;
     esac
     shift
 done

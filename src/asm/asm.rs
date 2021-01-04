@@ -515,6 +515,15 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             println!("    cqo");
             println!("    idiv rdi");
         }
+        NodeKind::BitAnd => {
+            println!("    and rax, rdi");
+        }
+        NodeKind::BitOr => {
+            println!("    or rax, rdi");
+        }
+        NodeKind::BitXor => {
+            println!("    xor rax, rdi");
+        }
         NodeKind::Equal => {
             println!("# Equal");
             println!("    cmp rax, rdi");

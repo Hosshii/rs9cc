@@ -38,8 +38,11 @@ stmt                    = expr ";"
                         | "{" stmt* "}"
                         | declaration ("=" initialize)? ";"
 expr                    = assign ("," assign)*
-assign                  = equality (assign-op assign)?
+assign                  = bitor (assign-op assign)?
 assign-op               = "=" | "+=" | "-=" | "*=" | "/=" 
+bitor                   = bitxor ("|" bitxor)*
+bitxor                  = bitand ("^" bitand)*
+bitand                  = equality ("&" equality)*
 equality                = relational ("==" relational | "!=" relational)*
 relational              = add ("<" add | "<=" | ">" add | ">=" add)*
 add                     = mul ("+" mul | "-" mul)*
