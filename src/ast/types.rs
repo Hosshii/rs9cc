@@ -50,6 +50,7 @@ pub enum NodeKind {
     PostInc,
     PostDec,
     Not,
+    BitNot,
     Null,
 }
 
@@ -100,6 +101,7 @@ impl NodeKind {
             PostInc => "post ++".to_string(),
             PostDec => "post --".to_string(),
             Not => "!".to_string(),
+            BitNot => "~".to_string(),
             Null => "null".to_string(),
         }
     }

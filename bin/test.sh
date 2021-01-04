@@ -513,6 +513,12 @@ not() {
     assert 1 'int main(){int i = 0; return !0;}'
 }
 
+# 44
+bitnot() {
+    assert 11 'int main(){int i =-12; return ~i;}'
+    assert 1 'int main(){return ~~1;}'
+}
+
 build() {
     cargo build
 }
@@ -577,6 +583,7 @@ if [ $# -eq 0 ]; then
     pp_mm
     cpx_assign
     not
+    bitnot
 fi
 
 while [ $# -ne 0 ]; do
@@ -624,6 +631,7 @@ while [ $# -ne 0 ]; do
     "41") pp_mm ;;
     "42") cpx_assign ;;
     "43") not ;;
+    "44") bitnot ;;
     esac
     shift
 done

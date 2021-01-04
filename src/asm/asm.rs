@@ -471,6 +471,13 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             println!("    push rax");
             return Ok(());
         }
+        NodeKind::BitNot => {
+            gen(node.lhs.as_ref().unwrap(), ctx)?;
+            println!("    pop rax");
+            println!("    not rax");
+            println!("    push rax");
+            return Ok(());
+        }
         _ => (),
     }
 

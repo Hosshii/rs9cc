@@ -49,7 +49,12 @@ int assert(int expected, int actual, char *msg) {
     printf("ok ");
     return 0;
   } else {
+    printf("\n\n");
+    printf("err occurred\n\n");
+    printf("-----  INPUT  START  -----\n\n");
     printf(msg);
+    printf("\n\n");
+    printf("-----  INPUT  END  -----\n");
     exit(actual);
   }
 }
@@ -59,6 +64,7 @@ int main() {
   this is test script.
   */
 
+  printf("\n-----  TEST  START  -----\n\n");
   // #1
   printf("#1\n");
   assert(0, 0, "0;");
@@ -461,5 +467,13 @@ int main() {
   assert( 0, ({int i = 0; !1;}),"({int i = 0; !1;})");
   assert( 0, ({int i = 0; !9;}),"({int i = 0; !9;})");
   assert( 1, ({int i = 0; !0;}),"({int i = 0; !0;})");
+
+  // #44
+  printf("\n\n#44\n");
+  assert(11, ({int i =-12; ~i;}),"({int i =-12; ~i;})");
+  assert(1, ({~~1;}),"({~~1;})");
+
+
+  printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;
 }

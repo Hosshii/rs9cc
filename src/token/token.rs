@@ -73,6 +73,7 @@ pub enum Operator {
     PlusPlus,
     MinusMinus,
     Not,
+    BitNot,
 }
 
 impl Operator {
@@ -105,6 +106,7 @@ impl Operator {
             PlusPlus => "++",
             MinusMinus => "--",
             Not => "!",
+            BitNot => "~",
         }
     }
 
@@ -151,6 +153,7 @@ impl FromStr for Operator {
             x if x == PlusPlus.as_str() => Ok(PlusPlus),
             x if x == MinusMinus.as_str() => Ok(MinusMinus),
             x if x == Not.as_str() => Ok(Not),
+            x if x == BitNot.as_str() => Ok(BitNot),
             _ => Err(()),
         }
     }
@@ -785,10 +788,10 @@ mod tests {
         use self::KeyWord::*;
         use self::Operator::*;
         use self::TokenKind::{KeyWord, Num, Reserved, SemiColon};
-        let input = "== != = < <= > >= + - * / ( ) & sizeof [ ] -> ++ += -= *= /= !";
+        let input = "== != = < <= > >= + - * / ( ) & sizeof [ ] -> ++ += -= *= /= ! ~";
         let expected = vec![
             Equal, Neq, Assign, Lesser, Leq, Greater, Geq, Plus, Minus, Mul, Div, LParen, RParen,
-            Ampersand, Sizeof, LArr, RArr, Arrow, PlusPlus, APlus, AMinus, AMul, ADiv, Not,
+            Ampersand, Sizeof, LArr, RArr, Arrow, PlusPlus, APlus, AMinus, AMul, ADiv, Not, BitNot,
         ];
         let mut iter = tokenize(input, "");
         for i in expected {
@@ -935,6 +938,7 @@ mod tests {
             ("++", Ok(PlusPlus)),
             ("--", Ok(MinusMinus)),
             ("!", Ok(Not)),
+            ("~", Ok(BitNot)),
             ("foo", Err(())),
         ];
         for &(s, ref expected) in &tests {

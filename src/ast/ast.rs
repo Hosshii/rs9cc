@@ -887,7 +887,10 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         return Ok(Node::new_unary(NodeKind::PreDec, unary(iter, ctx)?));
     } else if consume(iter, Operator::Not) {
         return Ok(Node::new_unary(NodeKind::Not, unary(iter, ctx)?));
+    } else if consume(iter, Operator::BitNot) {
+        return Ok(Node::new_unary(NodeKind::BitNot, unary(iter, ctx)?));
     }
+
     return postfix(iter, ctx);
 }
 
