@@ -1,7 +1,7 @@
 use self::NodeKind::*;
 
 use crate::base_types;
-use crate::base_types::{Member, TagContext, TypeKind};
+use crate::base_types::{Member, TagTypeKind, TypeKind};
 use crate::token::Operator;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -390,7 +390,6 @@ pub struct Context {
     pub g: GlobalContext,
     pub l: LocalContext,
     pub s: Scope,
-    pub t: TagContext,
     pub static_counter: u32,
 }
 
@@ -400,7 +399,6 @@ impl Context {
             g: GlobalContext::new(),
             l: LocalContext::new(),
             s: Scope::new(),
-            t: TagContext::new(),
             static_counter: 0,
         }
     }
@@ -408,7 +406,7 @@ impl Context {
     pub fn push_front(&mut self, dec: Declaration, offset: u64) {
         self.l.push_front(dec.clone(), offset);
         let lvar = self.l.find_lvar(dec.ident.name.clone()).unwrap();
-        self.s.insert(dec.ident, Rc::new(Var::L(lvar)));
+        self.s.insert_v(dec.ident, Rc::new(Var::L(lvar)));
     }
 
     pub fn insert_g(&mut self, gvar: Rc<Gvar>) {
@@ -418,7 +416,8 @@ impl Context {
         self.g
             .gvar_mp
             .insert(gvar.dec.ident.name.clone(), gvar.clone());
-        self.s.insert(gvar.dec.ident.clone(), Rc::new(Var::G(gvar)));
+        self.s
+            .insert_v(gvar.dec.ident.clone(), Rc::new(Var::G(gvar)));
     }
 
     pub fn make_label(&mut self) -> String {
@@ -501,19 +500,36 @@ impl LocalContext {
     }
 }
 
-type VarMp = HashMap<Ident, Rc<Var>>;
+type VarMp = HashMap<(Ident, usize), Rc<Var>>;
+type TagMp = HashMap<(Rc<Ident>, usize), Rc<TagTypeKind>>;
 #[derive(Clone, Debug)]
 pub struct Scope {
-    mp: VarMp,
+    v: VarMp,
+    t: TagMp,
+    depth: usize,
 }
 
 impl Scope {
     pub fn new() -> Self {
-        Self { mp: HashMap::new() }
+        Self {
+            v: HashMap::new(),
+            t: HashMap::new(),
+            depth: 0,
+        }
     }
 
-    pub fn find_lvar(&self, ident: &Ident) -> Option<Rc<Lvar>> {
-        if let Some(vr) = self.mp.get(ident) {
+    pub fn enter(&mut self) -> Self {
+        let tmp = self.clone();
+        self.depth += 1;
+        tmp
+    }
+
+    pub fn leave(&mut self, sc: Scope) {
+        *self = sc;
+    }
+
+    pub fn find_cur_lvar(&self, ident: Ident) -> Option<Rc<Lvar>> {
+        if let Some(vr) = self.v.get(&(ident, self.depth)) {
             match vr.as_ref() {
                 Var::L(lvar) => Some(lvar.clone()),
                 _ => None,
@@ -523,8 +539,26 @@ impl Scope {
         }
     }
 
-    pub fn find_gvar(&self, ident: &Ident) -> Option<Rc<Gvar>> {
-        if let Some(vr) = self.mp.get(ident) {
+    pub fn find_upper_lvar(&self, ident: Ident) -> Option<Rc<Lvar>> {
+        self.find_lvar(ident, self.depth)
+    }
+
+    /// depthとそれより浅い範囲にある物を探す。深いものからみつかる
+    pub fn find_lvar(&self, ident: Ident, depth: usize) -> Option<Rc<Lvar>> {
+        for i in (0..=depth).rev() {
+            if let Some(vr) = self.v.get(&(ident.clone(), i)) {
+                // todo performance
+                match vr.as_ref() {
+                    Var::L(lvar) => return Some(lvar.clone()),
+                    _ => (),
+                }
+            }
+        }
+        None
+    }
+
+    pub fn find_cur_gvar(&self, ident: Ident) -> Option<Rc<Gvar>> {
+        if let Some(vr) = self.v.get(&(ident, self.depth)) {
             match vr.as_ref() {
                 Var::G(gvar) => Some(gvar.clone()),
                 _ => None,
@@ -534,8 +568,46 @@ impl Scope {
         }
     }
 
-    pub fn insert(&mut self, ident: Ident, vr: Rc<Var>) -> Option<Rc<Var>> {
-        self.mp.insert(ident, vr)
+    pub fn find_upper_gvar(&self, ident: Ident) -> Option<Rc<Gvar>> {
+        self.find_gvar(ident, self.depth)
+    }
+
+    pub fn find_gvar(&self, ident: Ident, depth: usize) -> Option<Rc<Gvar>> {
+        for i in (0..=depth).rev() {
+            if let Some(vr) = self.v.get(&(ident.clone(), i)) {
+                match vr.as_ref() {
+                    Var::G(gvar) => return Some(gvar.clone()),
+                    _ => (),
+                }
+            }
+        }
+        None
+    }
+
+    pub fn insert_v(&mut self, ident: Ident, vr: Rc<Var>) -> Option<Rc<Var>> {
+        self.v.insert((ident, self.depth), vr)
+    }
+
+    pub fn find_cur_tag(&self, ident: Rc<Ident>) -> Option<Rc<TagTypeKind>> {
+        self.t.get(&(ident, self.depth)).map(|v| v.clone())
+    }
+
+    pub fn find_upper_tag(&self, ident: Rc<Ident>) -> Option<Rc<TagTypeKind>> {
+        self.find_tag(ident, self.depth)
+    }
+
+    pub fn find_tag(&self, ident: Rc<Ident>, depth: usize) -> Option<Rc<TagTypeKind>> {
+        for i in (0..=depth).rev() {
+            match self.t.get(&(ident.clone(), i)).map(|v| v.clone()) {
+                Some(x) => return Some(x),
+                _ => (),
+            }
+        }
+        None
+    }
+
+    pub fn insert_t(&mut self, ident: Rc<Ident>, tag: Rc<TagTypeKind>) -> Option<Rc<TagTypeKind>> {
+        self.t.insert((ident, self.depth), tag)
     }
 }
 

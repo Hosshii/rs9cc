@@ -341,7 +341,7 @@ fn undefined_tag_err_format(err: &Error, ident: &Ident, f: &mut fmt::Formatter) 
 fn re_declare_err_format(err: &Error, ident: &Ident, f: &mut fmt::Formatter) -> fmt::Result {
     err_format(
         err,
-        format!("variable {} is already defined", ident.name),
+        format!("variable or tag \"{}\" is already defined", ident.name),
         f,
     )
 }

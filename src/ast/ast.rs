@@ -4,7 +4,7 @@ use super::NodeKind;
 use super::{
     Context, Declaration, FuncPrototype, Function, Gvar, Ident, LocalContext, Node, Program, Var,
 };
-use crate::base_types::{self, Enum, Member, Struct, TagContext, TagTypeKind, TypeKind};
+use crate::base_types::{self, Enum, Member, Struct, TagTypeKind, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -49,7 +49,9 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                     if consume_semi(iter) {
                         continue;
                     }
+                    let sc = ctx.s.enter();
                     let func = function(iter, checked_func_prototype, &mut ctx)?;
+                    ctx.s.leave(sc);
                     program.functions.push(func);
                 }
                 x => {
@@ -177,15 +179,12 @@ pub fn type_specifier(
                 return Ok((xx, (is_typedef, is_static)));
             }
             if let TokenKind::Ident(ref ident) = x.kind {
-                let ident = Ident::from(ident.clone());
-                if let Some(type_def) = ctx.t.find_tag(&ident) {
-                    if let TagTypeKind::Typedef(dec) = type_def.as_ref() {
-                        iter.next();
-                        return Ok((dec.type_kind.clone(), (is_typedef, is_static)));
-                    } else {
-                        // todo error handling
-                    }
+                let ident = Rc::new(Ident::from(ident.clone()));
+                if let Some(dec) = is_typedef_name(ident, ctx) {
+                    iter.next();
+                    return Ok((dec.type_kind.clone(), (is_typedef, is_static)));
                 }
+
                 // else {
                 //     return Err(Error::undefined_tag(
                 //         iter.filepath,
@@ -320,7 +319,7 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>,
     if !consume_block(iter, Block::LParen) {
         match &ident {
             Some(x) => {
-                if let Some(tag) = ctx.t.find_tag(&x) {
+                if let Some(tag) = ctx.s.find_upper_tag(Rc::new(x.clone())) {
                     if let TagTypeKind::Struct(_struct) = tag.as_ref() {
                         return Ok(_struct.clone());
                     }
@@ -359,9 +358,22 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>,
     let mut _struct = if let Some(ident) = ident {
         let ident = Rc::new(ident);
         let _struct = Rc::new(Struct::new(ident.clone(), members));
-        ctx.t
-            .tag_list
-            .insert(ident, Rc::new(TagTypeKind::Struct(_struct.clone())));
+        match ctx
+            .s
+            .insert_t(ident.clone(), Rc::new(TagTypeKind::Struct(_struct.clone())))
+        {
+            Some(_) => {
+                return Err(Error::re_declare(
+                    iter.filepath,
+                    iter.s,
+                    ident.as_ref().clone(),
+                    iter.pos,
+                    None,
+                ))
+            }
+            None => {}
+        }
+
         _struct
     } else {
         Rc::new(Struct::new(
@@ -381,7 +393,7 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
     if !consume_block(iter, Block::LParen) {
         match &tag {
             Some(x) => {
-                if let Some(tag) = ctx.t.find_tag(&x) {
+                if let Some(tag) = ctx.s.find_upper_tag(Rc::new(x.clone())) {
                     if let TagTypeKind::Enum(_enum) = tag.as_ref() {
                         return Ok(_enum.clone());
                     }
@@ -420,9 +432,18 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
     let mut _enum = if let Some(tag) = tag {
         let tag = Rc::new(tag);
         let _enum = Rc::new(Enum::new(tag.clone(), enum_list));
-        ctx.t
-            .tag_list
-            .insert(tag, Rc::new(TagTypeKind::Enum(_enum.clone())));
+        let result = ctx
+            .s
+            .insert_t(tag.clone(), Rc::new(TagTypeKind::Enum(_enum.clone())));
+        if let Some(_) = result {
+            return Err(Error::re_declare(
+                iter.filepath,
+                iter.s,
+                tag.as_ref().clone(),
+                iter.pos,
+                None,
+            ));
+        }
         _enum
     } else {
         Rc::new(Enum::new(
@@ -447,11 +468,37 @@ pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Dec
         let type_kind = type_kind.borrow().clone();
         Declaration::new(type_kind, ident)
     };
+
+    match (
+        ctx.s.find_cur_lvar(dec.ident.clone()),
+        ctx.s.find_cur_gvar(dec.ident.clone()),
+    ) {
+        (None, None) => (),
+        _ => {
+            return Err(Error::re_declare(
+                iter.filepath,
+                iter.s,
+                dec.ident.clone(),
+                iter.pos,
+                None,
+            ))
+        }
+    }
+
     if is_typedef {
-        ctx.t.tag_list.insert(
+        let result = ctx.s.insert_t(
             Rc::new(dec.ident.clone()),
             Rc::new(TagTypeKind::Typedef(Rc::new(dec.clone()))),
         );
+        if let Some(_) = result {
+            return Err(Error::re_declare(
+                iter.filepath,
+                iter.s,
+                dec.ident.clone(),
+                iter.pos,
+                None,
+            ));
+        }
     }
 
     dec.is_typedef = is_typedef;
@@ -482,7 +529,6 @@ pub fn function(
     expect_block(iter, Block::LParen)?;
 
     ctx.l = LocalContext::new();
-    ctx.t = TagContext::new();
     for fn_param in func_prototype.params.clone() {
         let l = ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0);
         ctx.push_front(fn_param, l)
@@ -572,7 +618,9 @@ pub fn unary_initialize(
         NodeKind::ExprStmt,
         Node::new(
             NodeKind::Assign,
-            Node::new_leaf(NodeKind::Lvar(ctx.s.find_lvar(&dec.ident).unwrap())),
+            Node::new_leaf(NodeKind::Lvar(
+                ctx.s.find_cur_lvar(dec.ident.clone()).unwrap(),
+            )),
             node,
         ),
     );
@@ -625,8 +673,8 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     iter.next();
                     expect(iter, Operator::LParen)?;
                     let mut node = Node::new_none(NodeKind::For);
-                    let sc = ctx.s.clone();
-                    let tag_sc = ctx.t.clone();
+                    let sc = ctx.s.enter();
+
                     if !consume_semi(iter) {
                         node.init = Some(vec![stmt(iter, ctx)?]);
                     }
@@ -639,8 +687,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     }
                     expect(iter, Operator::RParen)?;
                     node.then = Some(Box::new(stmt(iter, ctx)?));
-                    ctx.s = sc;
-                    ctx.t = tag_sc;
+                    ctx.s.leave(sc);
                     return Ok(node);
                 }
                 _ => (),
@@ -649,13 +696,13 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 Block::LParen => {
                     iter.next();
                     let mut stmt_vec = Vec::new();
-                    let sc = ctx.s.clone();
-                    let tag_sc = ctx.t.clone();
+                    let sc = ctx.s.enter();
+
                     while !consume_block(iter, Block::RParen) {
                         stmt_vec.push(stmt(iter, ctx)?);
                     }
-                    ctx.s = sc;
-                    ctx.t = tag_sc;
+                    ctx.s.leave(sc);
+
                     return Ok(Node::new_none(NodeKind::Block(stmt_vec)));
                 }
                 _ => {
@@ -671,7 +718,9 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         }
     }
 
-    if let Some(mut dec) = consume_declaration(iter, ctx) {
+    if is_typename(iter, ctx) {
+        let mut dec = declaration(iter, ctx)?;
+
         // todo re declaration err handling
         if consume_semi(iter) {
             if dec.ident.is_anonymous() || dec.is_typedef {
@@ -683,7 +732,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 std::mem::swap(&mut dec.ident.name, &mut label);
                 let gvar = Rc::new(Gvar::new(dec.clone(), size, vec![]));
                 ctx.g.gvar_mp.insert(dec.ident.name.clone(), gvar.clone());
-                ctx.s.insert(Ident::new(label), Rc::new(Var::G(gvar)));
+                ctx.s.insert_v(Ident::new(label), Rc::new(Var::G(gvar)));
             } else {
                 ctx.push_front(
                     dec.clone(),
@@ -706,7 +755,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     dec.clone(),
                     ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
                 );
-                let lvar = ctx.s.find_lvar(&dec.ident).unwrap();
+                let lvar = ctx.s.find_cur_lvar(dec.ident.clone()).unwrap();
                 let node = make_arr_init(lvar.clone(), &dec, nodes).map_err(|size| {
                     Error::invalid_initialization(
                         iter.filepath,
@@ -726,7 +775,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     dec.clone(),
                     ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
                 );
-                let lvar = ctx.s.find_lvar(&dec.ident).unwrap();
+                let lvar = ctx.s.find_cur_lvar(dec.ident.clone()).unwrap();
                 let node = make_unary_init(lvar, &dec, node).unwrap();
                 return Ok(node);
             }
@@ -1013,8 +1062,7 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     // expect(iter, Operator::LParen)?;
     // expect_block(iter, Block::LParen)?;
-    let sc = ctx.s.clone();
-    let tag_sc = ctx.t.clone();
+    let sc = ctx.s.enter();
     let mut nodes = vec![stmt(iter, ctx)?];
     while !consume_block(iter, Block::RParen) {
         nodes.push(stmt(iter, ctx)?);
@@ -1028,8 +1076,7 @@ pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error>
         nodes.last_mut().unwrap().lhs.as_mut().unwrap(),
         Node::new_num(0),
     );
-    ctx.s = sc;
-    ctx.t = tag_sc;
+    ctx.s.leave(sc);
     Ok(Node::new_leaf(NodeKind::StmtExpr(nodes)))
 }
 
@@ -1071,12 +1118,12 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 func_args(iter, ctx)?,
             )));
         }
-        if let Some(lvar) = ctx.s.find_lvar(&ident) {
+        if let Some(lvar) = ctx.s.find_upper_lvar(ident.clone()) {
             if lvar.dec.is_const.0 {
                 return Ok(Node::new_num(lvar.dec.is_const.1));
             }
             return Ok(Node::new_leaf(NodeKind::Lvar(lvar)));
-        } else if let Some(x) = ctx.s.find_gvar(&ident) {
+        } else if let Some(x) = ctx.s.find_upper_gvar(ident.clone()) {
             return Ok(Node::new_leaf(NodeKind::Gvar(x.clone())));
         } else {
             return Err(Error::undefined_variable(
@@ -1266,7 +1313,7 @@ mod tests {
         for i in expected {
             let ctx = &mut Context::new();
             ctx.l.lvar = Some(Rc::new(make_int_lvar("hoge", 8)));
-            ctx.s.insert(
+            ctx.s.insert_v(
                 Ident::new("hoge"),
                 Rc::new(Var::L(Rc::new(make_int_lvar("hoge", 8)))),
             );
@@ -1286,7 +1333,7 @@ mod tests {
             let ctx = &mut Context::new();
             ctx.l.lvar = Some(Rc::new(i.1.clone()));
             ctx.s
-                .insert(i.1.dec.ident.clone(), Rc::new(Var::L(Rc::new(i.1))));
+                .insert_v(i.1.dec.ident.clone(), Rc::new(Var::L(Rc::new(i.1))));
 
             assert_eq!(i.0, unary(iter, ctx).unwrap());
         }
@@ -1507,7 +1554,7 @@ mod tests {
         let input = "for( i=0;i<10;i=i+1)return i+2;";
         let ctx = &mut Context::new();
         ctx.l.lvar = Some(Rc::new(make_int_lvar("i", 8)));
-        ctx.s.insert(
+        ctx.s.insert_v(
             Ident::new("i"),
             Rc::new(Var::L(Rc::new(make_int_lvar("i", 8)))),
         );

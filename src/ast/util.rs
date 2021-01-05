@@ -2,8 +2,8 @@ use super::error::Error;
 use super::{
     Context, Declaration, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident, Lvar, Node, NodeKind,
 };
-use crate::base_types;
-use crate::base_types::TypeKind;
+use crate::base_types::{self, TagTypeKind, TypeKind};
+
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::{cell::RefCell, rc::Rc};
 
@@ -129,10 +129,6 @@ pub(crate) fn consume_type_kind(iter: &mut TokenIter) -> Option<base_types::Type
         }
     }
     None
-}
-
-pub(crate) fn consume_declaration(iter: &mut TokenIter, ctx: &mut Context) -> Option<Declaration> {
-    crate::ast::ast::declaration(iter, ctx).ok() // todo エラー握りつぶしてるので注意
 }
 
 pub(crate) fn _consume_token_kind(iter: &mut TokenIter, kind: TokenKind) -> Option<TokenKind> {
@@ -423,4 +419,36 @@ pub(crate) fn make_unary_init(lvar: Rc<Lvar>, dec: &Declaration, node: Node) -> 
         NodeKind::Declaration(dec.clone()),
         vec![node],
     ))
+}
+
+pub(crate) fn is_typename(iter: &mut TokenIter, ctx: &Context) -> bool {
+    if let Some(x) = iter.peek() {
+        match x.kind {
+            TokenKind::TypeKind(_) => return true,
+            TokenKind::KeyWord(KeyWord::Struct)
+            | TokenKind::KeyWord(KeyWord::Static)
+            | TokenKind::KeyWord(KeyWord::Typedef)
+            | TokenKind::KeyWord(KeyWord::Enum) => return true,
+            TokenKind::Ident(ident) => {
+                let ident = Rc::new(Ident::from(ident.clone()));
+
+                if let Some(_) = is_typedef_name(ident.clone(), ctx) {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            _ => (),
+        }
+    }
+    false
+}
+
+pub(crate) fn is_typedef_name(ident: Rc<Ident>, ctx: &Context) -> Option<Rc<Declaration>> {
+    if let Some(tag) = ctx.s.find_upper_tag(ident) {
+        if let TagTypeKind::Typedef(dec) = tag.as_ref() {
+            return Some(dec.clone());
+        }
+    }
+    None
 }
