@@ -406,7 +406,7 @@ bool() {
     assert 1 'int main(){_Bool x = 2; return x;}'
     assert 1 'int main(){_Bool x = 2==2; return x;}'
     assert 0 'int main(){_Bool x = 2==3; return x;}'
-    assert 'int main(){_Bool x = 1; return sizeof _Bool;}'
+    assert 1 'int main(){_Bool x = 1; return sizeof (_Bool);}'
 }
 
 # 35
