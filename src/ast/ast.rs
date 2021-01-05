@@ -504,11 +504,19 @@ pub fn function(
 
 // params      = declaration ("," declaration)*
 pub fn params(iter: &mut TokenIter, ctx: &mut Context) -> Result<Vec<Declaration>, Error> {
-    let mut params = vec![declaration(iter, ctx)?];
+    let mut params = vec![read_param(iter, ctx)?];
     while consume_comma(iter) {
-        params.push(declaration(iter, ctx)?);
+        params.push(read_param(iter, ctx)?);
     }
     Ok(params)
+}
+
+pub fn read_param(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration, Error> {
+    let mut dec = declaration(iter, ctx)?;
+    if let TypeKind::Array(_, base, _) = &dec.type_kind {
+        dec.type_kind = TypeKind::ptr_to(base.clone());
+    }
+    Ok(dec)
 }
 
 // "{" (expr ("," expr)*)? | str

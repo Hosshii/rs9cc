@@ -546,6 +546,12 @@ log_and_or() {
     assert 0 'int main(){return 1&&(2-2)&&2;}'
 }
 
+# 47
+fn_param_arr() {
+    assert 0 'int arr_param(int x[]){return x[0];} int main(){int x[2] ={}; return arr_param(x);}'
+    assert 3 'int arr_param(int x[]){return x[2];} int main(){int x[] ={1,2,3}; return arr_param(x);}'
+}
+
 build() {
     cargo build
 }
@@ -613,6 +619,7 @@ if [ $# -eq 0 ]; then
     bitnot
     bit_op
     log_and_or
+    fn_param_arr
 fi
 
 while [ $# -ne 0 ]; do
@@ -663,6 +670,7 @@ while [ $# -ne 0 ]; do
     "44") bitnot ;;
     "45") bit_op ;;
     "46") log_and_or ;;
+    "47") fn_param_arr ;;
     esac
     shift
 done

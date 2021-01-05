@@ -356,6 +356,10 @@ impl TypeKind {
         TypeKind::Array(size, base, initialized)
     }
 
+    pub fn ptr_to(base: Rc<RefCell<TypeKind>>) -> TypeKind {
+        TypeKind::Ptr(base)
+    }
+
     /// `int [] == int *`
     /// array and pointer is same
     /// todo

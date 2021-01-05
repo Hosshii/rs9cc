@@ -32,6 +32,7 @@ short sub_short(short a, short b){return a-b;}
 long sub_long(long a, long b){return a-b;}
 char char_fn() { return 257; }
 int count(){static int cnt; cnt = cnt+1; return cnt;}
+int arr_param(int x[]) {return x[0];}
 
 int g_1;
 int g_2;
@@ -497,6 +498,11 @@ int main() {
   assert( 0,({0&&2;}), "({0&&2;})");
   assert( 0,({2&&0;}), "({2&&0;})");
   assert( 0,({1&&(2-2)&&2;}), "({1&&(2-2)&&2;})");
+
+  // #47
+  printf("\n\n#47\n");
+  assert(1, ({int x[]={1,2,3}; arr_param(x);}), "({int x[]={1,2,3}; arr_param(x);})");
+
 
 
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
