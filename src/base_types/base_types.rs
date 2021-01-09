@@ -38,7 +38,7 @@ impl Member {
 
 #[derive(Debug, Clone)]
 pub enum TagTypeKind {
-    Struct(Rc<Struct>),
+    Struct(Rc<RefCell<Struct>>),
     Enum(Rc<Enum>),
     Typedef(Rc<Declaration>),
 }
@@ -57,9 +57,9 @@ impl TagContext {
 
     pub fn register(&mut self, dec: &Declaration) {
         if let TypeKind::Struct(_struct) = &dec.type_kind {
-            if !_struct.is_anonymous {
+            if !_struct.borrow().is_anonymous {
                 self.tag_list.insert(
-                    _struct.ident.clone(),
+                    _struct.borrow().ident.clone(),
                     Rc::new(TagTypeKind::Struct(_struct.clone())),
                 );
             }
@@ -74,8 +74,9 @@ impl TagContext {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Struct {
     ident: Rc<Ident>,
-    members: Rc<Vec<Rc<Member>>>,
+    pub members: Rc<Vec<Rc<Member>>>,
     is_anonymous: bool,
+    pub is_incomplete: bool,
 }
 
 impl Struct {
@@ -84,6 +85,7 @@ impl Struct {
             ident,
             members,
             is_anonymous: false,
+            is_incomplete: false,
         }
     }
 
@@ -92,6 +94,7 @@ impl Struct {
             ident: Rc::new(Ident::new(".struct.anonymous")),
             members,
             is_anonymous: true,
+            is_incomplete: false,
         }
     }
 
@@ -150,7 +153,7 @@ pub enum TypeKind {
     Long,
     Ptr(Rc<RefCell<TypeKind>>),
     Array(u64, Rc<RefCell<TypeKind>>, bool), // bool is whether initialized or not
-    Struct(Rc<Struct>),
+    Struct(Rc<RefCell<Struct>>),
     Enum(Rc<Enum>),
 
     PlaceHolder, // virtual type
@@ -177,7 +180,7 @@ impl fmt::Display for TypeKind {
             }
             Array(size, type_kind, _) => write!(f, "{} [{}]", type_kind.borrow(), size),
             Struct(s) => {
-                for member in &*s.members {
+                for member in &*s.borrow().members {
                     writeln!(f, "{}", member)?
                 }
                 Ok(())
@@ -244,7 +247,7 @@ impl TypeKind {
             Long => 8,
             Ptr(_) => 8,
             Array(size, type_kind, _) => size * type_kind.borrow().size(),
-            Struct(s) => s.get_size(),
+            Struct(s) => s.borrow().get_size(),
             Enum(_) => 4,
             _ => unreachable!(),
         }

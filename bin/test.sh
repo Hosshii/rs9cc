@@ -552,6 +552,13 @@ fn_param_arr() {
     assert 3 'int arr_param(int x[]){return x[2];} int main(){int x[] ={1,2,3}; return arr_param(x);}'
 }
 
+# 48
+incomplete_struct() {
+    assert 8 'int main(){struct *foo; return sizeof foo;}'
+    assert 8 'int main(){struct T *foo; struct T {int x;} ; return sizeof (struct T); }'
+    assert 1 'int main(){struct T { struct T *next; int x; } a; struct T b; b.x=1; a.next=&b; return a.next->x;}'
+}
+
 build() {
     cargo build
 }
@@ -609,7 +616,7 @@ if [ $# -eq 0 ]; then
     bool
     complex_type2
     sizeof2
-    caet
+    cast
     enum
     static
     comma
@@ -620,6 +627,7 @@ if [ $# -eq 0 ]; then
     bit_op
     log_and_or
     fn_param_arr
+    incomplete_struct
 fi
 
 while [ $# -ne 0 ]; do
@@ -671,6 +679,7 @@ while [ $# -ne 0 ]; do
     "45") bit_op ;;
     "46") log_and_or ;;
     "47") fn_param_arr ;;
+    "48") incomplete_struct ;;
     esac
     shift
 done

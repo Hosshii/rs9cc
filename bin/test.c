@@ -503,6 +503,12 @@ int main() {
   printf("\n\n#47\n");
   assert(1, ({int x[]={1,2,3}; arr_param(x);}), "({int x[]={1,2,3}; arr_param(x);})");
 
+  // #48
+  printf("\n\n#48\n");
+  assert( 8, ({struct *foo; sizeof foo;}),"({struct *foo; sizeof foo;})");
+  assert( 8, ({struct T *foo; struct T {int x;} ; sizeof (struct T); }),"({struct T *foo; struct T {int x;} ; sizeof (struct T); })");
+  assert( 1, ({struct T { struct T *next; int x; } a; struct T b; b.x=1; a.next=&b; a.next->x;}),"({struct T { struct T *next; int x; } a; struct T b; b.x=1; a.next=&b; a.next->x;})");
+
 
 
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");

@@ -311,37 +311,69 @@ pub fn type_name(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<T
     type_suffix(iter, ctx, type_kind)
 }
 
-// struct-dec      = "struct" ident? "{" declaration ";" "}"
-//                 | "struct" ident
-pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>, Error> {
+// struct-dec      = "struct" ident? ("{" declaration ";" "}")?
+pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<Struct>>, Error> {
     expect_keyword(iter, KeyWord::Struct)?;
     let ident = consume_ident(iter);
-    if !consume_block(iter, Block::LParen) {
-        match &ident {
-            Some(x) => {
-                if let Some(tag) = ctx.s.find_upper_tag(Rc::new(x.clone())) {
-                    if let TagTypeKind::Struct(_struct) = tag.as_ref() {
-                        return Ok(_struct.clone());
-                    }
+
+    if let Some(ident) = &ident {
+        if !consume_block(iter, Block::LParen) {
+            if let Some(tag) = ctx.s.find_upper_tag(Rc::new(ident.clone())) {
+                if let TagTypeKind::Struct(_struct) = tag.as_ref() {
+                    return Ok(_struct.clone());
                 } else {
-                    return Err(Error::undefined_tag(
-                        iter.filepath,
-                        iter.s,
-                        iter.pos,
-                        x.clone(),
-                        None,
-                    ));
+                    todo!("not a struct tag")
                 }
+            } else {
+                let ident = Rc::new(ident.clone());
+                let mut _struct = Struct::new(ident.clone(), Rc::new(Vec::new()));
+
+                _struct.is_incomplete = true;
+                let _struct = Rc::new(RefCell::new(_struct));
+                ctx.s
+                    .insert_t(ident.clone(), TagTypeKind::Struct(_struct.clone()));
+
+                return Ok(_struct);
             }
-            None => todo!(),
+        } else {
+            iter.pos.bytes -= 1;
+            iter.pos.tk -= 1;
         }
     }
 
+    if !consume_block(iter, Block::LParen) {
+        let mut _struct = Struct::new_anonymous(Rc::new(Vec::new()));
+        _struct.is_incomplete = true;
+        return Ok(Rc::new(RefCell::new(_struct)));
+    }
+
+    let _struct = if let Some(ident) = &ident {
+        if let Some(tag) = ctx.s.find_upper_tag(Rc::new(ident.clone())) {
+            if let TagTypeKind::Struct(_struct) = tag.as_ref() {
+                _struct.clone()
+            } else {
+                todo!("not a struct tag")
+            }
+        } else {
+            let mut _struct = Struct::new(Rc::new(ident.clone()), Rc::new(Vec::new()));
+            _struct.is_incomplete = true;
+            let _struct = Rc::new(RefCell::new(_struct));
+            ctx.s
+                .insert_t(Rc::new(ident.clone()), TagTypeKind::Struct(_struct.clone()));
+
+            _struct
+        }
+    } else {
+        Rc::new(RefCell::new(Struct::new_anonymous(Rc::new(Vec::new()))))
+    };
+
+    let sc = ctx.s.enter();
     let mut members = Vec::new();
     while !consume_block(iter, Block::RParen) {
         members.push(declaration(iter, ctx)?);
         expect_semi(iter)?;
     }
+    ctx.s.leave(sc);
     let mut offset = 0;
     let members: Vec<Rc<Member>> = members
         .into_iter()
@@ -353,34 +385,9 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Struct>,
             Rc::new(mem)
         })
         .collect();
-    let members = Rc::new(members);
 
-    let mut _struct = if let Some(ident) = ident {
-        let ident = Rc::new(ident);
-        let _struct = Rc::new(Struct::new(ident.clone(), members));
-        match ctx
-            .s
-            .insert_t(ident.clone(), Rc::new(TagTypeKind::Struct(_struct.clone())))
-        {
-            Some(_) => {
-                return Err(Error::re_declare(
-                    iter.filepath,
-                    iter.s,
-                    ident.as_ref().clone(),
-                    iter.pos,
-                    None,
-                ))
-            }
-            None => {}
-        }
-
-        _struct
-    } else {
-        Rc::new(Struct::new(
-            Rc::new(Ident::new(".struct.anonymous")),
-            members,
-        ))
-    };
+    _struct.borrow_mut().members = Rc::new(members);
+    _struct.borrow_mut().is_incomplete = false;
     Ok(_struct)
 }
 
@@ -434,7 +441,7 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
         let _enum = Rc::new(Enum::new(tag.clone(), enum_list));
         let result = ctx
             .s
-            .insert_t(tag.clone(), Rc::new(TagTypeKind::Enum(_enum.clone())));
+            .insert_t(tag.clone(), TagTypeKind::Enum(_enum.clone()));
         if let Some(_) = result {
             return Err(Error::re_declare(
                 iter.filepath,
@@ -488,7 +495,7 @@ pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Dec
     if is_typedef {
         let result = ctx.s.insert_t(
             Rc::new(dec.ident.clone()),
-            Rc::new(TagTypeKind::Typedef(Rc::new(dec.clone()))),
+            TagTypeKind::Typedef(Rc::new(dec.clone())),
         );
         if let Some(_) = result {
             return Err(Error::re_declare(
@@ -1033,7 +1040,7 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     match &pri.get_type() {
                         Ok(type_kind) => match type_kind {
                             TypeKind::Struct(_struct) => {
-                                let member = _struct.find_field(&member_name).ok_or(
+                                let member = _struct.borrow().find_field(&member_name).ok_or(
                                     Error::undefined_member(
                                         iter.filepath,
                                         iter.s,
@@ -1158,15 +1165,13 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 
     if consume(iter, Operator::Sizeof) {
         if consume(iter, Operator::LParen) {
-            if let Some(x) = iter.peek() {
-                if let TokenKind::TypeKind(_) = x.kind {
-                    let ty = type_name(iter, ctx)?;
-                    expect(iter, Operator::RParen)?;
-                    return Ok(Node::new_num(ty.borrow().size()));
-                }
-                // `(`をconsumeした分を戻す
-                iter.pos.tk -= 1;
+            if is_typename(iter, ctx) {
+                let ty = type_name(iter, ctx)?;
+                expect(iter, Operator::RParen)?;
+                return Ok(Node::new_num(ty.borrow().size()));
+            } else {
                 iter.pos.bytes -= 1;
+                iter.pos.tk -= 1;
             }
         }
         let node = unary(iter, ctx)?;
@@ -1427,11 +1432,14 @@ mod tests {
             Rc::new(make_member(Int, "first", 0)),
             Rc::new(make_member(Int, "second", 4)),
         ]);
-        let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
+        let expected = Rc::new(RefCell::new(Struct::new(
+            Rc::new(Ident::new("hoge")),
+            members,
+        )));
         let input = "struct hoge {int first; int second;}";
         let actual = struct_dec(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
         assert_eq!(expected, actual);
-        assert_eq!(8, actual.get_size());
+        assert_eq!(8, actual.borrow().get_size());
 
         let members = Rc::new(vec![
             Rc::new(make_member(Int, "first", 0)),
@@ -1439,22 +1447,28 @@ mod tests {
             Rc::new(make_member(Char, "third", 8)),
             Rc::new(make_member(Int, "four", 12)),
         ]);
-        let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
+        let expected = Rc::new(RefCell::new(Struct::new(
+            Rc::new(Ident::new("hoge")),
+            members,
+        )));
         let input = "struct hoge {int first; int second; char third; int four;}";
         let actual = struct_dec(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
         assert_eq!(expected, actual);
-        assert_eq!(16, actual.get_size());
+        assert_eq!(16, actual.borrow().get_size());
 
         let members = Rc::new(vec![
             Rc::new(make_member(Int, "first", 0)),
             Rc::new(make_member(Ptr(Rc::new(RefCell::new(Int))), "second", 8)),
             Rc::new(make_member(Int, "four", 16)),
         ]);
-        let expected = Rc::new(Struct::new(Rc::new(Ident::new("hoge")), members));
+        let expected = Rc::new(RefCell::new(Struct::new(
+            Rc::new(Ident::new("hoge")),
+            members,
+        )));
         let input = "struct hoge {int first; int *second; int four;}";
         let actual = struct_dec(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
         assert_eq!(expected, actual);
-        assert_eq!(24, actual.get_size());
+        assert_eq!(24, actual.borrow().get_size());
     }
 
     fn make_member(type_kind: TypeKind, name: impl Into<String>, offset: u64) -> Member {

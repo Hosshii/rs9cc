@@ -606,8 +606,17 @@ impl Scope {
         None
     }
 
-    pub fn insert_t(&mut self, ident: Rc<Ident>, tag: Rc<TagTypeKind>) -> Option<Rc<TagTypeKind>> {
-        self.t.insert((ident, self.depth), tag)
+    pub fn find_upper_struct(&self, ident: Rc<Ident>) -> Option<Rc<TagTypeKind>> {
+        if let Some(tag_type_kind) = self.find_upper_tag(ident) {
+            if let TagTypeKind::Struct(_) = tag_type_kind.as_ref() {
+                return Some(tag_type_kind);
+            }
+        }
+        None
+    }
+
+    pub fn insert_t(&mut self, ident: Rc<Ident>, tag: TagTypeKind) -> Option<Rc<TagTypeKind>> {
+        self.t.insert((ident, self.depth), Rc::new(tag))
     }
 }
 

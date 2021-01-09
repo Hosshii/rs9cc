@@ -18,8 +18,7 @@ declarator              = "*"* ("(" declarator ")" | ident) type-suffix
 abstract-declarator     = "*"* ("(" declarator ")")? type-suffix
 type-suffix             = ("[" num? "]" type-suffix)?
 type-name               = type-specifier abstract-declarator type-suffix
-struct-dec              = "struct" ident? "{" declaration ";" "}"
-                        | "struct" ident
+struct-dec              = "struct" ident? ("{" declaration ";" "}")?
 enum-specifier          = enum ident? "{" enum-list? "}"
                         | enum ident
 enum-list               = ident ("=" num)? ("," ident ("=" num)?)* ","?
