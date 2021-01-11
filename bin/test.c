@@ -509,6 +509,17 @@ int main() {
   assert( 8, ({struct T *foo; struct T {int x;} ; sizeof (struct T); }),"({struct T *foo; struct T {int x;} ; sizeof (struct T); })");
   assert( 1, ({struct T { struct T *next; int x; } a; struct T b; b.x=1; a.next=&b; a.next->x;}),"({struct T { struct T *next; int x; } a; struct T b; b.x=1; a.next=&b; a.next->x;})");
 
+  // #49
+  printf("\n\n#49\n");
+  assert( 3, ({int i = 0;for (; i<10; i++){if (i==3){break;}} i;}),"({int i = 0;for (; i<10; i++){if (i==3){break;}} i;})");
+  assert( 1, ({int i = 0; i++ == 0;}),"({int i = 0; i++ == 0;})");
+  assert( 0, ({int i = 0; ++i == 0;}),"({int i = 0; ++i == 0;})");
+  assert( 0, ({int i =0; int result = 0; if (i++ == 0){result =  0;}else {result = 1;}result ;}),"({int i =0; int result = 0; if (i++ == 0){result =  0;}else {result = 1;}result ;})");
+  assert( 4, ({int i = 0;int j = 0; while(j<10) {if (i++==3)break; j++;} i;}),"({int i = 0;int j = 0; while(j<10) {if (i++==3)break; j++;} i;})");
+  assert( 0, ({int i = 0; for (;;)break; i;}),"({int i = 0; for (;;)break; i;})");
+  assert( 3, ({int i = 0; for(;i<10;i++) { for (;;) break; if (i == 3) break; } i;}),"({int i = 0; for(;i<10;i++) { for (;;) break; if (i == 3) break; } i;})");
+  assert( 1, ({int i =0; for (;;){for (;;) break; i++; break;}i;}),"({int i =0; for (;;){for (;;) break; i++; break;}i;})");
+  assert( 4, ({int i = 0; while(1) { while(1) break; if (i++==3)break;} i;}),"({int i = 0; while(1) { while(1) break; if (i++==3)break;} i;})");
 
 
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");

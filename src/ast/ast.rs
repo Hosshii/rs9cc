@@ -689,13 +689,18 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                         node.cond = Some(Box::new(expr(iter, ctx)?));
                         expect_semi(iter)?;
                     }
-                    if !consume_semi(iter) {
+                    if !consume(iter, Operator::RParen) {
                         node.inc = Some(Box::new(read_expr_stmt(iter, ctx)?));
+                        expect(iter, Operator::RParen)?;
                     }
-                    expect(iter, Operator::RParen)?;
                     node.then = Some(Box::new(stmt(iter, ctx)?));
                     ctx.s.leave(sc);
                     return Ok(node);
+                }
+                KeyWord::Break => {
+                    iter.next();
+                    expect_semi(iter)?;
+                    return Ok(Node::new_leaf(NodeKind::Break));
                 }
                 _ => (),
             },

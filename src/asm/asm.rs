@@ -5,11 +5,15 @@ use crate::base_types::{self, TypeKind};
 // jump の連番とかを格納しておく
 pub struct Context {
     jump_label: usize,
+    break_label: usize,
 }
 
 impl Context {
     pub fn new() -> Self {
-        Self { jump_label: 0 }
+        Self {
+            jump_label: 1,
+            break_label: 0,
+        }
     }
 }
 
@@ -257,7 +261,9 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         NodeKind::While => {
             println!("# NodeKind::While");
             let jlb_num = ctx.jump_label;
+            let break_num = ctx.break_label;
             ctx.jump_label += 1;
+            ctx.break_label = jlb_num;
             println!(".Lbegin{}:", jlb_num);
             if let Some(cond) = &node.cond {
                 gen(cond, ctx)?;
@@ -267,20 +273,23 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 
             println!("    pop rax");
             println!("    cmp rax, 0");
-            println!("    je  .Lend{}", jlb_num);
+            println!("    je  .L.break.{}", jlb_num);
             if let Some(then) = &node.then {
                 gen(then, ctx)?;
             } else {
                 return Err(Error::not_found());
             }
             println!("    jmp  .Lbegin{}", jlb_num);
-            println!(".Lend{}:", jlb_num);
+            println!(".L.break.{}:", jlb_num);
+            ctx.break_label = break_num;
             return Ok(());
         }
         NodeKind::For => {
             println!("# NodeKind::For");
             let jlb_num = ctx.jump_label;
+            let break_num = ctx.break_label;
             ctx.jump_label += 1;
+            ctx.break_label = jlb_num;
             if let Some(init) = &node.init {
                 for i in init {
                     gen(i, ctx)?;
@@ -290,11 +299,11 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             println!(".Lbegin{}:", jlb_num);
             if let Some(cond) = &node.cond {
                 gen(cond, ctx)?;
+                println!("    pop rax");
+                println!("    cmp rax, 0");
+                println!("    je  .L.break.{}", jlb_num);
             }
 
-            println!("    pop rax");
-            println!("    cmp rax, 0");
-            println!("    je  .Lend{}", jlb_num);
             if let Some(then) = &node.then {
                 gen(then, ctx)?;
             } else {
@@ -306,9 +315,17 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             }
 
             println!("    jmp  .Lbegin{}", jlb_num);
-            println!(".Lend{}:", jlb_num);
+            println!(".L.break.{}:", jlb_num);
+            ctx.break_label = break_num;
             return Ok(());
         }
+        NodeKind::Break => match ctx.break_label {
+            0 => return Err(Error::stray_break()),
+            _ => {
+                println!("    jmp .L.break.{}", ctx.break_label);
+                return Ok(());
+            }
+        },
         NodeKind::Block(stmts) | NodeKind::StmtExpr(stmts) => {
             println!("# NodeKind::Block,StmtExpr");
             for stmt in stmts {
@@ -400,6 +417,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Declaration(_) => {
+            println!("# declaration");
             if let Some(ref init) = node.init {
                 for i in init {
                     gen(i, ctx)?
@@ -420,15 +438,18 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         }
         NodeKind::Null => return Ok(()),
         NodeKind::Cast(type_kind) => {
+            println!("# cast");
             gen(&node.lhs.as_ref().unwrap(), ctx)?;
             cast(type_kind);
             return Ok(());
         }
         NodeKind::Comma => {
+            println!("# comma");
             gen(node.lhs.as_ref().unwrap(), ctx)?;
             gen(node.rhs.as_ref().unwrap(), ctx)?;
         }
         NodeKind::PreInc => {
+            println!("# preinc");
             gen_val(node.lhs.as_ref().unwrap(), ctx)?;
             println!("    push [rsp]");
             load(node);
@@ -437,6 +458,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::PreDec => {
+            println!("# predec");
             gen_val(node.lhs.as_ref().unwrap(), ctx)?;
             println!("    push [rsp]");
             load(node);
@@ -445,6 +467,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::PostInc => {
+            println!("# postinc");
             gen_val(node.lhs.as_ref().unwrap(), ctx)?;
             println!("    push [rsp]");
             load(node);
@@ -454,6 +477,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::PostDec => {
+            println!("# postdec");
             gen_val(node.lhs.as_ref().unwrap(), ctx)?;
             println!("    push [rsp]");
             load(node);
@@ -463,6 +487,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Not => {
+            println!("# not");
             gen(node.lhs.as_ref().unwrap(), ctx)?;
             println!("    pop rax");
             println!("    cmp rax, 0");
@@ -472,6 +497,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::BitNot => {
+            println!("# bit not");
             gen(node.lhs.as_ref().unwrap(), ctx)?;
             println!("    pop rax");
             println!("    not rax");
@@ -479,6 +505,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::LogOr => {
+            println!("# log or");
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
             gen(node.lhs.as_ref().unwrap(), ctx)?;
@@ -497,6 +524,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::LogAnd => {
+            println!("# log and");
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
             gen(node.lhs.as_ref().unwrap(), ctx)?;

@@ -56,6 +56,7 @@ pub enum NodeKind {
     BitXor,
     LogOr,
     LogAnd,
+    Break,
     Null,
 }
 
@@ -112,6 +113,7 @@ impl NodeKind {
             BitXor => "^".to_string(),
             LogOr => "||".to_string(),
             LogAnd => "&&".to_string(),
+            Break => "break".to_string(),
             Null => "null".to_string(),
         }
     }
@@ -271,7 +273,8 @@ impl Node {
 
     pub fn get_type(&self) -> Result<TypeKind, &'static str> {
         match &self.kind {
-            Assign | Add | Sub | Mul | Div => {
+            Assign | Add | Sub | Mul | Div | PostDec | PostInc | PreDec | PreInc | AAdd | ASub
+            | AMul | ADiv | Equal | Neq | Lesser | Leq | Greater | Geq => {
                 if let Some(ref x) = self.lhs {
                     x.get_type()
                 } else {

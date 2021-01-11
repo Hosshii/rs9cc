@@ -6,6 +6,7 @@ pub enum ErrorKind {
     NoLVar,
     NoGvar,
     NotFound,
+    StrayBreak,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
@@ -34,6 +35,13 @@ impl Error {
             msg: None,
         }
     }
+
+    pub fn stray_break() -> Self {
+        Self {
+            kind: StrayBreak,
+            msg: None,
+        }
+    }
 }
 
 impl<'a> fmt::Display for Error {
@@ -42,6 +50,7 @@ impl<'a> fmt::Display for Error {
             NoLVar => err_format(self, f),
             NoGvar => err_format(self, f),
             NotFound => err_format(self, f),
+            StrayBreak => err_format(self, f),
         }
     }
 }
@@ -51,5 +60,6 @@ fn err_format(err: &Error, f: &mut fmt::Formatter) -> fmt::Result {
         NoLVar => writeln!(f, "Left Value is not substitutable"),
         NoGvar => writeln!(f, "not global value"),
         NotFound => writeln!(f, "Node not found"),
+        StrayBreak => writeln!(f, "stray break"),
     }
 }

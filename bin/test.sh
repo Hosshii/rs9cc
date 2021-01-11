@@ -559,6 +559,19 @@ incomplete_struct() {
     assert 1 'int main(){struct T { struct T *next; int x; } a; struct T b; b.x=1; a.next=&b; return a.next->x;}'
 }
 
+# 49
+break_fn() {
+    assert 3 'int main(){int i = 0;for (; i<10; i++){if (i==3){break;}} return i;}'
+    assert 1 'int main(){int i = 0; return i++ == 0;}'
+    assert 0 'int main(){int i = 0; return ++i == 0;}'
+    assert 0 'int main(){int i =0; if (i++ == 0){return 0;}else {return 1;}}'
+    assert 4 'int main(){int i = 0;int j = 0; while(j<10) {if (i++==3)break; j++;} return i;}'
+    assert 0 'int main(){int i = 0; for (;;)break; return i;}'
+    assert 3 'int main(){int i = 0; for(;i<10;i++) { for (;;) break; if (i == 3) break; } return i;}'
+    assert 1 'int main(){int i =0; for (;;){for (;;) break; i++; break;}return i;}'
+    assert 4 'int main(){int i = 0; while(1) { while(1) break; if (i++==3)break;} return i;}'
+}
+
 build() {
     cargo build
 }
@@ -628,6 +641,7 @@ if [ $# -eq 0 ]; then
     log_and_or
     fn_param_arr
     incomplete_struct
+    break_fn
 fi
 
 while [ $# -ne 0 ]; do
@@ -680,6 +694,7 @@ while [ $# -ne 0 ]; do
     "46") log_and_or ;;
     "47") fn_param_arr ;;
     "48") incomplete_struct ;;
+    "49") break_fn ;;
     esac
     shift
 done
