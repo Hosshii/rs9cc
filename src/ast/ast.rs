@@ -110,7 +110,12 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                                         match &node.kind {
                                             NodeKind::Gvar(_) | NodeKind::Lvar(_) => {
                                                 // todo error handling.
-                                                todo!();
+                                                dbg!("initialize element is not constant");
+                                                return Err(Error::todo(
+                                                    iter.filepath,
+                                                    iter.s,
+                                                    iter.pos,
+                                                ));
                                             }
                                             _ => (),
                                         }
@@ -323,7 +328,8 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<
                 if let TagTypeKind::Struct(_struct) = tag.as_ref() {
                     return Ok(_struct.clone());
                 } else {
-                    todo!("not a struct tag")
+                    dbg!("not a struct tag");
+                    return Err(Error::todo(iter.filepath, iter.s, iter.pos));
                 }
             } else {
                 let ident = Rc::new(ident.clone());
@@ -353,7 +359,8 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<
             if let TagTypeKind::Struct(_struct) = tag.as_ref() {
                 _struct.clone()
             } else {
-                todo!("not a struct tag")
+                dbg!("not a struct tag");
+                return Err(Error::todo(iter.filepath, iter.s, iter.pos));
             }
         } else {
             let mut _struct = Struct::new(Rc::new(ident.clone()), Rc::new(Vec::new()));
@@ -417,7 +424,10 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
                     ));
                 }
             }
-            None => todo!(),
+            None => {
+                dbg!("incomplete enum dec");
+                return Err(Error::todo(iter.filepath, iter.s, iter.pos));
+            }
         }
     }
 
@@ -1069,9 +1079,15 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                                 pri = Node::new_unary(NodeKind::Member(member_name, member), pri);
                                 continue;
                             }
-                            _ => todo!(),
+                            _ => {
+                                dbg!("not a struct");
+                                return Err(Error::todo(iter.filepath, iter.s, iter.pos));
+                            }
                         },
-                        Err(_) => todo!(),
+                        Err(_) => {
+                            dbg!();
+                            return Err(Error::todo(iter.filepath, iter.s, iter.pos));
+                        }
                     }
                 }
                 _ => (),
@@ -1189,8 +1205,8 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         match node.get_type() {
             Ok(x) => return Ok(Node::new_num(x.size())),
             Err(e) => {
-                println!("{}", e);
-                todo!()
+                dbg!("{}", e);
+                return Err(Error::todo(iter.filepath, iter.s, iter.pos));
             }
         }
     }

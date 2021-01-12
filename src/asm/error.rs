@@ -8,6 +8,7 @@ pub enum ErrorKind {
     NotFound,
     StrayBreak,
     WriteError(String),
+    Todo,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
@@ -43,6 +44,13 @@ impl Error {
             msg: None,
         }
     }
+
+    pub fn todo() -> Self {
+        Self {
+            kind: Todo,
+            msg: None,
+        }
+    }
 }
 
 impl<'a> fmt::Display for Error {
@@ -53,6 +61,7 @@ impl<'a> fmt::Display for Error {
             NotFound => err_format(self, f),
             StrayBreak => err_format(self, f),
             WriteError(_) => err_format(self, f),
+            Todo => err_format(self, f),
         }
     }
 }
@@ -64,6 +73,7 @@ fn err_format(err: &Error, f: &mut fmt::Formatter) -> fmt::Result {
         NotFound => writeln!(f, "Node not found"),
         StrayBreak => writeln!(f, "stray break"),
         WriteError(string) => writeln!(f, "{}", string),
+        Todo => writeln!(f, "todo"),
     }
 }
 

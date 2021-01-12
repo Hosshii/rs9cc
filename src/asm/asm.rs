@@ -39,9 +39,13 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
             TypeKind::Array(size, type_kind, _) => {
                 let word = match &type_kind.borrow().size() {
                     1 => "byte",
+                    2 => "value",
                     4 => "long",
                     8 => "quad",
-                    _ => todo!(),
+                    _ => {
+                        dbg!();
+                        return Err(Error::todo());
+                    }
                 };
                 for i in &gvar.init {
                     if let NodeKind::Num(x) = i.kind {
@@ -68,9 +72,13 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
             type_kind => {
                 let word = match &type_kind.size() {
                     1 => "byte",
+                    2 => "value",
                     4 => "long",
                     8 => "quad",
-                    _ => todo!(),
+                    _ => {
+                        dbg!();
+                        return Err(Error::todo());
+                    }
                 };
                 if gvar.init.len() <= 0 {
                     writeln!(ctx.asm, "    .{} {}", word, 0)?;

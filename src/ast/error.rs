@@ -22,6 +22,8 @@ pub enum ErrorKind {
     InvalidInitialization(Rc<Lvar>, String),
     InvalidStmtExpr,
     EOF(TokenKind),
+    Todo,
+    Unimplemented,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
@@ -224,6 +226,30 @@ impl Error {
             msg: None,
         }
     }
+
+    pub fn todo(filepath: impl Into<String>, input: impl Into<String>, pos: TokenPos) -> Error {
+        Error {
+            filepath: filepath.into(),
+            kind: Todo,
+            pos,
+            input: input.into(),
+            msg: None,
+        }
+    }
+
+    pub fn unimplemented(
+        filepath: impl Into<String>,
+        input: impl Into<String>,
+        pos: TokenPos,
+    ) -> Error {
+        Error {
+            filepath: filepath.into(),
+            kind: Unimplemented,
+            pos,
+            input: input.into(),
+            msg: None,
+        }
+    }
 }
 
 impl fmt::Display for Error {
@@ -253,6 +279,8 @@ impl fmt::Display for Error {
                 invalid_initialization_err_format(&self, lhs, rhs, f)
             }
             InvalidStmtExpr => invalid_stmt_expr_err_format(&self, f),
+            Todo => err_format(&self, "todo", f),
+            Unimplemented => err_format(&self, "not yet implemented", f),
         }
     }
 }
