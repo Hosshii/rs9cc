@@ -31,6 +31,6 @@ fn main() {
             eprintln!("{}", err);
             panic!()
         }
-        Ok(_) => (),
+        Ok(asm) => print!("{}", asm),
     }
 }

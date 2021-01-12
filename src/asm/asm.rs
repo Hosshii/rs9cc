@@ -1,11 +1,13 @@
 use super::error::Error;
 use crate::ast::{Node, NodeKind, Program};
 use crate::base_types::{self, TypeKind};
+use std::fmt::Write;
 
 // jump の連番とかを格納しておく
 pub struct Context {
     jump_label: usize,
     break_label: usize,
+    asm: String,
 }
 
 impl Context {
@@ -13,6 +15,7 @@ impl Context {
         Self {
             jump_label: 1,
             break_label: 0,
+            asm: String::new(),
         }
     }
 }
@@ -22,14 +25,16 @@ const ARGREG2: [&str; 6] = ["di", "si", "dx", "cx", "r8w", "r9w"];
 const ARGREG4: [&str; 6] = ["edi", "esi", "edx", "ecx", "r8d", "r9d"];
 const ARGREG8: [&str; 6] = ["rdi", "rsi", "rdx", "rcx", "r8", "r9"];
 
-pub fn code_gen(program: Program) -> Result<(), Error> {
-    // アセンブリの前半部分を出力
-    println!(".intel_syntax noprefix");
+pub fn code_gen(program: Program) -> Result<String, Error> {
+    let mut ctx = Context::new();
 
-    println!(".data");
+    // アセンブリの前半部分を出力
+    writeln!(ctx.asm, ".intel_syntax noprefix")?;
+
+    writeln!(ctx.asm, ".data")?;
     // define global variable
     for (name, gvar) in program.ctx.g.gvar_mp {
-        println!("{}:", name);
+        writeln!(ctx.asm, "{}:", name)?;
         match &gvar.dec.type_kind {
             TypeKind::Array(size, type_kind, _) => {
                 let word = match &type_kind.borrow().size() {
@@ -40,21 +45,21 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
                 };
                 for i in &gvar.init {
                     if let NodeKind::Num(x) = i.kind {
-                        println!("    .{} {}", word, x);
+                        writeln!(ctx.asm, "    .{} {}", word, x)?;
                     } else {
                         unreachable!();
                     }
                 }
                 for _ in 0..(size - gvar.init.len() as u64) {
-                    println!("    .{} {}", word, 0);
+                    writeln!(ctx.asm, "    .{} {}", word, 0)?;
                 }
             }
             TypeKind::Ptr(_) => {
                 if gvar.init.len() <= 0 {
-                    println!("    .quad {}", 0);
+                    writeln!(ctx.asm, "    .quad {}", 0)?;
                 } else {
                     if let Ok(gvar) = &gvar.init[0].get_gvar() {
-                        println!("    .quad {}", gvar.dec.ident.name);
+                        writeln!(ctx.asm, "    .quad {}", gvar.dec.ident.name)?;
                     } else {
                         return Err(Error::not_gvar());
                     }
@@ -68,36 +73,35 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
                     _ => todo!(),
                 };
                 if gvar.init.len() <= 0 {
-                    println!("    .{} {}", word, 0);
+                    writeln!(ctx.asm, "    .{} {}", word, 0)?;
                 } else {
                     if let NodeKind::Num(x) = gvar.init[0].kind {
-                        println!("    .{} {}", word, x);
+                        writeln!(ctx.asm, "    .{} {}", word, x)?;
                     } else {
-                        println!("    .{} {}", word, 0);
+                        writeln!(ctx.asm, "    .{} {}", word, 0)?;
                     }
                 }
             }
         }
     }
     for (content, label) in program.ctx.g.tk_string {
-        println!("{}:", label);
+        writeln!(ctx.asm, "{}:", label)?;
         for c in content.chars() {
-            println!("    .byte {}", c as u8);
+            writeln!(ctx.asm, "    .byte {}", c as u8)?;
         }
     }
 
-    let mut ctx = Context::new();
-    println!(".text");
-    println!(".global main");
+    writeln!(ctx.asm, ".text")?;
+    writeln!(ctx.asm, ".global main")?;
     // asm生成
     for function in program.functions {
-        println!("# start prologue");
+        writeln!(ctx.asm, "# start prologue")?;
 
-        println!("{}:", function.def.ident.name);
+        writeln!(ctx.asm, "{}:", function.def.ident.name)?;
         // プロローグ
-        println!("    push rbp");
-        println!("    mov rbp, rsp");
-        println!("    sub rsp, {}", function.get_all_var_size());
+        writeln!(ctx.asm, "    push rbp")?;
+        writeln!(ctx.asm, "    mov rbp, rsp")?;
+        writeln!(ctx.asm, "    sub rsp, {}", function.get_all_var_size())?;
 
         // 引数をローカル変数としてスタックに載せる
         let mut offset = 0;
@@ -105,8 +109,8 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
             let type_kind = &function.def.params[i].type_kind;
             offset += type_kind.size();
             offset = base_types::align_to(offset, type_kind.align());
-            println!("    mov rax, rbp");
-            println!("    sub rax, {}", offset);
+            writeln!(ctx.asm, "    mov rax, rbp")?;
+            writeln!(ctx.asm, "    sub rax, {}", offset)?;
             let reg = match type_kind.size() {
                 1 => ARGREG1[i],
                 2 => ARGREG2[i],
@@ -114,56 +118,56 @@ pub fn code_gen(program: Program) -> Result<(), Error> {
                 8 => ARGREG8[i],
                 _ => unreachable!(),
             };
-            println!("    mov [rax], {}", reg);
+            writeln!(ctx.asm, "    mov [rax], {}", reg)?;
         }
 
-        println!("# end prologue");
+        writeln!(ctx.asm, "# end prologue")?;
 
         for node in function.nodes {
             gen(&node, &mut ctx)?;
         }
-        println!("    pop rax");
+        writeln!(ctx.asm, "    pop rax")?;
         // エピローグ
         // 最後の式の結果がRAXに残っているのでそれが返り値になる
-        println!("    mov rsp, rbp");
-        println!("    pop rbp");
-        println!("    ret");
+        writeln!(ctx.asm, "    mov rsp, rbp")?;
+        writeln!(ctx.asm, "    pop rbp")?;
+        writeln!(ctx.asm, "    ret")?;
     }
-    Ok(())
+    Ok(ctx.asm)
 }
 
 pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     match &node.kind {
         NodeKind::Num(x) => {
-            println!("# number");
+            writeln!(ctx.asm, "# number")?;
             if x > &(u32::MAX as u64) {
-                println!("    movabs rax, {}", x);
-                println!("    push rax");
+                writeln!(ctx.asm, "    movabs rax, {}", x)?;
+                writeln!(ctx.asm, "    push rax")?;
             } else {
-                println!("    push {}", x);
+                writeln!(ctx.asm, "    push {}", x)?;
             }
             return Ok(());
         }
         NodeKind::Lvar(_) | NodeKind::Gvar(_) => {
-            println!("# NodeKind::Lvar, Gvar");
+            writeln!(ctx.asm, "# NodeKind::Lvar, Gvar")?;
             gen_val(node, ctx)?;
             if let Ok(TypeKind::Array(_, _, _)) = node.get_type() {
                 return Ok(());
             }
-            load(node);
+            load(node, ctx)?;
             return Ok(());
         }
         NodeKind::Member(_, member) => {
-            println!("# NodeKind::Member");
+            writeln!(ctx.asm, "# NodeKind::Member")?;
             gen_val(node, ctx)?;
             if let TypeKind::Array(_, _, _) = &*member.get_type() {
                 return Ok(());
             }
-            load(node);
+            load(node, ctx)?;
             return Ok(());
         }
         NodeKind::Assign => {
-            println!("# NodeKind::Assign");
+            writeln!(ctx.asm, "# NodeKind::Assign")?;
             if let Some(lhs) = &node.lhs {
                 gen_val(&lhs, ctx)?;
             } else {
@@ -175,55 +179,55 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 return Err(Error::not_found());
             }
 
-            store(node);
+            store(node, ctx)?;
             return Ok(());
         }
         NodeKind::AAdd | NodeKind::ASub | NodeKind::AMul | NodeKind::ADiv => {
             let lhs = node.lhs.as_ref().expect("lhs not found");
             let rhs = node.rhs.as_ref().expect("rhs not found");
             gen_val(lhs, ctx)?;
-            println!("    push [rsp]");
-            load(lhs);
+            writeln!(ctx.asm, "    push [rsp]")?;
+            load(lhs, ctx)?;
             gen(rhs, ctx)?;
-            println!("    pop rdi");
-            println!("    pop rax");
+            writeln!(ctx.asm, "    pop rdi")?;
+            writeln!(ctx.asm, "    pop rax")?;
             match &node.kind {
                 NodeKind::AAdd => {
-                    ptr_op(node);
-                    println!("    add rax, rdi");
+                    ptr_op(node, ctx)?;
+                    writeln!(ctx.asm, "    add rax, rdi")?;
                 }
                 NodeKind::ASub => {
-                    ptr_op(node);
-                    println!("    sub rax, rdi");
+                    ptr_op(node, ctx)?;
+                    writeln!(ctx.asm, "    sub rax, rdi")?;
                 }
                 NodeKind::AMul => {
-                    println!("    imul rax, rdi");
+                    writeln!(ctx.asm, "    imul rax, rdi")?;
                 }
                 NodeKind::ADiv => {
-                    println!("    cqo");
-                    println!("    idiv rdi");
+                    writeln!(ctx.asm, "    cqo")?;
+                    writeln!(ctx.asm, "    idiv rdi")?;
                 }
                 _ => unreachable!(),
             }
-            println!("    push rax");
-            store(node);
+            writeln!(ctx.asm, "    push rax")?;
+            store(node, ctx)?;
             return Ok(());
         }
         NodeKind::Return => {
-            println!("# NodeKind::Return");
+            writeln!(ctx.asm, "# NodeKind::Return")?;
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)?;
             } else {
                 return Err(Error::not_found());
             }
-            println!("    pop rax");
-            println!("    mov rsp, rbp");
-            println!("    pop rbp");
-            println!("    ret");
+            writeln!(ctx.asm, "    pop rax")?;
+            writeln!(ctx.asm, "    mov rsp, rbp")?;
+            writeln!(ctx.asm, "    pop rbp")?;
+            writeln!(ctx.asm, "    ret")?;
             return Ok(());
         }
         NodeKind::If => {
-            println!("# NodeKind::If");
+            writeln!(ctx.asm, "# NodeKind::If")?;
             if let Some(cond) = &node.cond {
                 gen(cond, ctx)?;
             } else {
@@ -232,60 +236,60 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
-            println!("    pop rax");
-            println!("    cmp rax, 0");
+            writeln!(ctx.asm, "    pop rax")?;
+            writeln!(ctx.asm, "    cmp rax, 0")?;
 
             if let Some(els) = &node.els {
-                println!("    je  .Lelse{}", jlb_num);
+                writeln!(ctx.asm, "    je  .Lelse{}", jlb_num)?;
                 if let Some(then) = &node.then {
                     gen(then, ctx)?;
                 } else {
                     return Err(Error::not_found());
                 }
-                println!("    jmp .Lend{}", jlb_num);
-                println!(".Lelse{}:", jlb_num);
+                writeln!(ctx.asm, "    jmp .Lend{}", jlb_num)?;
+                writeln!(ctx.asm, ".Lelse{}:", jlb_num)?;
                 gen(els, ctx)?;
-                println!(".Lend{}:", jlb_num);
+                writeln!(ctx.asm, ".Lend{}:", jlb_num)?;
             } else {
-                println!("    je  .Lend{}", jlb_num);
+                writeln!(ctx.asm, "    je  .Lend{}", jlb_num)?;
 
                 if let Some(then) = &node.then {
                     gen(then, ctx)?;
                 } else {
                     return Err(Error::not_found());
                 }
-                println!(".Lend{}:", jlb_num);
+                writeln!(ctx.asm, ".Lend{}:", jlb_num)?;
             }
             return Ok(());
         }
         NodeKind::While => {
-            println!("# NodeKind::While");
+            writeln!(ctx.asm, "# NodeKind::While")?;
             let jlb_num = ctx.jump_label;
             let break_num = ctx.break_label;
             ctx.jump_label += 1;
             ctx.break_label = jlb_num;
-            println!(".Lbegin{}:", jlb_num);
+            writeln!(ctx.asm, ".Lbegin{}:", jlb_num)?;
             if let Some(cond) = &node.cond {
                 gen(cond, ctx)?;
             } else {
                 return Err(Error::not_found());
             }
 
-            println!("    pop rax");
-            println!("    cmp rax, 0");
-            println!("    je  .L.break.{}", jlb_num);
+            writeln!(ctx.asm, "    pop rax")?;
+            writeln!(ctx.asm, "    cmp rax, 0")?;
+            writeln!(ctx.asm, "    je  .L.break.{}", jlb_num)?;
             if let Some(then) = &node.then {
                 gen(then, ctx)?;
             } else {
                 return Err(Error::not_found());
             }
-            println!("    jmp  .Lbegin{}", jlb_num);
-            println!(".L.break.{}:", jlb_num);
+            writeln!(ctx.asm, "    jmp  .Lbegin{}", jlb_num)?;
+            writeln!(ctx.asm, ".L.break.{}:", jlb_num)?;
             ctx.break_label = break_num;
             return Ok(());
         }
         NodeKind::For => {
-            println!("# NodeKind::For");
+            writeln!(ctx.asm, "# NodeKind::For")?;
             let jlb_num = ctx.jump_label;
             let break_num = ctx.break_label;
             ctx.jump_label += 1;
@@ -296,12 +300,12 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 }
             }
 
-            println!(".Lbegin{}:", jlb_num);
+            writeln!(ctx.asm, ".Lbegin{}:", jlb_num)?;
             if let Some(cond) = &node.cond {
                 gen(cond, ctx)?;
-                println!("    pop rax");
-                println!("    cmp rax, 0");
-                println!("    je  .L.break.{}", jlb_num);
+                writeln!(ctx.asm, "    pop rax")?;
+                writeln!(ctx.asm, "    cmp rax, 0")?;
+                writeln!(ctx.asm, "    je  .L.break.{}", jlb_num)?;
             }
 
             if let Some(then) = &node.then {
@@ -314,88 +318,88 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 gen(inc, ctx)?;
             }
 
-            println!("    jmp  .Lbegin{}", jlb_num);
-            println!(".L.break.{}:", jlb_num);
+            writeln!(ctx.asm, "    jmp  .Lbegin{}", jlb_num)?;
+            writeln!(ctx.asm, ".L.break.{}:", jlb_num)?;
             ctx.break_label = break_num;
             return Ok(());
         }
         NodeKind::Break => match ctx.break_label {
             0 => return Err(Error::stray_break()),
             _ => {
-                println!("    jmp .L.break.{}", ctx.break_label);
+                writeln!(ctx.asm, "    jmp .L.break.{}", ctx.break_label)?;
                 return Ok(());
             }
         },
         NodeKind::Block(stmts) | NodeKind::StmtExpr(stmts) => {
-            println!("# NodeKind::Block,StmtExpr");
+            writeln!(ctx.asm, "# NodeKind::Block,StmtExpr")?;
             for stmt in stmts {
                 gen(stmt, ctx)?;
             }
             return Ok(());
         }
         NodeKind::Func(func_prototype, args) => {
-            println!("# NodeKind::Func");
+            writeln!(ctx.asm, "# NodeKind::Func")?;
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
 
             // printf 関数はalに浮動小数点数の引数の個数をいれる必要がある
             // 今はないので決め打ちで0にする
-            println!("    mov al, 0");
+            writeln!(ctx.asm, "    mov al, 0")?;
 
             for i in args {
                 gen(i, ctx)?;
             }
             for i in (0..args.len()).rev() {
-                println!("    pop {}", ARGREG8[i]);
+                writeln!(ctx.asm, "    pop {}", ARGREG8[i])?;
             }
             // 8の倍数じゃなかったら8の倍数にする
-            println!("    mov rax, rsp");
-            println!("    and rax, 7");
-            println!("    jnz .LcallFour{}", jlb_num);
-            println!("    sub rsp, 4");
+            writeln!(ctx.asm, "    mov rax, rsp")?;
+            writeln!(ctx.asm, "    and rax, 7")?;
+            writeln!(ctx.asm, "    jnz .LcallFour{}", jlb_num)?;
+            writeln!(ctx.asm, "    sub rsp, 4")?;
             {
                 // 16の倍数にしてcall
-                println!("    mov rax, rsp");
-                println!("    and rax, 15");
-                println!("    jnz .LcallF{}", jlb_num);
-                println!("    mov rax, 0");
-                println!("    call {}", func_prototype.ident.name);
-                println!("    add rsp, 4");
-                println!("    jmp .LendF{}", jlb_num);
-                println!(".LcallF{}:", jlb_num);
-                println!("    sub rsp, 8");
-                println!("    mov rax, 0");
-                println!("    call {}", func_prototype.ident.name);
-                println!("    add rsp, 12");
-                println!(".LendF{}:", jlb_num);
-                println!("    push rax");
+                writeln!(ctx.asm, "    mov rax, rsp")?;
+                writeln!(ctx.asm, "    and rax, 15")?;
+                writeln!(ctx.asm, "    jnz .LcallF{}", jlb_num)?;
+                writeln!(ctx.asm, "    mov rax, 0")?;
+                writeln!(ctx.asm, "    call {}", func_prototype.ident.name)?;
+                writeln!(ctx.asm, "    add rsp, 4")?;
+                writeln!(ctx.asm, "    jmp .LendF{}", jlb_num)?;
+                writeln!(ctx.asm, ".LcallF{}:", jlb_num)?;
+                writeln!(ctx.asm, "    sub rsp, 8")?;
+                writeln!(ctx.asm, "    mov rax, 0")?;
+                writeln!(ctx.asm, "    call {}", func_prototype.ident.name)?;
+                writeln!(ctx.asm, "    add rsp, 12")?;
+                writeln!(ctx.asm, ".LendF{}:", jlb_num)?;
+                writeln!(ctx.asm, "    push rax")?;
             }
-            println!("    jmp .Lend{}", jlb_num);
+            writeln!(ctx.asm, "    jmp .Lend{}", jlb_num)?;
 
-            println!(".LcallFour{}:", jlb_num);
-            println!("    mov rax, 0");
+            writeln!(ctx.asm, ".LcallFour{}:", jlb_num)?;
+            writeln!(ctx.asm, "    mov rax, 0")?;
             {
                 // 16の倍数にしてcall
-                println!("    mov rax, rsp");
-                println!("    and rax, 15");
-                println!("    jnz .LcallFH{}", jlb_num);
-                println!("    mov rax, 0");
-                println!("    call {}", func_prototype.ident.name);
-                println!("    jmp .LendFH{}", jlb_num);
-                println!(".LcallFH{}:", jlb_num);
-                println!("    sub rsp, 8");
-                println!("    mov rax, 0");
-                println!("    call {}", func_prototype.ident.name);
-                println!("    add rsp, 8");
-                println!(".LendFH{}:", jlb_num);
-                println!("    push rax");
+                writeln!(ctx.asm, "    mov rax, rsp")?;
+                writeln!(ctx.asm, "    and rax, 15")?;
+                writeln!(ctx.asm, "    jnz .LcallFH{}", jlb_num)?;
+                writeln!(ctx.asm, "    mov rax, 0")?;
+                writeln!(ctx.asm, "    call {}", func_prototype.ident.name)?;
+                writeln!(ctx.asm, "    jmp .LendFH{}", jlb_num)?;
+                writeln!(ctx.asm, ".LcallFH{}:", jlb_num)?;
+                writeln!(ctx.asm, "    sub rsp, 8")?;
+                writeln!(ctx.asm, "    mov rax, 0")?;
+                writeln!(ctx.asm, "    call {}", func_prototype.ident.name)?;
+                writeln!(ctx.asm, "    add rsp, 8")?;
+                writeln!(ctx.asm, ".LendFH{}:", jlb_num)?;
+                writeln!(ctx.asm, "    push rax")?;
             }
-            println!(".Lend{}:", jlb_num);
-            cast(&func_prototype.type_kind);
+            writeln!(ctx.asm, ".Lend{}:", jlb_num)?;
+            cast(&func_prototype.type_kind, ctx)?;
             return Ok(());
         }
         NodeKind::Addr => {
-            println!("# NodeKind::Addr");
+            writeln!(ctx.asm, "# NodeKind::Addr")?;
             if let Some(lhs) = &node.lhs {
                 gen_val(&lhs, ctx)?;
             } else {
@@ -404,20 +408,20 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Deref => {
-            println!("# NodeKind::Deref");
+            writeln!(ctx.asm, "# NodeKind::Deref")?;
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)?;
                 if let Ok(TypeKind::Array(_, _, _)) = node.get_type() {
                     return Ok(());
                 }
-                load(node);
+                load(node, ctx)?;
             } else {
                 return Err(Error::not_found());
             }
             return Ok(());
         }
         NodeKind::Declaration(_) => {
-            println!("# declaration");
+            writeln!(ctx.asm, "# declaration")?;
             if let Some(ref init) = node.init {
                 for i in init {
                     gen(i, ctx)?
@@ -427,10 +431,10 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::ExprStmt => {
-            println!("# NodeKind::ExprStmt");
+            writeln!(ctx.asm, "# NodeKind::ExprStmt")?;
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)?;
-                println!("    add rsp, 8");
+                writeln!(ctx.asm, "    add rsp, 8")?;
             } else {
                 return Err(Error::not_found());
             }
@@ -438,205 +442,205 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         }
         NodeKind::Null => return Ok(()),
         NodeKind::Cast(type_kind) => {
-            println!("# cast");
+            writeln!(ctx.asm, "# cast")?;
             gen(&node.lhs.as_ref().unwrap(), ctx)?;
-            cast(type_kind);
+            cast(type_kind, ctx)?;
             return Ok(());
         }
         NodeKind::Comma => {
-            println!("# comma");
+            writeln!(ctx.asm, "# comma")?;
             gen(node.lhs.as_ref().unwrap(), ctx)?;
             gen(node.rhs.as_ref().unwrap(), ctx)?;
         }
         NodeKind::PreInc => {
-            println!("# preinc");
+            writeln!(ctx.asm, "# preinc")?;
             gen_val(node.lhs.as_ref().unwrap(), ctx)?;
-            println!("    push [rsp]");
-            load(node);
-            inc(node);
-            store(node);
+            writeln!(ctx.asm, "    push [rsp]")?;
+            load(node, ctx)?;
+            inc(node, ctx)?;
+            store(node, ctx)?;
             return Ok(());
         }
         NodeKind::PreDec => {
-            println!("# predec");
+            writeln!(ctx.asm, "# predec")?;
             gen_val(node.lhs.as_ref().unwrap(), ctx)?;
-            println!("    push [rsp]");
-            load(node);
-            dec(node);
-            store(node);
+            writeln!(ctx.asm, "    push [rsp]")?;
+            load(node, ctx)?;
+            dec(node, ctx)?;
+            store(node, ctx)?;
             return Ok(());
         }
         NodeKind::PostInc => {
-            println!("# postinc");
+            writeln!(ctx.asm, "# postinc")?;
             gen_val(node.lhs.as_ref().unwrap(), ctx)?;
-            println!("    push [rsp]");
-            load(node);
-            inc(node);
-            store(node);
-            dec(node);
+            writeln!(ctx.asm, "    push [rsp]")?;
+            load(node, ctx)?;
+            inc(node, ctx)?;
+            store(node, ctx)?;
+            dec(node, ctx)?;
             return Ok(());
         }
         NodeKind::PostDec => {
-            println!("# postdec");
+            writeln!(ctx.asm, "# postdec")?;
             gen_val(node.lhs.as_ref().unwrap(), ctx)?;
-            println!("    push [rsp]");
-            load(node);
-            dec(node);
-            store(node);
-            inc(node);
+            writeln!(ctx.asm, "    push [rsp]")?;
+            load(node, ctx)?;
+            dec(node, ctx)?;
+            store(node, ctx)?;
+            inc(node, ctx)?;
             return Ok(());
         }
         NodeKind::Not => {
-            println!("# not");
+            writeln!(ctx.asm, "# not")?;
             gen(node.lhs.as_ref().unwrap(), ctx)?;
-            println!("    pop rax");
-            println!("    cmp rax, 0");
-            println!("    sete al");
-            println!("    movzb rax, al");
-            println!("    push rax");
+            writeln!(ctx.asm, "    pop rax")?;
+            writeln!(ctx.asm, "    cmp rax, 0")?;
+            writeln!(ctx.asm, "    sete al")?;
+            writeln!(ctx.asm, "    movzb rax, al")?;
+            writeln!(ctx.asm, "    push rax")?;
             return Ok(());
         }
         NodeKind::BitNot => {
-            println!("# bit not");
+            writeln!(ctx.asm, "# bit not")?;
             gen(node.lhs.as_ref().unwrap(), ctx)?;
-            println!("    pop rax");
-            println!("    not rax");
-            println!("    push rax");
+            writeln!(ctx.asm, "    pop rax")?;
+            writeln!(ctx.asm, "    not rax")?;
+            writeln!(ctx.asm, "    push rax")?;
             return Ok(());
         }
         NodeKind::LogOr => {
-            println!("# log or");
+            writeln!(ctx.asm, "# log or")?;
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
             gen(node.lhs.as_ref().unwrap(), ctx)?;
-            println!("    pop rax");
-            println!("    cmp rax, 0");
-            println!("    jne  .Ltrue{}", jlb_num);
+            writeln!(ctx.asm, "    pop rax")?;
+            writeln!(ctx.asm, "    cmp rax, 0")?;
+            writeln!(ctx.asm, "    jne  .Ltrue{}", jlb_num)?;
             gen(node.rhs.as_ref().unwrap(), ctx)?;
-            println!("    pop rax");
-            println!("    cmp rax, 0");
-            println!("    jne  .Ltrue{}", jlb_num);
-            println!("    push 0");
-            println!("    jmp .Lend{}", jlb_num);
-            println!(".Ltrue{}:", jlb_num);
-            println!("    push 1");
-            println!(".Lend{}:", jlb_num);
+            writeln!(ctx.asm, "    pop rax")?;
+            writeln!(ctx.asm, "    cmp rax, 0")?;
+            writeln!(ctx.asm, "    jne  .Ltrue{}", jlb_num)?;
+            writeln!(ctx.asm, "    push 0")?;
+            writeln!(ctx.asm, "    jmp .Lend{}", jlb_num)?;
+            writeln!(ctx.asm, ".Ltrue{}:", jlb_num)?;
+            writeln!(ctx.asm, "    push 1")?;
+            writeln!(ctx.asm, ".Lend{}:", jlb_num)?;
             return Ok(());
         }
         NodeKind::LogAnd => {
-            println!("# log and");
+            writeln!(ctx.asm, "# log and")?;
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
             gen(node.lhs.as_ref().unwrap(), ctx)?;
-            println!("    pop rax");
-            println!("    cmp rax, 0");
-            println!("    je  .Lfalse{}", jlb_num);
+            writeln!(ctx.asm, "    pop rax")?;
+            writeln!(ctx.asm, "    cmp rax, 0")?;
+            writeln!(ctx.asm, "    je  .Lfalse{}", jlb_num)?;
             gen(node.rhs.as_ref().unwrap(), ctx)?;
-            println!("    pop rax");
-            println!("    cmp rax, 0");
-            println!("    je  .Lfalse{}", jlb_num);
-            println!("    push 1");
-            println!("    jmp .Lend{}", jlb_num);
-            println!(".Lfalse{}:", jlb_num);
-            println!("    push 0");
-            println!(".Lend{}:", jlb_num);
+            writeln!(ctx.asm, "    pop rax")?;
+            writeln!(ctx.asm, "    cmp rax, 0")?;
+            writeln!(ctx.asm, "    je  .Lfalse{}", jlb_num)?;
+            writeln!(ctx.asm, "    push 1")?;
+            writeln!(ctx.asm, "    jmp .Lend{}", jlb_num)?;
+            writeln!(ctx.asm, ".Lfalse{}:", jlb_num)?;
+            writeln!(ctx.asm, "    push 0")?;
+            writeln!(ctx.asm, ".Lend{}:", jlb_num)?;
             return Ok(());
         }
         _ => (),
     }
 
     if let Some(lhs) = &node.lhs {
-        println!("# lhs");
+        writeln!(ctx.asm, "# lhs")?;
         gen(lhs, ctx)?;
     }
     if let Some(rhs) = &node.rhs {
-        println!("# rhs");
+        writeln!(ctx.asm, "# rhs")?;
         gen(rhs, ctx)?;
     }
 
-    println!("# pop");
-    println!("    pop rdi");
-    println!("    pop rax");
+    writeln!(ctx.asm, "# pop")?;
+    writeln!(ctx.asm, "    pop rdi")?;
+    writeln!(ctx.asm, "    pop rax")?;
 
     match node.kind {
         NodeKind::Add => {
-            println!("# Add");
-            ptr_op(node);
-            println!("    add rax, rdi");
+            writeln!(ctx.asm, "# Add")?;
+            ptr_op(node, ctx)?;
+            writeln!(ctx.asm, "    add rax, rdi")?;
         }
         NodeKind::Sub => {
-            println!("# Sub");
-            ptr_op(node);
-            println!("    sub rax, rdi");
+            writeln!(ctx.asm, "# Sub")?;
+            ptr_op(node, ctx)?;
+            writeln!(ctx.asm, "    sub rax, rdi")?;
         }
         NodeKind::Mul => {
-            println!("# Mul");
-            ptr_op(node);
-            println!("    imul rax, rdi");
+            writeln!(ctx.asm, "# Mul")?;
+            ptr_op(node, ctx)?;
+            writeln!(ctx.asm, "    imul rax, rdi")?;
         }
         NodeKind::Div => {
-            println!("# Div");
-            println!("    cqo");
-            println!("    idiv rdi");
+            writeln!(ctx.asm, "# Div")?;
+            writeln!(ctx.asm, "    cqo")?;
+            writeln!(ctx.asm, "    idiv rdi")?;
         }
         NodeKind::BitAnd => {
-            println!("    and rax, rdi");
+            writeln!(ctx.asm, "    and rax, rdi")?;
         }
         NodeKind::BitOr => {
-            println!("    or rax, rdi");
+            writeln!(ctx.asm, "    or rax, rdi")?;
         }
         NodeKind::BitXor => {
-            println!("    xor rax, rdi");
+            writeln!(ctx.asm, "    xor rax, rdi")?;
         }
         NodeKind::Equal => {
-            println!("# Equal");
-            println!("    cmp rax, rdi");
-            println!("    sete al");
-            println!("    movzb rax, al");
+            writeln!(ctx.asm, "# Equal")?;
+            writeln!(ctx.asm, "    cmp rax, rdi")?;
+            writeln!(ctx.asm, "    sete al")?;
+            writeln!(ctx.asm, "    movzb rax, al")?;
         }
         NodeKind::Leq => {
-            println!("# Leq");
-            println!("    cmp rax, rdi");
-            println!("    setle al");
-            println!("    movzb rax, al");
+            writeln!(ctx.asm, "# Leq")?;
+            writeln!(ctx.asm, "    cmp rax, rdi")?;
+            writeln!(ctx.asm, "    setle al")?;
+            writeln!(ctx.asm, "    movzb rax, al")?;
         }
         NodeKind::Lesser => {
-            println!("# Lesser");
-            println!("    cmp rax, rdi");
-            println!("    setl al");
-            println!("    movzb rax, al");
+            writeln!(ctx.asm, "# Lesser")?;
+            writeln!(ctx.asm, "    cmp rax, rdi")?;
+            writeln!(ctx.asm, "    setl al")?;
+            writeln!(ctx.asm, "    movzb rax, al")?;
         }
         NodeKind::Neq => {
-            println!("# Neq");
-            println!("    cmp rax, rdi");
-            println!("    setne al");
-            println!("    movzb rax, al");
+            writeln!(ctx.asm, "# Neq")?;
+            writeln!(ctx.asm, "    cmp rax, rdi")?;
+            writeln!(ctx.asm, "    setne al")?;
+            writeln!(ctx.asm, "    movzb rax, al")?;
         }
         _ => (),
     }
 
-    println!("    push rax");
+    writeln!(ctx.asm, "    push rax")?;
     Ok(())
 }
 
 fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
-    println!("# gen val");
+    writeln!(ctx.asm, "# gen val")?;
     match &node.kind {
         NodeKind::Lvar(x) => {
-            println!("# lvar");
-            println!("    mov rax, rbp");
-            println!("    sub rax, {}", x.offset);
-            println!("    push rax");
+            writeln!(ctx.asm, "# lvar")?;
+            writeln!(ctx.asm, "    mov rax, rbp")?;
+            writeln!(ctx.asm, "    sub rax, {}", x.offset)?;
+            writeln!(ctx.asm, "    push rax")?;
             Ok(())
         }
         NodeKind::Gvar(x) => {
-            println!("# gvar");
-            println!("    mov rax, OFFSET FLAT:{}", x.dec.ident.name);
-            println!("    push rax");
+            writeln!(ctx.asm, "# gvar")?;
+            writeln!(ctx.asm, "    mov rax, OFFSET FLAT:{}", x.dec.ident.name)?;
+            writeln!(ctx.asm, "    push rax")?;
             Ok(())
         }
         NodeKind::Deref => {
-            println!("# deref");
+            writeln!(ctx.asm, "# deref")?;
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)
             } else {
@@ -644,12 +648,12 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             }
         }
         NodeKind::Member(_, member) => {
-            println!("# member");
+            writeln!(ctx.asm, "# member")?;
             if let Some(lhs) = &node.lhs {
                 gen_val(&lhs, ctx)?;
-                println!("    pop rax");
-                println!("    add rax, {}", member.offset);
-                println!("    push rax");
+                writeln!(ctx.asm, "    pop rax")?;
+                writeln!(ctx.asm, "    add rax, {}", member.offset)?;
+                writeln!(ctx.asm, "    push rax")?;
                 return Ok(());
             } else {
                 Err(Error::not_found())
@@ -661,11 +665,11 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 }
 
 // fn gen_gvar(gvar: &GvarMp) {
-//     println!("# gen gval");
+//     writeln!(ctx.asm,"# gen gval")?;
 
 // }
 
-fn load(node: &Node) {
+fn load(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     let mut word = "mov rax, [rax]";
     if let Ok(type_kind) = node.get_type() {
         match type_kind {
@@ -675,9 +679,10 @@ fn load(node: &Node) {
             x => word = gen_load_asm(x.size(), true).unwrap_or(word),
         }
     }
-    println!("    pop rax");
-    println!("    {}", word);
-    println!("    push rax");
+    writeln!(ctx.asm, "    pop rax")?;
+    writeln!(ctx.asm, "    {}", word)?;
+    writeln!(ctx.asm, "    push rax")?;
+    Ok(())
 }
 
 /// generate asm depending on the size.
@@ -700,26 +705,27 @@ fn gen_load_asm(size: u64, signed: bool) -> Option<&'static str> {
 
 /// mov [rax], rdi
 /// もし`node`の要素が`array`だったら、`array`の要素のサイズに合わせてstoreする
-fn store(node: &Node) {
+fn store(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     let mut word = "mov [rax], rdi";
-    println!("# store");
-    println!("    pop rdi");
-    println!("    pop rax");
+    writeln!(ctx.asm, "# store")?;
+    writeln!(ctx.asm, "    pop rdi")?;
+    writeln!(ctx.asm, "    pop rax")?;
     if let Ok(type_kind) = node.get_type() {
         match type_kind {
             TypeKind::Array(_, b_type, _) => {
                 word = gen_store_asm(TypeKind::Ptr(b_type).size()).unwrap_or(word)
             }
             TypeKind::_Bool => {
-                println!("    cmp rdi, 0");
-                println!("  setne dil");
-                println!("  movzb rdi, dil");
+                writeln!(ctx.asm, "    cmp rdi, 0")?;
+                writeln!(ctx.asm, "  setne dil")?;
+                writeln!(ctx.asm, "  movzb rdi, dil")?;
             }
             x => word = gen_store_asm(x.size()).unwrap_or(word),
         }
     }
-    println!("    {}", word);
-    println!("    push rdi");
+    writeln!(ctx.asm, "    {}", word)?;
+    writeln!(ctx.asm, "    push rdi")?;
+    Ok(())
 }
 
 fn gen_store_asm(size: u64) -> Option<&'static str> {
@@ -732,55 +738,59 @@ fn gen_store_asm(size: u64) -> Option<&'static str> {
     }
 }
 
-fn ptr_op(node: &Node) {
-    println!("# ptr op");
+fn ptr_op(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    writeln!(ctx.asm, "# ptr op")?;
     if let Some(ref lhs) = node.lhs {
         if let Ok(type_kind) = &lhs.get_type() {
             match type_kind {
                 TypeKind::Ptr(ptr) | TypeKind::Array(_, ptr, _) => {
-                    println!("    imul rdi, {}", ptr.borrow().size());
+                    writeln!(ctx.asm, "    imul rdi, {}", ptr.borrow().size())?;
                 }
                 _ => (),
             }
         }
     }
+    Ok(())
 }
 
-fn cast(type_kind: &TypeKind) {
+fn cast(type_kind: &TypeKind, ctx: &mut Context) -> Result<(), Error> {
     use TypeKind::*;
 
-    println!("# cast");
-    println!("    pop rax");
+    writeln!(ctx.asm, "# cast")?;
+    writeln!(ctx.asm, "    pop rax")?;
     if type_kind == &_Bool {
-        println!("    cmp rax, 0");
-        println!("    setne al");
+        writeln!(ctx.asm, "    cmp rax, 0")?;
+        writeln!(ctx.asm, "    setne al")?;
     }
 
     match type_kind.size() {
-        1 => println!("    movsx rax, al"),
-        2 => println!("    movsx rax, ax"),
-        4 => println!("    movsx rax, eax"),
+        1 => writeln!(ctx.asm, "    movsx rax, al")?,
+        2 => writeln!(ctx.asm, "    movsx rax, ax")?,
+        4 => writeln!(ctx.asm, "    movsx rax, eax")?,
         _ => (),
     }
-    println!("    push rax");
+    writeln!(ctx.asm, "    push rax")?;
+    Ok(())
 }
 
-pub fn inc(node: &Node) {
-    println!("    pop rax");
-    println!("    push rdi"); // keep rdi
-    println!("    mov rdi, 1");
-    ptr_op(node);
-    println!("    add rax, rdi");
-    println!("    pop rdi");
-    println!("    push rax");
+pub fn inc(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    writeln!(ctx.asm, "    pop rax")?;
+    writeln!(ctx.asm, "    push rdi")?; // keep rdi
+    writeln!(ctx.asm, "    mov rdi, 1")?;
+    ptr_op(node, ctx)?;
+    writeln!(ctx.asm, "    add rax, rdi")?;
+    writeln!(ctx.asm, "    pop rdi")?;
+    writeln!(ctx.asm, "    push rax")?;
+    Ok(())
 }
 
-pub fn dec(node: &Node) {
-    println!("    pop rax");
-    println!("    push rdi"); // keep rdi
-    println!("    mov rdi, 1");
-    ptr_op(node);
-    println!("    sub rax, rdi");
-    println!("    pop rdi");
-    println!("    push rax");
+pub fn dec(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    writeln!(ctx.asm, "    pop rax")?;
+    writeln!(ctx.asm, "    push rdi")?; // keep rdi
+    writeln!(ctx.asm, "    mov rdi, 1")?;
+    ptr_op(node, ctx)?;
+    writeln!(ctx.asm, "    sub rax, rdi")?;
+    writeln!(ctx.asm, "    pop rdi")?;
+    writeln!(ctx.asm, "    push rax")?;
+    Ok(())
 }

@@ -7,6 +7,7 @@ pub enum ErrorKind {
     NoGvar,
     NotFound,
     StrayBreak,
+    WriteError(String),
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
@@ -51,15 +52,26 @@ impl<'a> fmt::Display for Error {
             NoGvar => err_format(self, f),
             NotFound => err_format(self, f),
             StrayBreak => err_format(self, f),
+            WriteError(_) => err_format(self, f),
         }
     }
 }
 
 fn err_format(err: &Error, f: &mut fmt::Formatter) -> fmt::Result {
-    match err.kind {
+    match &err.kind {
         NoLVar => writeln!(f, "Left Value is not substitutable"),
         NoGvar => writeln!(f, "not global value"),
         NotFound => writeln!(f, "Node not found"),
         StrayBreak => writeln!(f, "stray break"),
+        WriteError(string) => writeln!(f, "{}", string),
+    }
+}
+
+impl From<std::fmt::Error> for Error {
+    fn from(error: std::fmt::Error) -> Self {
+        Self {
+            kind: WriteError(format!("{}", error)),
+            msg: None,
+        }
     }
 }
