@@ -1142,7 +1142,7 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     // ident func-args?
     if let Some(ident) = consume_ident(iter) {
         if consume(iter, Operator::LParen) {
-            let func_prototype = ctx.g.func_prototype_mp.get(&ident.name).ok_or({
+            let func_prototype = ctx.g.func_prototype_mp.get(&ident.name).ok_or_else(|| {
                 iter.prev();
                 Error::undefined_function(iter.filepath, iter.s, ident, iter.pos, None)
             })?;
