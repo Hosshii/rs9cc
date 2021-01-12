@@ -278,7 +278,7 @@ fn err_format(err: &Error, msg: impl Into<String>, f: &mut fmt::Formatter) -> fm
         f,
         "{number:>width$} {err_msg}",
         number = '^',
-        width = err.pos.bytes + 1 + info.len() - bytes,
+        width = err.pos.bytes + 1 + info.len() + 1 - bytes,
         err_msg = msg.into(),
     );
     if let Some(x) = &err.msg {

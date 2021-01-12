@@ -329,11 +329,16 @@ impl FromStr for Comment {
 pub struct Token {
     pub kind: TokenKind,
     pub pos: TokenPos,
+    pub prev_pos: TokenPos,
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, pos: TokenPos) -> Self {
-        Self { kind, pos }
+    pub fn new(kind: TokenKind, pos: TokenPos, prev_pos: TokenPos) -> Self {
+        Self {
+            kind,
+            pos,
+            prev_pos,
+        }
     }
 
     pub fn new_error(
@@ -395,6 +400,7 @@ impl AddAssign for TokenPos {
 pub struct TokenIter<'a> {
     pub s: &'a str,
     pub pos: TokenPos,
+    pub prev_pos: TokenPos,
     pub filepath: &'a str,
 }
 
@@ -402,6 +408,7 @@ pub fn tokenize<'a>(s: &'a str, filepath: &'a str) -> TokenIter<'a> {
     TokenIter {
         s,
         pos: TokenPos { tk: 0, bytes: 0 },
+        prev_pos: TokenPos { tk: 0, bytes: 0 },
         filepath,
     }
 }
@@ -410,16 +417,27 @@ impl<'a> TokenIter<'a> {
     /// std::iter::Peekable.peek()に似てるけど、posを元に戻す
     pub fn peek(&mut self) -> Option<Token> {
         let cur_pos = self.pos;
+        let prev_pos = self.prev_pos;
         let result = self.next();
         self.pos = cur_pos;
+        self.prev_pos = prev_pos;
         result
+    }
+
+    pub fn back(&mut self, tk: usize, bytes: usize) {
+        self.pos.tk -= tk;
+        self.pos.bytes -= bytes;
+    }
+
+    pub fn prev(&mut self) {
+        self.pos = self.prev_pos;
     }
 
     fn is_op(&self, s: &str) -> Option<(Token, TokenPos)> {
         use self::TokenKind::*;
         if let Ok(op) = Operator::from_starts(s) {
             return Some((
-                Token::new(Reserved(op), self.pos),
+                Token::new(Reserved(op), self.pos, self.prev_pos),
                 TokenPos::new_bytes(op.as_str().len()),
             ));
         }
@@ -431,7 +449,10 @@ impl<'a> TokenIter<'a> {
             let len = keyword.as_str().len();
             if !is_alnum(s.chars().nth(len).unwrap_or_else(|| ' ')) {
                 let kind = TokenKind::KeyWord(keyword);
-                return Some((Token::new(kind, self.pos), TokenPos::new_bytes(len)));
+                return Some((
+                    Token::new(kind, self.pos, self.prev_pos),
+                    TokenPos::new_bytes(len),
+                ));
             }
         }
         None
@@ -442,7 +463,11 @@ impl<'a> TokenIter<'a> {
         let (digit, _, bytes) = split_digit(s);
         if !digit.is_empty() {
             return Some((
-                Token::new(Num(u64::from_str_radix(digit, 10).unwrap()), self.pos),
+                Token::new(
+                    Num(u64::from_str_radix(digit, 10).unwrap()),
+                    self.pos,
+                    self.prev_pos,
+                ),
                 TokenPos::new_bytes(bytes),
             ));
         }
@@ -453,7 +478,10 @@ impl<'a> TokenIter<'a> {
         use self::TokenKind::*;
         let ss = s.chars().nth(0).unwrap();
         if ss.to_string() == SemiColon.as_string() {
-            return Some((Token::new(SemiColon, self.pos), TokenPos::new_bytes(1)));
+            return Some((
+                Token::new(SemiColon, self.pos, self.prev_pos),
+                TokenPos::new_bytes(1),
+            ));
         }
         None
     }
@@ -462,7 +490,7 @@ impl<'a> TokenIter<'a> {
         let (ident, _, first_non_num_idx) = split_ident(s);
         if !ident.is_empty() {
             return Some((
-                Token::new(TokenKind::Ident(Ident::new(ident)), self.pos),
+                Token::new(TokenKind::Ident(Ident::new(ident)), self.pos, self.prev_pos),
                 TokenPos::new_bytes(first_non_num_idx),
             ));
         }
@@ -473,7 +501,7 @@ impl<'a> TokenIter<'a> {
         let ss = s.chars().nth(0).unwrap();
         if let Ok(x) = Block::from_str(&ss.to_string()) {
             return Some((
-                Token::new(TokenKind::Block(x), self.pos),
+                Token::new(TokenKind::Block(x), self.pos, self.prev_pos),
                 TokenPos::new(1, 1),
             ));
         }
@@ -484,7 +512,10 @@ impl<'a> TokenIter<'a> {
         use self::TokenKind::*;
         let ss = s.chars().nth(0).unwrap();
         if ss.to_string() == Comma.as_string() {
-            return Some((Token::new(Comma, self.pos), TokenPos::new_bytes(1)));
+            return Some((
+                Token::new(Comma, self.pos, self.prev_pos),
+                TokenPos::new_bytes(1),
+            ));
         }
         None
     }
@@ -493,7 +524,10 @@ impl<'a> TokenIter<'a> {
         use self::TokenKind::*;
         let ss = s.chars().nth(0).unwrap();
         if ss.to_string() == Period.as_string() {
-            return Some((Token::new(Period, self.pos), TokenPos::new_bytes(1)));
+            return Some((
+                Token::new(Period, self.pos, self.prev_pos),
+                TokenPos::new_bytes(1),
+            ));
         }
         None
     }
@@ -530,7 +564,7 @@ impl<'a> TokenIter<'a> {
                 result += "\0";
 
                 return Some((
-                    Token::new(TokenKind::String(result), self.pos),
+                    Token::new(TokenKind::String(result), self.pos, self.prev_pos),
                     TokenPos::new_bytes(len),
                 ));
             }
@@ -571,7 +605,7 @@ impl<'a> TokenIter<'a> {
             }
 
             return Some((
-                Token::new(TokenKind::Char(result), self.pos),
+                Token::new(TokenKind::Char(result), self.pos, self.prev_pos),
                 TokenPos::new_bytes(len),
             ));
         }
@@ -584,7 +618,7 @@ impl<'a> TokenIter<'a> {
             // specify ' ' in unwrap_of_else because !is_alnum(' ') is true at anytime
             if !is_alnum(s.chars().nth(len).unwrap_or_else(|| ' ')) {
                 return Some((
-                    Token::new(TokenKind::TypeKind(base_type), self.pos),
+                    Token::new(TokenKind::TypeKind(base_type), self.pos, self.prev_pos),
                     TokenPos::new_bytes(len),
                 ));
             }
@@ -641,51 +675,61 @@ impl<'a> Iterator for TokenIter<'a> {
         }
 
         if let Some((tk, pos)) = self.is_op(s) {
+            self.prev_pos = self.pos;
             self.pos += pos;
             return Some(tk);
         }
 
         if let Some((tk, pos)) = self.is_keyword(s) {
+            self.prev_pos = self.pos;
             self.pos += pos;
             return Some(tk);
         }
 
         if let Some((tk, pos)) = self.is_num(s) {
+            self.prev_pos = self.pos;
             self.pos += pos;
             return Some(tk);
         }
 
         if let Some((tk, pos)) = self.is_semi(s) {
+            self.prev_pos = self.pos;
             self.pos += pos;
             return Some(tk);
         }
 
         if let Some((tk, pos)) = self.is_block_paren(s) {
+            self.prev_pos = self.pos;
             self.pos += pos;
             return Some(tk);
         }
 
         if let Some((tk, pos)) = self.is_comma(s) {
+            self.prev_pos = self.pos;
             self.pos += pos;
             return Some(tk);
         }
 
         if let Some((tk, pos)) = self.is_period(s) {
+            self.prev_pos = self.pos;
             self.pos += pos;
             return Some(tk);
         }
 
         if let Some((tk, pos)) = self.is_string(s) {
+            self.prev_pos = self.pos;
             self.pos += pos;
             return Some(tk);
         }
 
         if let Some((tk, pos)) = self.is_char(s) {
+            self.prev_pos = self.pos;
             self.pos += pos;
             return Some(tk);
         }
 
         if let Some((tk, pos)) = self.is_base_type(s) {
+            self.prev_pos = self.pos;
             self.pos += pos;
             return Some(tk);
         }
@@ -693,6 +737,7 @@ impl<'a> Iterator for TokenIter<'a> {
         // これ最後の方がいい
         // 最後にしないと予約後が変数として扱われちゃう
         if let Some((tk, pos)) = self.is_ident(s) {
+            self.prev_pos = self.pos;
             self.pos += pos;
             return Some(tk);
         }
@@ -710,7 +755,7 @@ fn split_digit(s: &str) -> (&str, &str, usize) {
 // fooo=1 のfoooをidentとして返す
 fn split_ident(s: &str) -> (&str, &str, usize) {
     let mut first_non_ident_idx = 0;
-    for (i, _) in s.char_indices() {
+    for (i, c) in s.char_indices() {
         if let Ok(_) = Operator::from_starts(&s[i..]) {
             break;
         }
@@ -722,6 +767,7 @@ fn split_ident(s: &str) -> (&str, &str, usize) {
             || s[i..].starts_with(Comment::Single.as_str())
             || s[i..].starts_with(Comment::MultiStart.as_str())
             || s[i..].starts_with(&TokenKind::Period.as_string())
+            || c.is_ascii_whitespace()
         {
             break;
         }

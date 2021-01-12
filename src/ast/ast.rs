@@ -210,12 +210,13 @@ pub fn type_specifier(
                     None => Int,
                 },
                 _ => {
+                    iter.prev();
                     return Err(Error::unexpected_token(
                         iter.filepath,
                         iter.s,
                         x.clone(),
                         TokenKind::TypeKind(base_types::TypeKind::Int),
-                    ))
+                    ));
                 }
             };
             ty = Some(type_kind);
@@ -397,6 +398,7 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<
 pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum>, Error> {
     expect_keyword(iter, KeyWord::Enum)?;
     let tag = consume_ident(iter);
+    let prev_pos = iter.prev_pos; // for error
     if !consume_block(iter, Block::LParen) {
         match &tag {
             Some(x) => {
@@ -405,6 +407,7 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
                         return Ok(_enum.clone());
                     }
                 } else {
+                    iter.prev();
                     return Err(Error::undefined_tag(
                         iter.filepath,
                         iter.s,
@@ -415,6 +418,19 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
                 }
             }
             None => todo!(),
+        }
+    }
+
+    if let Some(t) = &tag {
+        if let Some(_) = ctx.s.find_cur_tag(Rc::new(t.clone())) {
+            iter.pos = prev_pos;
+            return Err(Error::re_declare(
+                iter.filepath,
+                iter.s,
+                t.clone(),
+                iter.pos,
+                None,
+            ));
         }
     }
 
@@ -443,13 +459,7 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
             .s
             .insert_t(tag.clone(), TagTypeKind::Enum(_enum.clone()));
         if let Some(_) = result {
-            return Err(Error::re_declare(
-                iter.filepath,
-                iter.s,
-                tag.as_ref().clone(),
-                iter.pos,
-                None,
-            ));
+            unreachable!()
         }
         _enum
     } else {
@@ -482,13 +492,14 @@ pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Dec
     ) {
         (None, None) => (),
         _ => {
+            iter.prev();
             return Err(Error::re_declare(
                 iter.filepath,
                 iter.s,
                 dec.ident.clone(),
                 iter.pos,
                 None,
-            ))
+            ));
         }
     }
 
@@ -723,7 +734,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                         iter.s,
                         x.clone(),
                         TokenKind::Block(Block::LParen),
-                    ))
+                    ));
                 }
             },
             _ => (),
@@ -769,6 +780,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 );
                 let lvar = ctx.s.find_cur_lvar(dec.ident.clone()).unwrap();
                 let node = make_arr_init(lvar.clone(), &dec, nodes).map_err(|size| {
+                    iter.prev();
                     Error::invalid_initialization(
                         iter.filepath,
                         iter.s,
@@ -1114,17 +1126,10 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     // ident func-args?
     if let Some(ident) = consume_ident(iter) {
         if consume(iter, Operator::LParen) {
-            let func_prototype =
-                ctx.g
-                    .func_prototype_mp
-                    .get(&ident.name)
-                    .ok_or(Error::undefined_function(
-                        iter.filepath,
-                        iter.s,
-                        ident,
-                        iter.pos,
-                        None,
-                    ))?;
+            let func_prototype = ctx.g.func_prototype_mp.get(&ident.name).ok_or({
+                iter.prev();
+                Error::undefined_function(iter.filepath, iter.s, ident, iter.pos, None)
+            })?;
             return Ok(Node::new_leaf(NodeKind::Func(
                 func_prototype.clone(),
                 func_args(iter, ctx)?,
@@ -1138,6 +1143,7 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         } else if let Some(x) = ctx.s.find_upper_gvar(ident.clone()) {
             return Ok(Node::new_leaf(NodeKind::Gvar(x.clone())));
         } else {
+            iter.prev();
             return Err(Error::undefined_variable(
                 iter.filepath,
                 iter.s,
