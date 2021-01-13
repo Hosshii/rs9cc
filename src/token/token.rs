@@ -200,6 +200,7 @@ pub enum KeyWord {
     Typedef,
     Static,
     Break,
+    Continue,
 }
 
 impl KeyWord {
@@ -216,6 +217,7 @@ impl KeyWord {
             Typedef => "typedef",
             Static => "static",
             Break => "break",
+            Continue => "continue",
         }
     }
 
@@ -232,6 +234,7 @@ impl KeyWord {
             x if x.starts_with(Typedef.as_str()) => Ok(Typedef),
             x if x.starts_with(Static.as_str()) => Ok(Static),
             x if x.starts_with(Break.as_str()) => Ok(Break),
+            x if x.starts_with(Continue.as_str()) => Ok(Continue),
             _ => Err(()),
         }
     }
@@ -252,6 +255,7 @@ impl FromStr for KeyWord {
             x if x == Typedef.as_str() => Ok(Typedef),
             x if x == Static.as_str() => Ok(Static),
             x if x == Break.as_str() => Ok(Break),
+            x if x == Continue.as_str() => Ok(Continue),
             _ => Err(()),
         }
     }
@@ -880,7 +884,7 @@ mod tests {
         assert_eq!(None, iter.next());
 
         let input = "
-            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static break";
+            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static break continue";
 
         let expected = vec![
             KeyWord(Return),
@@ -903,6 +907,7 @@ mod tests {
             KeyWord(Enum),
             KeyWord(Static),
             KeyWord(Break),
+            KeyWord(Continue),
         ];
         let mut iter = tokenize(input, "");
         for i in expected {

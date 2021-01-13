@@ -7,6 +7,7 @@ use std::fmt::Write;
 pub struct Context {
     jump_label: usize,
     break_label: usize,
+    continue_label: usize,
     asm: String,
 }
 
@@ -15,6 +16,7 @@ impl Context {
         Self {
             jump_label: 1,
             break_label: 0,
+            continue_label: 0,
             asm: String::new(),
         }
     }
@@ -283,9 +285,11 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             writeln!(ctx.asm, "# NodeKind::While")?;
             let jlb_num = ctx.jump_label;
             let break_num = ctx.break_label;
+            let continue_num = ctx.continue_label;
             ctx.jump_label += 1;
             ctx.break_label = jlb_num;
-            writeln!(ctx.asm, ".Lbegin{}:", jlb_num)?;
+            ctx.continue_label = jlb_num;
+            writeln!(ctx.asm, ".L.continue.{}:", jlb_num)?;
             if let Some(cond) = &node.cond {
                 gen(cond, ctx)?;
             } else {
@@ -300,9 +304,10 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             } else {
                 return Err(Error::not_found());
             }
-            writeln!(ctx.asm, "    jmp  .Lbegin{}", jlb_num)?;
+            writeln!(ctx.asm, "    jmp  .L.continue.{}", jlb_num)?;
             writeln!(ctx.asm, ".L.break.{}:", jlb_num)?;
             ctx.break_label = break_num;
+            ctx.continue_label = continue_num;
             return Ok(());
         }
         NodeKind::For => {
@@ -310,8 +315,10 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             writeln!(ctx.asm, "# NodeKind::For")?;
             let jlb_num = ctx.jump_label;
             let break_num = ctx.break_label;
+            let continue_num = ctx.continue_label;
             ctx.jump_label += 1;
             ctx.break_label = jlb_num;
+            ctx.continue_label = jlb_num;
             if let Some(init) = &node.init {
                 for i in init {
                     gen(i, ctx)?;
@@ -332,6 +339,8 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 return Err(Error::not_found());
             }
 
+            writeln!(ctx.asm, ".L.continue.{}:", jlb_num)?;
+
             if let Some(inc) = &node.inc {
                 gen(inc, ctx)?;
             }
@@ -339,12 +348,20 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             writeln!(ctx.asm, "    jmp  .Lbegin{}", jlb_num)?;
             writeln!(ctx.asm, ".L.break.{}:", jlb_num)?;
             ctx.break_label = break_num;
+            ctx.continue_label = continue_num;
             return Ok(());
         }
         NodeKind::Break => match ctx.break_label {
             0 => return Err(Error::stray_break()),
             _ => {
                 writeln!(ctx.asm, "    jmp .L.break.{}", ctx.break_label)?;
+                return Ok(());
+            }
+        },
+        NodeKind::Continue => match ctx.continue_label {
+            0 => return Err(Error::stray_continue()),
+            _ => {
+                writeln!(ctx.asm, "    jmp .L.continue.{}", ctx.continue_label)?;
                 return Ok(());
             }
         },

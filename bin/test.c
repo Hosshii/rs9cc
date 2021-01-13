@@ -521,6 +521,17 @@ int main() {
   assert( 1, ({int i =0; for (;;){for (;;) break; i++; break;}i;}),"({int i =0; for (;;){for (;;) break; i++; break;}i;})");
   assert( 4, ({int i = 0; while(1) { while(1) break; if (i++==3)break;} i;}),"({int i = 0; while(1) { while(1) break; if (i++==3)break;} i;})");
 
+  // #50
+  printf("\n\n#50\n");
+  assert( 10, ({int i = 0; for (;i<10;i++){if (i==3)continue; if (i==3){return i;}}  i;}),"({int i = 0; for (;i<10;i++){if (i==3)continue; if (i==3){return i;}}  i;})");
+  assert( 10, ({int i =0; int j =0;for(;i<10;i++){if(i>5)continue;j++; } i;}),"({int i =0; int j =0;for(;i<10;i++){if(i>5)continue;j++; } i;})");
+  assert( 6, ({int i =0; int j =0;for(;i<10;i++){if(i>5)continue;j++; } j;}),"({int i =0; int j =0;for(;i<10;i++){if(i>5)continue;j++; } j;})");
+  assert( 10, ({int i=0; int j=0; for(;!i;) { for (;j!=10;j++) continue; break; }  j;}),"({int i=0; int j=0; for(;!i;) { for (;j!=10;j++) continue; break; }  j;})");
+  assert( 10, ({int i = 0; while(i<10){if (i==3){i++;continue;} if (i==3){break;} i++;}  i;}),"({int i = 0; while(i<10){if (i==3){i++;continue;} if (i==3){break;} i++;}  i;})");
+  assert( 11, ({int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; }  i;}),"({int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; }  i;})");
+  assert( 5, ({int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; }  j;}),"({int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; }  j;})");
+  assert( 11, ({int i=0; int j=0; while(!i) { while (j++!=10) continue; break; }  j;}),"({int i=0; int j=0; while(!i) { while (j++!=10) continue; break; }  j;})");
+
 
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;

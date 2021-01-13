@@ -37,6 +37,7 @@ stmt                    = expr ";"
                         | "{" stmt* "}"
                         | declaration ("=" initialize)? ";"
                         | "break" ";" 
+                        | "continue" ";"
 expr                    = assign ("," assign)*
 assign                  = logor (assign-op assign)?
 assign-op               = "=" | "+=" | "-=" | "*=" | "/=" 

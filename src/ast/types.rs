@@ -57,6 +57,7 @@ pub enum NodeKind {
     LogOr,
     LogAnd,
     Break,
+    Continue,
     Null,
 }
 
@@ -114,6 +115,7 @@ impl NodeKind {
             LogOr => "||".to_string(),
             LogAnd => "&&".to_string(),
             Break => "break".to_string(),
+            Continue => "continue".to_string(),
             Null => "null".to_string(),
         }
     }

@@ -7,6 +7,7 @@ pub enum ErrorKind {
     NoGvar,
     NotFound,
     StrayBreak,
+    StrayContinue,
     WriteError(String),
     Todo,
 }
@@ -45,6 +46,13 @@ impl Error {
         }
     }
 
+    pub fn stray_continue() -> Self {
+        Self {
+            kind: StrayContinue,
+            msg: None,
+        }
+    }
+
     pub fn todo() -> Self {
         Self {
             kind: Todo,
@@ -60,6 +68,7 @@ impl<'a> fmt::Display for Error {
             NoGvar => err_format(self, f),
             NotFound => err_format(self, f),
             StrayBreak => err_format(self, f),
+            StrayContinue => err_format(self, f),
             WriteError(_) => err_format(self, f),
             Todo => err_format(self, f),
         }
@@ -72,6 +81,7 @@ fn err_format(err: &Error, f: &mut fmt::Formatter) -> fmt::Result {
         NoGvar => writeln!(f, "not global value"),
         NotFound => writeln!(f, "Node not found"),
         StrayBreak => writeln!(f, "stray break"),
+        StrayContinue => writeln!(f, "stray continue"),
         WriteError(string) => writeln!(f, "{}", string),
         Todo => writeln!(f, "todo"),
     }

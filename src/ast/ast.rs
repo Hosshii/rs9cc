@@ -665,6 +665,8 @@ pub fn unary_initialize(
 //             | "for" "(" stmt? ";" expr? ";" expr? ")" stmt
 //             | "{" stmt* "}"
 //             | declaration ("=" initialize)? ";"
+//             | "break" ";"
+//             | "continue" ";"
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(x) = iter.peek() {
         match x.kind {
@@ -718,10 +720,15 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     ctx.s.leave(sc);
                     return Ok(node);
                 }
-                KeyWord::Break => {
+                x if x == KeyWord::Break => {
                     iter.next();
                     expect_semi(iter)?;
                     return Ok(Node::new_leaf(NodeKind::Break));
+                }
+                KeyWord::Continue => {
+                    iter.next();
+                    expect_semi(iter)?;
+                    return Ok(Node::new_leaf(NodeKind::Continue));
                 }
                 _ => (),
             },

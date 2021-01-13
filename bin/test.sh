@@ -572,6 +572,17 @@ break_fn() {
     assert 4 'int main(){int i = 0; while(1) { while(1) break; if (i++==3)break;} return i;}'
 }
 
+_continue() {
+    assert 10 'int main(){int i = 0; for (;i<10;i++){if (i==3)continue; if (i==3){return i;}} return i;}'
+    assert 10 'int main(){int i =0; int j =0;for(;i<10;i++){if(i>5)continue;j++; }return i;}'
+    assert 6 'int main(){int i =0; int j =0;for(;i<10;i++){if(i>5)continue;j++; }return j;}'
+    assert 10 'int main(){int i=0; int j=0; for(;!i;) { for (;j!=10;j++) continue; break; } return j;}'
+    assert 10 'int main(){int i = 0; while(i<10){if (i==3){i++;continue;} if (i==3){break;} i++;} return i;}'
+    assert 11 'int main(){int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; } return i;}'
+    assert 5 'int main(){int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; } return j;}'
+    assert 11 'int main(){int i=0; int j=0; while(!i) { while (j++!=10) continue; break; } return j;}'
+}
+
 build() {
     cargo build
 }
@@ -642,6 +653,7 @@ if [ $# -eq 0 ]; then
     fn_param_arr
     incomplete_struct
     break_fn
+    _continue
 fi
 
 while [ $# -ne 0 ]; do
@@ -695,6 +707,7 @@ while [ $# -ne 0 ]; do
     "47") fn_param_arr ;;
     "48") incomplete_struct ;;
     "49") break_fn ;;
+    "50") _continue ;;
     esac
     shift
 done
