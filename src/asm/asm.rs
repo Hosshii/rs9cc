@@ -714,12 +714,6 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     }
 }
 
-// fn gen_gvar(gvar: &GvarMp) {
-#[cfg(debug_assertions)]
-//     writeln!(ctx.asm,"# gen gval")?;
-
-// }
-
 fn load(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     #[cfg(debug_assertions)]
     writeln!(ctx.asm, "# load")?;
