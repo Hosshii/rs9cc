@@ -41,6 +41,16 @@ pub(crate) fn consume_semi(iter: &mut TokenIter) -> bool {
     return false;
 }
 
+pub(crate) fn consume_colon(iter: &mut TokenIter) -> bool {
+    if let Some(x) = iter.peek() {
+        if x.kind == TokenKind::Colon {
+            iter.next();
+            return true;
+        }
+    }
+    return false;
+}
+
 pub(crate) fn consume_ident(iter: &mut TokenIter) -> Option<Ident> {
     if let Some(x) = iter.peek() {
         if let TokenKind::Ident(x) = x.kind {

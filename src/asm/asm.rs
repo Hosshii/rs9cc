@@ -8,6 +8,7 @@ pub struct Context {
     jump_label: usize,
     break_label: usize,
     continue_label: usize,
+    func_name: String,
     asm: String,
 }
 
@@ -17,6 +18,7 @@ impl Context {
             jump_label: 1,
             break_label: 0,
             continue_label: 0,
+            func_name: String::new(),
             asm: String::new(),
         }
     }
@@ -105,6 +107,7 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
     writeln!(ctx.asm, ".global main")?;
     // asm生成
     for function in program.functions {
+        ctx.func_name = function.def.ident.name.clone();
         #[cfg(debug_assertions)]
         writeln!(ctx.asm, "# start prologue")?;
 
@@ -365,6 +368,15 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 return Ok(());
             }
         },
+        NodeKind::Goto(ident) => {
+            writeln!(ctx.asm, "    jmp .L.label.{}.{}", ctx.func_name, ident.name)?;
+            return Ok(());
+        }
+        NodeKind::Label(ident) => {
+            writeln!(ctx.asm, ".L.label.{}.{}:", ctx.func_name, ident.name)?;
+            gen(&node.lhs.as_ref().unwrap(), ctx)?;
+            return Ok(());
+        }
         NodeKind::Block(stmts) | NodeKind::StmtExpr(stmts) => {
             #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Block,StmtExpr")?;

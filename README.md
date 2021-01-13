@@ -38,6 +38,8 @@ stmt                    = expr ";"
                         | declaration ("=" initialize)? ";"
                         | "break" ";" 
                         | "continue" ";"
+                        | "goto" ident ";"
+                        | ident ":" stmt
 expr                    = assign ("," assign)*
 assign                  = logor (assign-op assign)?
 assign-op               = "=" | "+=" | "-=" | "*=" | "/=" 

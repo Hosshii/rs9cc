@@ -583,6 +583,13 @@ _continue() {
     assert 11 'int main(){int i=0; int j=0; while(!i) { while (j++!=10) continue; break; } return j;}'
 }
 
+goto() {
+    assert 3 'int main(){int i =0; goto a; a: i++; b: i++; c: i++; return i;}'
+    assert 2 'int main(){int i =0; goto e; d: i++; e: i++; f: i++; return i;}'
+    assert 1 'int main(){int i =0; goto j; g: i++; h: i++; j: i++; return i;}'
+    assert 1 'int test(){a:return 0;} int main(){a:return 1;}'
+}
+
 build() {
     cargo build
 }
@@ -654,6 +661,7 @@ if [ $# -eq 0 ]; then
     incomplete_struct
     break_fn
     _continue
+    goto
 fi
 
 while [ $# -ne 0 ]; do
@@ -708,6 +716,7 @@ while [ $# -ne 0 ]; do
     "48") incomplete_struct ;;
     "49") break_fn ;;
     "50") _continue ;;
+    "51") goto ;;
     esac
     shift
 done

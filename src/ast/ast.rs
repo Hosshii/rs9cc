@@ -667,6 +667,8 @@ pub fn unary_initialize(
 //             | declaration ("=" initialize)? ";"
 //             | "break" ";"
 //             | "continue" ";"
+//             | "goto" ident ";"
+//             | ident ":" stmt
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(x) = iter.peek() {
         match x.kind {
@@ -720,7 +722,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     ctx.s.leave(sc);
                     return Ok(node);
                 }
-                x if x == KeyWord::Break => {
+                KeyWord::Break => {
                     iter.next();
                     expect_semi(iter)?;
                     return Ok(Node::new_leaf(NodeKind::Break));
@@ -730,6 +732,13 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                     expect_semi(iter)?;
                     return Ok(Node::new_leaf(NodeKind::Continue));
                 }
+                KeyWord::Goto => {
+                    iter.next();
+                    let ident = expect_ident(iter)?;
+                    expect_semi(iter)?;
+                    return Ok(Node::new_leaf(NodeKind::Goto(ident)));
+                }
+
                 _ => (),
             },
             TokenKind::Block(block) => match block {
@@ -755,6 +764,17 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 }
             },
             _ => (),
+        }
+    }
+
+    {
+        let cur = iter.clone();
+        if let Some(ident) = consume_ident(iter) {
+            if consume_colon(iter) {
+                return Ok(Node::new_unary(NodeKind::Label(ident), stmt(iter, ctx)?));
+            } else {
+                *iter = cur;
+            }
         }
     }
 

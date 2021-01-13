@@ -13,6 +13,7 @@ pub enum TokenKind {
     TypeKind(TypeKind),
     Comment(Comment),
     SemiColon,
+    Colon,
     Comma,
     DoubleQuote,
     SingleQuote,
@@ -34,6 +35,7 @@ impl TokenKind {
             TypeKind(x) => x.as_str().to_string(),
             Comment(x) => x.as_str().to_string(),
             SemiColon => ";".to_string(),
+            Colon => ":".to_string(),
             Comma => ",".to_string(),
             DoubleQuote => "\"".to_string(),
             SingleQuote => "'".to_string(),
@@ -201,6 +203,7 @@ pub enum KeyWord {
     Static,
     Break,
     Continue,
+    Goto,
 }
 
 impl KeyWord {
@@ -218,6 +221,7 @@ impl KeyWord {
             Static => "static",
             Break => "break",
             Continue => "continue",
+            Goto => "goto",
         }
     }
 
@@ -235,6 +239,7 @@ impl KeyWord {
             x if x.starts_with(Static.as_str()) => Ok(Static),
             x if x.starts_with(Break.as_str()) => Ok(Break),
             x if x.starts_with(Continue.as_str()) => Ok(Continue),
+            x if x.starts_with(Goto.as_str()) => Ok(Goto),
             _ => Err(()),
         }
     }
@@ -256,6 +261,7 @@ impl FromStr for KeyWord {
             x if x == Static.as_str() => Ok(Static),
             x if x == Break.as_str() => Ok(Break),
             x if x == Continue.as_str() => Ok(Continue),
+            x if x == Goto.as_str() => Ok(Goto),
             _ => Err(()),
         }
     }
@@ -490,6 +496,18 @@ impl<'a> TokenIter<'a> {
         None
     }
 
+    fn is_colon(&self, s: &str) -> Option<(Token, TokenPos)> {
+        use self::TokenKind::*;
+        let ss = s.chars().nth(0).unwrap();
+        if ss.to_string() == Colon.as_string() {
+            return Some((
+                Token::new(Colon, self.pos, self.prev_pos),
+                TokenPos::new_bytes(1),
+            ));
+        }
+        None
+    }
+
     fn is_ident(&self, s: &str) -> Option<(Token, TokenPos)> {
         let (ident, _, first_non_num_idx) = split_ident(s);
         if !ident.is_empty() {
@@ -702,6 +720,12 @@ impl<'a> Iterator for TokenIter<'a> {
             return Some(tk);
         }
 
+        if let Some((tk, pos)) = self.is_colon(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Some(tk);
+        }
+
         if let Some((tk, pos)) = self.is_block_paren(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
@@ -764,6 +788,7 @@ fn split_ident(s: &str) -> (&str, &str, usize) {
             break;
         }
         if s[i..].starts_with(&TokenKind::SemiColon.as_string())
+            || s[i..].starts_with(&TokenKind::Colon.as_string())
             || s[i..].starts_with(" ")
             || s[i..].starts_with(&TokenKind::Comma.as_string())
             || s[i..].starts_with(Block::LParen.as_str())
@@ -884,7 +909,7 @@ mod tests {
         assert_eq!(None, iter.next());
 
         let input = "
-            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static break continue";
+            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static break continue goto :";
 
         let expected = vec![
             KeyWord(Return),
@@ -908,6 +933,8 @@ mod tests {
             KeyWord(Static),
             KeyWord(Break),
             KeyWord(Continue),
+            KeyWord(Goto),
+            TokenKind::Colon,
         ];
         let mut iter = tokenize(input, "");
         for i in expected {

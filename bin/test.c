@@ -33,6 +33,7 @@ long sub_long(long a, long b){return a-b;}
 char char_fn() { return 257; }
 int count(){static int cnt; cnt = cnt+1; return cnt;}
 int arr_param(int x[]) {return x[0];}
+int label_test(){label_test: return 1;}
 
 int g_1;
 int g_2;
@@ -531,6 +532,12 @@ int main() {
   assert( 11, ({int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; }  i;}),"({int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; }  i;})");
   assert( 5, ({int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; }  j;}),"({int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; }  j;})");
   assert( 11, ({int i=0; int j=0; while(!i) { while (j++!=10) continue; break; }  j;}),"({int i=0; int j=0; while(!i) { while (j++!=10) continue; break; }  j;})");
+  // #51
+  printf("\n\n#51\n");
+  assert( 3, ({int i =0; goto a; a: i++; b: i++; c: i++;  i;}),"({int i =0; goto a; a: i++; b: i++; c: i++;  i;})");
+  assert( 2, ({int i =0; goto e; d: i++; e: i++; f: i++;  i;}),"({int i =0; goto e; d: i++; e: i++; f: i++;  i;})");
+  assert( 1, ({int i =0; goto j; g: i++; h: i++; j: i++;  i;}),"({int i =0; goto j; g: i++; h: i++; j: i++;  i;})");
+  assert( 1, ({label_test:1;1;}),"({label_test:return 1;})");
 
 
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");

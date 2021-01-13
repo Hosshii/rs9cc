@@ -58,6 +58,8 @@ pub enum NodeKind {
     LogAnd,
     Break,
     Continue,
+    Goto(Ident),
+    Label(Ident),
     Null,
 }
 
@@ -116,6 +118,8 @@ impl NodeKind {
             LogAnd => "&&".to_string(),
             Break => "break".to_string(),
             Continue => "continue".to_string(),
+            Goto(_) => "goto".to_string(),
+            Label(_) => "label".to_string(),
             Null => "null".to_string(),
         }
     }
