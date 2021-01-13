@@ -103,6 +103,7 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
     writeln!(ctx.asm, ".global main")?;
     // asm生成
     for function in program.functions {
+        #[cfg(debug_assertions)]
         writeln!(ctx.asm, "# start prologue")?;
 
         writeln!(ctx.asm, "{}:", function.def.ident.name)?;
@@ -129,6 +130,7 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
             writeln!(ctx.asm, "    mov [rax], {}", reg)?;
         }
 
+        #[cfg(debug_assertions)]
         writeln!(ctx.asm, "# end prologue")?;
 
         for node in function.nodes {
@@ -147,6 +149,7 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
 pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     match &node.kind {
         NodeKind::Num(x) => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# number")?;
             if x > &(u32::MAX as u64) {
                 writeln!(ctx.asm, "    movabs rax, {}", x)?;
@@ -157,6 +160,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Lvar(_) | NodeKind::Gvar(_) => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Lvar, Gvar")?;
             gen_val(node, ctx)?;
             if let Ok(TypeKind::Array(_, _, _)) = node.get_type() {
@@ -166,6 +170,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Member(_, member) => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Member")?;
             gen_val(node, ctx)?;
             if let TypeKind::Array(_, _, _) = &*member.get_type() {
@@ -175,6 +180,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Assign => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Assign")?;
             if let Some(lhs) = &node.lhs {
                 gen_val(&lhs, ctx)?;
@@ -222,6 +228,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Return => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Return")?;
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)?;
@@ -235,6 +242,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::If => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::If")?;
             if let Some(cond) = &node.cond {
                 gen(cond, ctx)?;
@@ -271,6 +279,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::While => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::While")?;
             let jlb_num = ctx.jump_label;
             let break_num = ctx.break_label;
@@ -297,6 +306,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::For => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::For")?;
             let jlb_num = ctx.jump_label;
             let break_num = ctx.break_label;
@@ -339,6 +349,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             }
         },
         NodeKind::Block(stmts) | NodeKind::StmtExpr(stmts) => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Block,StmtExpr")?;
             for stmt in stmts {
                 gen(stmt, ctx)?;
@@ -346,6 +357,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Func(func_prototype, args) => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Func")?;
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
@@ -407,6 +419,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Addr => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Addr")?;
             if let Some(lhs) = &node.lhs {
                 gen_val(&lhs, ctx)?;
@@ -416,6 +429,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Deref => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Deref")?;
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)?;
@@ -429,6 +443,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Declaration(_) => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# declaration")?;
             if let Some(ref init) = node.init {
                 for i in init {
@@ -439,6 +454,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::ExprStmt => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::ExprStmt")?;
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)?;
@@ -450,17 +466,20 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         }
         NodeKind::Null => return Ok(()),
         NodeKind::Cast(type_kind) => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# cast")?;
             gen(&node.lhs.as_ref().unwrap(), ctx)?;
             cast(type_kind, ctx)?;
             return Ok(());
         }
         NodeKind::Comma => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# comma")?;
             gen(node.lhs.as_ref().unwrap(), ctx)?;
             gen(node.rhs.as_ref().unwrap(), ctx)?;
         }
         NodeKind::PreInc => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# preinc")?;
             gen_val(node.lhs.as_ref().unwrap(), ctx)?;
             writeln!(ctx.asm, "    push [rsp]")?;
@@ -470,6 +489,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::PreDec => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# predec")?;
             gen_val(node.lhs.as_ref().unwrap(), ctx)?;
             writeln!(ctx.asm, "    push [rsp]")?;
@@ -479,6 +499,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::PostInc => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# postinc")?;
             gen_val(node.lhs.as_ref().unwrap(), ctx)?;
             writeln!(ctx.asm, "    push [rsp]")?;
@@ -489,6 +510,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::PostDec => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# postdec")?;
             gen_val(node.lhs.as_ref().unwrap(), ctx)?;
             writeln!(ctx.asm, "    push [rsp]")?;
@@ -499,6 +521,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::Not => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# not")?;
             gen(node.lhs.as_ref().unwrap(), ctx)?;
             writeln!(ctx.asm, "    pop rax")?;
@@ -509,6 +532,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::BitNot => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# bit not")?;
             gen(node.lhs.as_ref().unwrap(), ctx)?;
             writeln!(ctx.asm, "    pop rax")?;
@@ -517,6 +541,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::LogOr => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# log or")?;
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
@@ -536,6 +561,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             return Ok(());
         }
         NodeKind::LogAnd => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# log and")?;
             let jlb_num = ctx.jump_label;
             ctx.jump_label += 1;
@@ -558,35 +584,42 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     }
 
     if let Some(lhs) = &node.lhs {
+        #[cfg(debug_assertions)]
         writeln!(ctx.asm, "# lhs")?;
         gen(lhs, ctx)?;
     }
     if let Some(rhs) = &node.rhs {
+        #[cfg(debug_assertions)]
         writeln!(ctx.asm, "# rhs")?;
         gen(rhs, ctx)?;
     }
 
+    #[cfg(debug_assertions)]
     writeln!(ctx.asm, "# pop")?;
     writeln!(ctx.asm, "    pop rdi")?;
     writeln!(ctx.asm, "    pop rax")?;
 
     match node.kind {
         NodeKind::Add => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# Add")?;
             ptr_op(node, ctx)?;
             writeln!(ctx.asm, "    add rax, rdi")?;
         }
         NodeKind::Sub => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# Sub")?;
             ptr_op(node, ctx)?;
             writeln!(ctx.asm, "    sub rax, rdi")?;
         }
         NodeKind::Mul => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# Mul")?;
             ptr_op(node, ctx)?;
             writeln!(ctx.asm, "    imul rax, rdi")?;
         }
         NodeKind::Div => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# Div")?;
             writeln!(ctx.asm, "    cqo")?;
             writeln!(ctx.asm, "    idiv rdi")?;
@@ -601,24 +634,28 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             writeln!(ctx.asm, "    xor rax, rdi")?;
         }
         NodeKind::Equal => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# Equal")?;
             writeln!(ctx.asm, "    cmp rax, rdi")?;
             writeln!(ctx.asm, "    sete al")?;
             writeln!(ctx.asm, "    movzb rax, al")?;
         }
         NodeKind::Leq => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# Leq")?;
             writeln!(ctx.asm, "    cmp rax, rdi")?;
             writeln!(ctx.asm, "    setle al")?;
             writeln!(ctx.asm, "    movzb rax, al")?;
         }
         NodeKind::Lesser => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# Lesser")?;
             writeln!(ctx.asm, "    cmp rax, rdi")?;
             writeln!(ctx.asm, "    setl al")?;
             writeln!(ctx.asm, "    movzb rax, al")?;
         }
         NodeKind::Neq => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# Neq")?;
             writeln!(ctx.asm, "    cmp rax, rdi")?;
             writeln!(ctx.asm, "    setne al")?;
@@ -632,9 +669,11 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 }
 
 fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    #[cfg(debug_assertions)]
     writeln!(ctx.asm, "# gen val")?;
     match &node.kind {
         NodeKind::Lvar(x) => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# lvar")?;
             writeln!(ctx.asm, "    mov rax, rbp")?;
             writeln!(ctx.asm, "    sub rax, {}", x.offset)?;
@@ -642,12 +681,14 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             Ok(())
         }
         NodeKind::Gvar(x) => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# gvar")?;
             writeln!(ctx.asm, "    mov rax, OFFSET FLAT:{}", x.dec.ident.name)?;
             writeln!(ctx.asm, "    push rax")?;
             Ok(())
         }
         NodeKind::Deref => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# deref")?;
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)
@@ -656,6 +697,7 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             }
         }
         NodeKind::Member(_, member) => {
+            #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# member")?;
             if let Some(lhs) = &node.lhs {
                 gen_val(&lhs, ctx)?;
@@ -673,11 +715,14 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 }
 
 // fn gen_gvar(gvar: &GvarMp) {
+#[cfg(debug_assertions)]
 //     writeln!(ctx.asm,"# gen gval")?;
 
 // }
 
 fn load(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    #[cfg(debug_assertions)]
+    writeln!(ctx.asm, "# load")?;
     let mut word = "mov rax, [rax]";
     if let Ok(type_kind) = node.get_type() {
         match type_kind {
@@ -715,6 +760,7 @@ fn gen_load_asm(size: u64, signed: bool) -> Option<&'static str> {
 /// もし`node`の要素が`array`だったら、`array`の要素のサイズに合わせてstoreする
 fn store(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     let mut word = "mov [rax], rdi";
+    #[cfg(debug_assertions)]
     writeln!(ctx.asm, "# store")?;
     writeln!(ctx.asm, "    pop rdi")?;
     writeln!(ctx.asm, "    pop rax")?;
@@ -747,6 +793,7 @@ fn gen_store_asm(size: u64) -> Option<&'static str> {
 }
 
 fn ptr_op(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    #[cfg(debug_assertions)]
     writeln!(ctx.asm, "# ptr op")?;
     if let Some(ref lhs) = node.lhs {
         if let Ok(type_kind) = &lhs.get_type() {
@@ -764,6 +811,7 @@ fn ptr_op(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 fn cast(type_kind: &TypeKind, ctx: &mut Context) -> Result<(), Error> {
     use TypeKind::*;
 
+    #[cfg(debug_assertions)]
     writeln!(ctx.asm, "# cast")?;
     writeln!(ctx.asm, "    pop rax")?;
     if type_kind == &_Bool {
@@ -782,6 +830,8 @@ fn cast(type_kind: &TypeKind, ctx: &mut Context) -> Result<(), Error> {
 }
 
 pub fn inc(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    #[cfg(debug_assertions)]
+    writeln!(ctx.asm, "# inc")?;
     writeln!(ctx.asm, "    pop rax")?;
     writeln!(ctx.asm, "    push rdi")?; // keep rdi
     writeln!(ctx.asm, "    mov rdi, 1")?;
@@ -793,6 +843,8 @@ pub fn inc(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 }
 
 pub fn dec(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    #[cfg(debug_assertions)]
+    writeln!(ctx.asm, "# dec")?;
     writeln!(ctx.asm, "    pop rax")?;
     writeln!(ctx.asm, "    push rdi")?; // keep rdi
     writeln!(ctx.asm, "    mov rdi, 1")?;
