@@ -669,78 +669,127 @@ pub fn unary_initialize(
 //             | "continue" ";"
 //             | "goto" ident ";"
 //             | ident ":" stmt
+//             | "switch" "("expr")" stmt
+//             | "case" num ":" stmt
+//             | "default" ":" stmt
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(x) = iter.peek() {
         match x.kind {
-            TokenKind::KeyWord(key) => match key {
-                KeyWord::Return => {
-                    iter.next();
-                    let node = Node::new_unary(NodeKind::Return, expr(iter, ctx)?);
-                    expect_semi(iter)?;
-                    return Ok(node);
-                }
-                KeyWord::If => {
-                    iter.next();
-                    expect(iter, Operator::LParen)?;
-                    let mut node = Node::new_cond(NodeKind::If, expr(iter, ctx)?);
-                    expect(iter, Operator::RParen)?;
-                    node.then = Some(Box::new(stmt(iter, ctx)?));
-                    if let Some(x) = iter.peek() {
-                        if x.kind == TokenKind::KeyWord(KeyWord::Else) {
-                            iter.next();
-                            node.els = Some(Box::new(stmt(iter, ctx)?));
+            TokenKind::KeyWord(key) => {
+                match key {
+                    KeyWord::Return => {
+                        iter.next();
+                        let node = Node::new_unary(NodeKind::Return, expr(iter, ctx)?);
+                        expect_semi(iter)?;
+                        return Ok(node);
+                    }
+                    KeyWord::If => {
+                        iter.next();
+                        expect(iter, Operator::LParen)?;
+                        let mut node = Node::new_cond(NodeKind::If, expr(iter, ctx)?);
+                        expect(iter, Operator::RParen)?;
+                        node.then = Some(Box::new(stmt(iter, ctx)?));
+                        if let Some(x) = iter.peek() {
+                            if x.kind == TokenKind::KeyWord(KeyWord::Else) {
+                                iter.next();
+                                node.els = Some(Box::new(stmt(iter, ctx)?));
+                            }
+                        }
+                        return Ok(node);
+                    }
+                    KeyWord::While => {
+                        iter.next();
+                        expect(iter, Operator::LParen)?;
+                        let mut node = Node::new_cond(NodeKind::While, expr(iter, ctx)?);
+                        expect(iter, Operator::RParen)?;
+                        node.then = Some(Box::new(stmt(iter, ctx)?));
+                        return Ok(node);
+                    }
+                    KeyWord::For => {
+                        iter.next();
+                        expect(iter, Operator::LParen)?;
+                        let mut node = Node::new_none(NodeKind::For);
+                        let sc = ctx.s.enter();
+
+                        if !consume_semi(iter) {
+                            node.init = Some(vec![stmt(iter, ctx)?]);
+                        }
+                        if !consume_semi(iter) {
+                            node.cond = Some(Box::new(expr(iter, ctx)?));
+                            expect_semi(iter)?;
+                        }
+                        if !consume(iter, Operator::RParen) {
+                            node.inc = Some(Box::new(read_expr_stmt(iter, ctx)?));
+                            expect(iter, Operator::RParen)?;
+                        }
+                        node.then = Some(Box::new(stmt(iter, ctx)?));
+                        ctx.s.leave(sc);
+                        return Ok(node);
+                    }
+                    KeyWord::Break => {
+                        iter.next();
+                        expect_semi(iter)?;
+                        return Ok(Node::new_leaf(NodeKind::Break));
+                    }
+                    KeyWord::Continue => {
+                        iter.next();
+                        expect_semi(iter)?;
+                        return Ok(Node::new_leaf(NodeKind::Continue));
+                    }
+                    KeyWord::Goto => {
+                        iter.next();
+                        let ident = expect_ident(iter)?;
+                        expect_semi(iter)?;
+                        return Ok(Node::new_leaf(NodeKind::Goto(ident)));
+                    }
+                    KeyWord::Switch => {
+                        iter.next();
+                        expect(iter, Operator::LParen)?;
+                        // let mut node = Node::new_leaf(NodeKind::Switch);
+                        let cond = Some(Box::new(expr(iter, ctx)?));
+                        expect(iter, Operator::RParen)?;
+
+                        let sw = std::mem::replace(&mut ctx.cur_switch, Some(vec![]));
+                        let then = Some(Box::new(stmt(iter, ctx)?));
+
+                        let cases = std::mem::replace(&mut ctx.cur_switch, sw)
+                            .ok_or(Error::todo(iter.filepath, iter.s, iter.pos))?;
+                        let mut node = Node::new_leaf(NodeKind::Switch(cases));
+                        node.cond = cond;
+                        node.then = then;
+                        return Ok(node);
+                    }
+                    KeyWord::Case => {
+                        iter.next();
+                        match ctx.cur_switch.take() {
+                            Some(mut cur_case) => {
+                                let val = expect_num(iter)?;
+                                expect_colon(iter)?;
+                                cur_case
+                                    .push(Node::new_unary(NodeKind::Case(val), stmt(iter, ctx)?));
+                                ctx.cur_switch = Some(cur_case);
+                                return Ok(Node::new_leaf(NodeKind::Null));
+                            }
+                            None => return Err(Error::stray_case(iter.filepath, iter.s, iter.pos)),
                         }
                     }
-                    return Ok(node);
-                }
-                KeyWord::While => {
-                    iter.next();
-                    expect(iter, Operator::LParen)?;
-                    let mut node = Node::new_cond(NodeKind::While, expr(iter, ctx)?);
-                    expect(iter, Operator::RParen)?;
-                    node.then = Some(Box::new(stmt(iter, ctx)?));
-                    return Ok(node);
-                }
-                KeyWord::For => {
-                    iter.next();
-                    expect(iter, Operator::LParen)?;
-                    let mut node = Node::new_none(NodeKind::For);
-                    let sc = ctx.s.enter();
+                    KeyWord::Default => {
+                        iter.next();
+                        match ctx.cur_switch.take() {
+                            Some(mut cur_case) => {
+                                expect_colon(iter)?;
+                                cur_case
+                                    .push(Node::new_unary(NodeKind::DefaultCase, stmt(iter, ctx)?));
+                                ctx.cur_switch = Some(cur_case);
+                                return Ok(Node::new_leaf(NodeKind::Null));
+                            }
+                            None => return Err(Error::stray_case(iter.filepath, iter.s, iter.pos)),
+                        }
+                    }
 
-                    if !consume_semi(iter) {
-                        node.init = Some(vec![stmt(iter, ctx)?]);
-                    }
-                    if !consume_semi(iter) {
-                        node.cond = Some(Box::new(expr(iter, ctx)?));
-                        expect_semi(iter)?;
-                    }
-                    if !consume(iter, Operator::RParen) {
-                        node.inc = Some(Box::new(read_expr_stmt(iter, ctx)?));
-                        expect(iter, Operator::RParen)?;
-                    }
-                    node.then = Some(Box::new(stmt(iter, ctx)?));
-                    ctx.s.leave(sc);
-                    return Ok(node);
+                    _ => (),
                 }
-                KeyWord::Break => {
-                    iter.next();
-                    expect_semi(iter)?;
-                    return Ok(Node::new_leaf(NodeKind::Break));
-                }
-                KeyWord::Continue => {
-                    iter.next();
-                    expect_semi(iter)?;
-                    return Ok(Node::new_leaf(NodeKind::Continue));
-                }
-                KeyWord::Goto => {
-                    iter.next();
-                    let ident = expect_ident(iter)?;
-                    expect_semi(iter)?;
-                    return Ok(Node::new_leaf(NodeKind::Goto(ident)));
-                }
-
-                _ => (),
-            },
+            }
             TokenKind::Block(block) => match block {
                 Block::LParen => {
                     iter.next();

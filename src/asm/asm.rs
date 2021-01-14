@@ -377,6 +377,56 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             gen(&node.lhs.as_ref().unwrap(), ctx)?;
             return Ok(());
         }
+        NodeKind::Switch(cases) => {
+            #[cfg(debug_assertions)]
+            writeln!(ctx.asm, "# NodeKind::Switch")?;
+            let jlb_num = ctx.jump_label;
+            let break_num = ctx.break_label;
+            ctx.break_label = jlb_num;
+
+            gen(node.cond.as_ref().unwrap(), ctx)?;
+            writeln!(ctx.asm, "    pop rax")?;
+
+            let mut has_default = false;
+            for case in cases {
+                match case.kind {
+                    NodeKind::Case(num) => {
+                        writeln!(ctx.asm, "    cmp rax, {}", num)?;
+                        writeln!(ctx.asm, "    je .L.case.{}", ctx.jump_label)?;
+                        ctx.jump_label += 1;
+                    }
+                    NodeKind::DefaultCase => {
+                        has_default = true;
+                    }
+                    _ => return Err(Error::todo()),
+                }
+            }
+            if has_default {
+                writeln!(ctx.asm, "    jmp .L.case.{}", ctx.jump_label)?;
+                ctx.jump_label += 1;
+            }
+
+            writeln!(ctx.asm, "    jmp .L.break.{}", jlb_num)?;
+            gen(node.then.as_ref().unwrap(), ctx)?;
+
+            ctx.jump_label = jlb_num;
+            for case in cases {
+                match case.kind {
+                    NodeKind::Case(_) | NodeKind::DefaultCase => {
+                        writeln!(ctx.asm, ".L.case.{}:", ctx.jump_label)?;
+                        gen(case.lhs.as_ref().unwrap(), ctx)?;
+                        writeln!(ctx.asm, "    jmp .L.break.{}", jlb_num)?;
+                        ctx.jump_label += 1;
+                    }
+                    _ => return Err(Error::todo()),
+                }
+            }
+            writeln!(ctx.asm, ".L.break.{}:", jlb_num)?;
+            ctx.break_label = break_num;
+            return Ok(());
+        }
+        // NodeKind::Case(num) => {}
+        // NodeKind::DefaultCase => {}
         NodeKind::Block(stmts) | NodeKind::StmtExpr(stmts) => {
             #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Block,StmtExpr")?;

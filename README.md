@@ -40,6 +40,9 @@ stmt                    = expr ";"
                         | "continue" ";"
                         | "goto" ident ";"
                         | ident ":" stmt
+                        | "switch" "("expr")" stmt
+                        | "case" num ":" stmt
+                        | "default" ":" stmt
 expr                    = assign ("," assign)*
 assign                  = logor (assign-op assign)?
 assign-op               = "=" | "+=" | "-=" | "*=" | "/=" 

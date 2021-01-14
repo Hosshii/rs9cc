@@ -532,12 +532,22 @@ int main() {
   assert( 11, ({int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; }  i;}),"({int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; }  i;})");
   assert( 5, ({int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; }  j;}),"({int i=0; int j=0; while (i++<10) { if (i>5) continue; j++; }  j;})");
   assert( 11, ({int i=0; int j=0; while(!i) { while (j++!=10) continue; break; }  j;}),"({int i=0; int j=0; while(!i) { while (j++!=10) continue; break; }  j;})");
+
   // #51
   printf("\n\n#51\n");
   assert( 3, ({int i =0; goto a; a: i++; b: i++; c: i++;  i;}),"({int i =0; goto a; a: i++; b: i++; c: i++;  i;})");
   assert( 2, ({int i =0; goto e; d: i++; e: i++; f: i++;  i;}),"({int i =0; goto e; d: i++; e: i++; f: i++;  i;})");
   assert( 1, ({int i =0; goto j; g: i++; h: i++; j: i++;  i;}),"({int i =0; goto j; g: i++; h: i++; j: i++;  i;})");
   assert( 1, ({label_test:1;1;}),"({label_test:return 1;})");
+
+  // #52
+  printf("\n\n#52\n");
+  assert( 1, ({int i = 0; switch(0){case 0: i = 1;break; case 1: i = 2;break; case 3: i=3;break;} i;}),"({int i = 0; switch(0){case 0: i = 1;break; case 1: i = 2;break; case 3: i=3;break;} i;})");
+  assert( 6, ({int i=0; switch(1) { case 0:i=5;break; case 1:i=6;break; case 2:i=7;break; } i;}),"({int i=0; switch(1) { case 0:i=5;break; case 1:i=6;break; case 2:i=7;break; } i;})");
+  assert( 7, ({int i=0; switch(2) { case 0:i=5;break; case 1:i=6;break; case 2:i=7;break; } i;}),"({int i=0; switch(2) { case 0:i=5;break; case 1:i=6;break; case 2:i=7;break; } i;})");
+  assert( 1, ({int i=1; switch(3) { case 0:i=5;break; case 1:i=6;break; case 2:i=7;break; } i;}),"({int i=1; switch(3) { case 0:i=5;break; case 1:i=6;break; case 2:i=7;break; } i;})");
+  assert( 5, ({int i=0; switch(0) { case 0:i=5;break; default:i=7; } i;}),"({int i=0; switch(0) { case 0:i=5;break; default:i=7; } i;})");
+  assert( 7, ({int i=0; switch(1) { case 0:i=5;break; default:i=7; } i;}),"({int i=0; switch(1) { case 0:i=5;break; default:i=7; } i;})");
 
 
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");

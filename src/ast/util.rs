@@ -222,6 +222,29 @@ pub(crate) fn expect_semi(iter: &mut TokenIter) -> Result<(), Error> {
     ))
 }
 
+pub(crate) fn expect_colon(iter: &mut TokenIter) -> Result<(), Error> {
+    if let Some(x) = iter.peek() {
+        if x.kind == TokenKind::Colon {
+            iter.next();
+            return Ok(());
+        } else {
+            return Err(Error::unexpected_token(
+                iter.filepath,
+                iter.s,
+                x.clone(),
+                TokenKind::Colon,
+            ));
+        }
+    }
+    Err(Error::eof(
+        iter.filepath,
+        iter.s,
+        iter.pos,
+        TokenKind::Colon,
+        None,
+    ))
+}
+
 pub(crate) fn expect_keyword(iter: &mut TokenIter, keyword: KeyWord) -> Result<(), Error> {
     if let Some(x) = iter.peek() {
         if x.kind == TokenKind::KeyWord(keyword) {

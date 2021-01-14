@@ -21,6 +21,7 @@ pub enum ErrorKind {
     InvalidAssignment(TypeKind, TypeKind),
     InvalidInitialization(Rc<Lvar>, String),
     InvalidStmtExpr,
+    StrayCase,
     EOF(TokenKind),
     Todo,
     Unimplemented,
@@ -227,6 +228,20 @@ impl Error {
         }
     }
 
+    pub fn stray_case(
+        filepath: impl Into<String>,
+        input: impl Into<String>,
+        pos: TokenPos,
+    ) -> Error {
+        Error {
+            filepath: filepath.into(),
+            kind: StrayCase,
+            pos,
+            input: input.into(),
+            msg: None,
+        }
+    }
+
     pub fn todo(filepath: impl Into<String>, input: impl Into<String>, pos: TokenPos) -> Error {
         Error {
             filepath: filepath.into(),
@@ -279,6 +294,7 @@ impl fmt::Display for Error {
                 invalid_initialization_err_format(&self, lhs, rhs, f)
             }
             InvalidStmtExpr => invalid_stmt_expr_err_format(&self, f),
+            StrayCase => err_format(&self, "stray case", f),
             Todo => err_format(&self, "todo", f),
             Unimplemented => err_format(&self, "not yet implemented", f),
         }

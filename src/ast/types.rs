@@ -60,6 +60,9 @@ pub enum NodeKind {
     Continue,
     Goto(Ident),
     Label(Ident),
+    Switch(Vec<Node>),
+    Case(u64),
+    DefaultCase,
     Null,
 }
 
@@ -120,6 +123,9 @@ impl NodeKind {
             Continue => "continue".to_string(),
             Goto(_) => "goto".to_string(),
             Label(_) => "label".to_string(),
+            Switch(_) => "switch".to_string(),
+            Case(num) => format!("case{}", num).to_string(),
+            DefaultCase => "default case".to_string(),
             Null => "null".to_string(),
         }
     }
@@ -198,6 +204,7 @@ pub struct Node {
     pub els: Option<Box<Node>>,
     pub init: Option<Vec<Node>>,
     pub inc: Option<Box<Node>>,
+    pub switch: Option<Vec<Node>>,
 }
 
 impl Node {
@@ -217,6 +224,7 @@ impl Node {
         els: Option<Box<Node>>,
         init: Option<Vec<Node>>,
         inc: Option<Box<Node>>,
+        switch: Option<Vec<Node>>,
     ) -> Node {
         Node {
             kind,
@@ -227,6 +235,7 @@ impl Node {
             els,
             init,
             inc,
+            switch,
         }
     }
 
@@ -274,6 +283,7 @@ impl Node {
             els: None,
             init: None,
             inc: None,
+            switch: None,
         }
     }
 
@@ -400,6 +410,7 @@ pub struct Context {
     pub l: LocalContext,
     pub s: Scope,
     pub static_counter: u32,
+    pub cur_switch: Option<Vec<Node>>,
 }
 
 impl Context {
@@ -409,6 +420,7 @@ impl Context {
             l: LocalContext::new(),
             s: Scope::new(),
             static_counter: 0,
+            cur_switch: None,
         }
     }
 

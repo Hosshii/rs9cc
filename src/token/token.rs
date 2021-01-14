@@ -204,6 +204,9 @@ pub enum KeyWord {
     Break,
     Continue,
     Goto,
+    Switch,
+    Case,
+    Default,
 }
 
 impl KeyWord {
@@ -222,6 +225,9 @@ impl KeyWord {
             Break => "break",
             Continue => "continue",
             Goto => "goto",
+            Switch => "switch",
+            Case => "case",
+            Default => "default",
         }
     }
 
@@ -240,6 +246,9 @@ impl KeyWord {
             x if x.starts_with(Break.as_str()) => Ok(Break),
             x if x.starts_with(Continue.as_str()) => Ok(Continue),
             x if x.starts_with(Goto.as_str()) => Ok(Goto),
+            x if x.starts_with(Switch.as_str()) => Ok(Switch),
+            x if x.starts_with(Case.as_str()) => Ok(Case),
+            x if x.starts_with(Default.as_str()) => Ok(Default),
             _ => Err(()),
         }
     }
@@ -262,6 +271,9 @@ impl FromStr for KeyWord {
             x if x == Break.as_str() => Ok(Break),
             x if x == Continue.as_str() => Ok(Continue),
             x if x == Goto.as_str() => Ok(Goto),
+            x if x == Switch.as_str() => Ok(Switch),
+            x if x == Case.as_str() => Ok(Case),
+            x if x == Default.as_str() => Ok(Default),
             _ => Err(()),
         }
     }
@@ -909,7 +921,7 @@ mod tests {
         assert_eq!(None, iter.next());
 
         let input = "
-            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static break continue goto :";
+            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static break continue goto : switch case default";
 
         let expected = vec![
             KeyWord(Return),
@@ -935,6 +947,9 @@ mod tests {
             KeyWord(Continue),
             KeyWord(Goto),
             TokenKind::Colon,
+            KeyWord(Switch),
+            KeyWord(Case),
+            KeyWord(Default),
         ];
         let mut iter = tokenize(input, "");
         for i in expected {

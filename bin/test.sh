@@ -590,6 +590,16 @@ goto() {
     assert 1 'int test(){a:return 0;} int main(){a:return 1;}'
 }
 
+switch() {
+    assert 1 'int main(){int i = 0; switch(0){case 0: i = 1;break; case 1: i = 2;break; case 3: i=3;break;} return i;}'
+    assert 6 'int main(){int i=0; switch(1) { case 0:i=5;break; case 1:i=6;break; case 2:i=7;break; } return i;}'
+    assert 7 'int main(){int i=0; switch(2) { case 0:i=5;break; case 1:i=6;break; case 2:i=7;break; } return i;}'
+    assert 1 'int main(){int i=1; switch(3) { case 0:i=5;break; case 1:i=6;break; case 2:i=7;break; } return i;}'
+    assert 5 'int main(){int i=0; switch(0) { case 0:i=5;break; default:i=7; } return i;}'
+    assert 7 'int main(){int i=0; switch(1) { case 0:i=5;break; default:i=7; } return i;}'
+    # assert 20 'int main(){int i=0; switch(1) { case 0:i=5;break; default:i=7; switch(i){case 0: i = 11; default: i = 20;} } return i;}'
+}
+
 build() {
     cargo build
 }
@@ -662,6 +672,7 @@ if [ $# -eq 0 ]; then
     break_fn
     _continue
     goto
+    switch
 fi
 
 while [ $# -ne 0 ]; do
@@ -717,6 +728,7 @@ while [ $# -ne 0 ]; do
     "49") break_fn ;;
     "50") _continue ;;
     "51") goto ;;
+    "52") switch ;;
     esac
     shift
 done
