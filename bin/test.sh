@@ -572,6 +572,7 @@ break_fn() {
     assert 4 'int main(){int i = 0; while(1) { while(1) break; if (i++==3)break;} return i;}'
 }
 
+# 50
 _continue() {
     assert 10 'int main(){int i = 0; for (;i<10;i++){if (i==3)continue; if (i==3){return i;}} return i;}'
     assert 10 'int main(){int i =0; int j =0;for(;i<10;i++){if(i>5)continue;j++; }return i;}'
@@ -583,6 +584,7 @@ _continue() {
     assert 11 'int main(){int i=0; int j=0; while(!i) { while (j++!=10) continue; break; } return j;}'
 }
 
+# 51
 goto() {
     assert 3 'int main(){int i =0; goto a; a: i++; b: i++; c: i++; return i;}'
     assert 2 'int main(){int i =0; goto e; d: i++; e: i++; f: i++; return i;}'
@@ -590,6 +592,7 @@ goto() {
     assert 1 'int test(){a:return 0;} int main(){a:return 1;}'
 }
 
+# 52
 switch() {
     assert 1 'int main(){int i = 0; switch(0){case 0: i = 1;break; case 1: i = 2;break; case 3: i=3;break;} return i;}'
     assert 6 'int main(){int i=0; switch(1) { case 0:i=5;break; case 1:i=6;break; case 2:i=7;break; } return i;}'
@@ -601,6 +604,11 @@ switch() {
     assert 20 'int main(){int i=0; switch(1) { case 0:i=5;break; default:i=7; switch(i){case 0: i = 11; default: i = 20;} } return i;}'
     assert 11 'int main(){int i = 0; switch(1){default: i = 10; case 0: i++;}return i;}'
     assert 9 'int main(){int i = 0; int j = 0;for(;i<10;i++){switch(i){case 5: break; default: j++;break;} if (j==5){ break;}  } return  i+j;}'
+}
+
+# 53
+void_fn() {
+    assert 0 'void void_fn(){} int main(){void_fn(); return 0;}'
 }
 
 build() {
@@ -676,6 +684,7 @@ if [ $# -eq 0 ]; then
     _continue
     goto
     switch
+    void_fn
 fi
 
 while [ $# -ne 0 ]; do
@@ -732,6 +741,7 @@ while [ $# -ne 0 ]; do
     "50") _continue ;;
     "51") goto ;;
     "52") switch ;;
+    "53") void_fn ;;
     esac
     shift
 done

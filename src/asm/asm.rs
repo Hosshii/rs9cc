@@ -507,7 +507,9 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 writeln!(ctx.asm, "    push rax")?;
             }
             writeln!(ctx.asm, ".Lend{}:", jlb_num)?;
-            cast(&func_prototype.type_kind, ctx)?;
+            if func_prototype.as_ref().type_kind != TypeKind::Void {
+                cast(&func_prototype.type_kind, ctx)?;
+            }
             return Ok(());
         }
         NodeKind::Addr => {

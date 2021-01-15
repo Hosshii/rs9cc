@@ -34,6 +34,7 @@ char char_fn() { return 257; }
 int count(){static int cnt; cnt = cnt+1; return cnt;}
 int arr_param(int x[]) {return x[0];}
 int label_test(){label_test: return 1;}
+void void_fn(){}
 
 int g_1;
 int g_2;
@@ -552,6 +553,10 @@ int main() {
   assert( 20,({int i=0; switch(1) { case 0:i=5;break; default:i=7; switch(i){case 0: i = 11; default: i = 20;} } i;}), "({int i=0; switch(1) { case 0:i=5;break; default:i=7; switch(i){case 0: i = 11; default: i = 20;} } i;})");
   assert( 11,({int i = 0; switch(1){default: i = 10; case 0: i++;} i;}), "({int i = 0; switch(1){default: i = 10; case 0: i++;} i;})");
   assert(9, ({int i = 0; int j = 0;for(;i<10;i++){switch(i){case 5: break; default: j++;break;} if (j==5){ break;}  }  i + j;}), "({int i = 0; int j = 0;for(;i<10;i++){switch(i){case 5: break; default: j++;break;} if (j==5){ break;}  }  i + j;})");
+
+  // #53
+  printf("\n\n#53\n");
+  void_fn();
 
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;
