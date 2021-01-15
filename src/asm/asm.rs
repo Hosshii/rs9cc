@@ -158,7 +158,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         NodeKind::Num(x) => {
             #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# number")?;
-            if x > &(u32::MAX as u64) {
+            if x > &(i32::MAX as i64) {
                 writeln!(ctx.asm, "    movabs rax, {}", x)?;
                 writeln!(ctx.asm, "    push rax")?;
             } else {

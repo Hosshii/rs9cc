@@ -34,7 +34,7 @@ pub enum NodeKind {
     Deref,
     Block(Vec<Node>),
     Func(Rc<FuncPrototype>, Vec<Node>), // (func_name,args)
-    Num(u64),
+    Num(i64),
     // Ident(Ident),
     Lvar(Rc<Lvar>), // usize はベースポインタからのオフセット
     TypeKind(TypeKind),
@@ -63,7 +63,7 @@ pub enum NodeKind {
     Goto(Ident),
     Label(Ident),
     Switch(Vec<Node>),
-    Case(u64),
+    Case(i64),
     DefaultCase,
     LShift,
     RShift,
@@ -246,7 +246,7 @@ impl Node {
         }
     }
 
-    pub fn new_num(val: u64) -> Node {
+    pub fn new_num(val: i64) -> Node {
         Node::new_none(Num(val))
     }
 
@@ -321,7 +321,7 @@ impl Node {
             Gvar(gvar) => Ok(gvar.get_type()),
             Func(func_prototype, _) => Ok(func_prototype.type_kind.clone()),
             Num(num) => {
-                if num > &(u32::MAX as u64) {
+                if num > &(i32::MAX as i64) {
                     Ok(TypeKind::Long)
                 } else {
                     Ok(TypeKind::Int)
@@ -746,7 +746,7 @@ pub struct Declaration {
     pub ident: Ident,
     pub is_typedef: bool,
     pub is_static: bool,
-    pub is_const: (bool, u64), // for enum
+    pub is_const: (bool, i64), // for enum
 }
 
 impl Declaration {
@@ -760,7 +760,7 @@ impl Declaration {
         }
     }
 
-    pub fn new_const(type_kind: TypeKind, ident: Ident, val: u64) -> Self {
+    pub fn new_const(type_kind: TypeKind, ident: Ident, val: i64) -> Self {
         Self {
             type_kind,
             ident,

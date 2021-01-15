@@ -623,9 +623,19 @@ _shift() {
     assert 2 'int main(){int i =5; i>>= 1; return i;}'
 }
 
+# 55
 ternary() {
     assert 2 'int main(){return 0?1:2;}'
     assert 1 'int main(){return 1?1:2;}'
+}
+
+# 56
+const_expression() {
+    assert 10 'int main(){enum { ten=1+2+3+4, }; return ten;}'
+    assert 1 'int main(){int i=0; switch(3) { case 5-2+0*3: i++; } return i;}'
+    assert 8 'int main(){int x[1+1]; return sizeof(x);}'
+    assert 2 'int main(){char x[1?2:3]; return sizeof(x);}'
+    assert 3 'int main(){char x[0?2:3]; return sizeof(x);}'
 }
 
 build() {
@@ -704,6 +714,7 @@ if [ $# -eq 0 ]; then
     void_fn
     _shift
     ternary
+    const_expression
 fi
 
 while [ $# -ne 0 ]; do
@@ -763,6 +774,7 @@ while [ $# -ne 0 ]; do
     "53") void_fn ;;
     "54") _shift ;;
     "55") ternary ;;
+    "56") const_expression ;;
     esac
     shift
 done

@@ -9,7 +9,7 @@ pub enum TokenKind {
     Ident(Ident),
     KeyWord(KeyWord),
     Block(Block),
-    Num(u64),
+    Num(i64),
     TypeKind(TypeKind),
     Comment(Comment),
     SemiColon,
@@ -500,7 +500,7 @@ impl<'a> TokenIter<'a> {
         if !digit.is_empty() {
             return Some((
                 Token::new(
-                    Num(u64::from_str_radix(digit, 10).unwrap()),
+                    Num(i64::from_str_radix(digit, 10).unwrap()),
                     self.pos,
                     self.prev_pos,
                 ),

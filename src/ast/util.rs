@@ -186,7 +186,7 @@ pub(crate) fn expect(iter: &mut TokenIter, op: Operator) -> Result<(), Error> {
     ));
 }
 
-pub(crate) fn expect_num(iter: &mut TokenIter) -> Result<u64, Error> {
+pub(crate) fn expect_num(iter: &mut TokenIter) -> Result<i64, Error> {
     if let Some(x) = iter.peek() {
         if let TokenKind::Num(xx) = x.kind {
             iter.next();
@@ -410,7 +410,7 @@ pub(crate) fn make_string_node(label: impl Into<String>, size: u64, init: Vec<No
     )))
 }
 
-pub(crate) fn make_array_idx_node(idx: u64, lvar: Rc<Lvar>) -> Node {
+pub(crate) fn make_array_idx_node(idx: i64, lvar: Rc<Lvar>) -> Node {
     Node::new(
         NodeKind::Add,
         Node::new_leaf(NodeKind::Lvar(lvar)),

@@ -121,12 +121,12 @@ impl Struct {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Enum {
     ident: Rc<Ident>,
-    list: Rc<Vec<Rc<(Ident, u64)>>>,
+    list: Rc<Vec<Rc<(Ident, i64)>>>,
     is_anonymous: bool,
 }
 
 impl Enum {
-    pub fn new(ident: Rc<Ident>, list: Rc<Vec<Rc<(Ident, u64)>>>) -> Self {
+    pub fn new(ident: Rc<Ident>, list: Rc<Vec<Rc<(Ident, i64)>>>) -> Self {
         Self {
             ident,
             list,
@@ -134,7 +134,7 @@ impl Enum {
         }
     }
 
-    pub fn new_anonymous(list: Rc<Vec<Rc<(Ident, u64)>>>) -> Self {
+    pub fn new_anonymous(list: Rc<Vec<Rc<(Ident, i64)>>>) -> Self {
         Self {
             ident: Rc::new(Ident::new(".struct.anonymous")),
             list,

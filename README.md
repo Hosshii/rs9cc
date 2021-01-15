@@ -16,12 +16,13 @@ builtin-type            = "void"
                         | "long" | "int" "long" | "long" "int" 
 declarator              = "*"* ("(" declarator ")" | ident) type-suffix
 abstract-declarator     = "*"* ("(" declarator ")")? type-suffix
-type-suffix             = ("[" num? "]" type-suffix)?
+type-suffix             = ("[" const-expr? "]" type-suffix)?
 type-name               = type-specifier abstract-declarator type-suffix
 struct-dec              = "struct" ident? ("{" declaration ";" "}")?
 enum-specifier          = enum ident? "{" enum-list? "}"
                         | enum ident
-enum-list               = ident ("=" num)? ("," ident ("=" num)?)* ","?
+enum-list               = enum-elem ("," enum-elem)* ","?
+enum-elem               = ident ("=" const-expr)?
 declaration             = type-specifier declarator type-suffix
                         | type-specifier  
 initialize              = "{" (expr ("," expr)*)? "}" 
@@ -41,7 +42,7 @@ stmt                    = expr ";"
                         | "goto" ident ";"
                         | ident ":" stmt
                         | "switch" "("expr")" stmt
-                        | "case" num ":" stmt
+                        | "case" const-expr ":" stmt
                         | "default" ":" stmt
 expr                    = assign ("," assign)*
 assign                  = conditional (assign-op assign)?

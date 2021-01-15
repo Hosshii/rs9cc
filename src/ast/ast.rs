@@ -66,7 +66,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                                 // str
                                 if let Some(string) = consume_string(iter) {
                                     for i in string.chars() {
-                                        nodes.push(Node::new_num(i as u64))
+                                        nodes.push(Node::new_num(i as i64))
                                     }
                                 }
                                 // num
@@ -286,7 +286,7 @@ pub fn abstract_declarator(
     type_suffix(iter, ctx, type_kind)
 }
 
-// type-suffix     = ("[" num? "]" type-suffix)?
+// type-suffix     = ("[" const-expr? "]" type-suffix)?
 pub fn type_suffix(
     iter: &mut TokenIter,
     ctx: &mut Context,
@@ -301,11 +301,11 @@ pub fn type_suffix(
             0, type_kind, false,
         ))));
     }
-    let idx = expect_num(iter)?;
+    let idx = const_expr(iter, ctx)?;
     expect(iter, Operator::RArr)?;
     let type_kind = type_suffix(iter, ctx, type_kind)?;
     return Ok(Rc::new(RefCell::new(TypeKind::array_of(
-        idx, type_kind, true,
+        idx as u64, type_kind, true,
     ))));
 }
 
@@ -401,7 +401,8 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<
 
 // enum-specifier          = enum ident? "{" enum-list? "}"
 //                         | enum ident
-// enum-list               = ident ("=" num)? ("," ident ("=" num)?)* ","?
+// enum-list               = enum-elem ("," enum-elem)* ","?
+// enum-elem               = ident ("=" const-expr)?
 pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum>, Error> {
     expect_keyword(iter, KeyWord::Enum)?;
     let tag = consume_ident(iter);
@@ -449,7 +450,7 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
     while !consume_block(iter, Block::RParen) {
         let ident = expect_ident(iter)?;
         if consume(iter, Operator::Assign) {
-            count = expect_num(iter)?;
+            count = const_expr(iter, ctx)?;
         }
         let l = ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0);
         ctx.push_front(
@@ -600,7 +601,7 @@ pub fn multi_field_initialize(iter: &mut TokenIter, ctx: &mut Context) -> Result
     // str
     if let Some(string) = consume_string(iter) {
         for i in string.chars() {
-            nodes.push(Node::new_num(i as u64))
+            nodes.push(Node::new_num(i as i64))
         }
     }
     // num
@@ -670,7 +671,7 @@ pub fn unary_initialize(
 //             | "goto" ident ";"
 //             | ident ":" stmt
 //             | "switch" "("expr")" stmt
-//             | "case" num ":" stmt
+//             | "case" const-expr ":" stmt
 //             | "default" ":" stmt
 pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(x) = iter.peek() {
@@ -763,7 +764,7 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                         iter.next();
                         match ctx.cur_switch.take() {
                             Some(mut cur_case) => {
-                                let val = expect_num(iter)?;
+                                let val = const_expr(iter, ctx)?;
                                 expect_colon(iter)?;
                                 let node = Node::new_unary(NodeKind::Case(val), stmt(iter, ctx)?);
                                 cur_case.push(node.clone());
@@ -909,6 +910,125 @@ pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         node = Node::new(NodeKind::Comma, node, assign(iter, ctx)?);
     }
     Ok(node)
+}
+
+fn eval(node: &mut Node) -> Result<i64, Error> {
+    use NodeKind::*;
+    match node.kind {
+        Add => {
+            return Ok(
+                eval(&mut **node.lhs.as_mut().unwrap())? + eval(&mut node.rhs.as_mut().unwrap())?
+            )
+        }
+        Sub => {
+            return Ok(
+                eval(&mut node.lhs.as_mut().unwrap())? - eval(&mut node.rhs.as_mut().unwrap())?
+            )
+        }
+        Mul => {
+            return Ok(
+                eval(&mut node.lhs.as_mut().unwrap())? * eval(&mut node.rhs.as_mut().unwrap())?
+            )
+        }
+        Div => {
+            return Ok(
+                eval(&mut node.lhs.as_mut().unwrap())? / eval(&mut node.rhs.as_mut().unwrap())?
+            )
+        }
+        BitAnd => {
+            return Ok(
+                eval(&mut node.lhs.as_mut().unwrap())? & eval(&mut node.rhs.as_mut().unwrap())?
+            )
+        }
+        BitOr => {
+            return Ok(
+                eval(&mut node.lhs.as_mut().unwrap())? | eval(&mut node.rhs.as_mut().unwrap())?
+            )
+        }
+        BitXor => {
+            return Ok(
+                eval(&mut node.lhs.as_mut().unwrap())? | eval(&mut node.rhs.as_mut().unwrap())?
+            )
+        }
+        LShift => {
+            return Ok(
+                eval(&mut node.lhs.as_mut().unwrap())? << eval(&mut node.rhs.as_mut().unwrap())?
+            )
+        }
+        RShift => {
+            return Ok(
+                eval(&mut node.lhs.as_mut().unwrap())? >> eval(&mut node.rhs.as_mut().unwrap())?
+            )
+        }
+        Equal => {
+            if eval(&mut node.lhs.as_mut().unwrap())? == eval(&mut node.rhs.as_mut().unwrap())? {
+                return Ok(1);
+            } else {
+                return Ok(0);
+            }
+        }
+        Neq => {
+            if eval(&mut node.lhs.as_mut().unwrap())? != eval(&mut node.rhs.as_mut().unwrap())? {
+                return Ok(1);
+            } else {
+                return Ok(0);
+            }
+        }
+        Lesser => {
+            if eval(&mut node.lhs.as_mut().unwrap())? < eval(&mut node.rhs.as_mut().unwrap())? {
+                return Ok(1);
+            } else {
+                return Ok(0);
+            }
+        }
+        Leq => {
+            if eval(&mut node.lhs.as_mut().unwrap())? <= eval(&mut node.rhs.as_mut().unwrap())? {
+                return Ok(1);
+            } else {
+                return Ok(0);
+            }
+        }
+        Ternary => {
+            if eval(&mut node.cond.as_mut().unwrap())? != 0 {
+                return eval(&mut node.then.as_mut().unwrap());
+            } else {
+                return eval(&mut node.els.as_mut().unwrap());
+            }
+        }
+        Comma => return eval(&mut node.rhs.as_mut().unwrap()),
+        Not => {
+            if eval(&mut node.lhs.as_mut().unwrap())? == 0 {
+                return Ok(1);
+            } else {
+                return Ok(0);
+            }
+        }
+        BitNot => return Ok(!eval(&mut node.lhs.as_mut().unwrap())?),
+        LogAnd => {
+            if (eval(&mut node.lhs.as_mut().unwrap())? != 0)
+                && (eval(&mut node.rhs.as_mut().unwrap())? != 0)
+            {
+                return Ok(1);
+            } else {
+                return Ok(0);
+            }
+        }
+        LogOr => {
+            if (eval(&mut node.lhs.as_mut().unwrap())? != 0)
+                || (eval(&mut node.rhs.as_mut().unwrap())? != 0)
+            {
+                return Ok(1);
+            } else {
+                return Ok(0);
+            }
+        }
+        Num(num) => return Ok(num as i64),
+        _ => todo!(),
+    }
+}
+
+pub fn const_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<i64, Error> {
+    eval(&mut conditional(iter, ctx)?)
 }
 
 // assign                  = conditional (assign-op assign)?
@@ -1297,7 +1417,7 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 
     // char
     if let Some(c) = consume_char(iter) {
-        return Ok(Node::new_num(c as u64));
+        return Ok(Node::new_num(c as i64));
     }
 
     if consume(iter, Operator::Sizeof) {
@@ -1305,7 +1425,7 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             if is_typename(iter, ctx) {
                 let ty = type_name(iter, ctx)?;
                 expect(iter, Operator::RParen)?;
-                return Ok(Node::new_num(ty.borrow().size()));
+                return Ok(Node::new_num(ty.borrow().size() as i64));
             } else {
                 iter.pos.bytes -= 1;
                 iter.pos.tk -= 1;
@@ -1313,7 +1433,7 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         }
         let node = unary(iter, ctx)?;
         match node.get_type() {
-            Ok(x) => return Ok(Node::new_num(x.size())),
+            Ok(x) => return Ok(Node::new_num(x.size() as i64)),
             Err(e) => {
                 dbg!("{}", e);
                 return Err(Error::todo(iter.filepath, iter.s, iter.pos));
@@ -2085,11 +2205,11 @@ mod tests {
         }
     }
 
-    fn make_test_node(kind: NodeKind, lhs_num: u64, rhs_num: u64) -> Node {
+    fn make_test_node(kind: NodeKind, lhs_num: i64, rhs_num: i64) -> Node {
         Node::new(kind, Node::new_num(lhs_num), Node::new_num(rhs_num))
     }
 
-    fn make_assign_node(lhs: impl Into<String>, rhs: u64, offset: u64) -> Node {
+    fn make_assign_node(lhs: impl Into<String>, rhs: i64, offset: u64) -> Node {
         let mut node = Node::new_none(NodeKind::Assign);
         node.lhs = Some(Box::new(Node::new_leaf(NodeKind::Lvar(Rc::new(
             Lvar::new_leaf(make_int_dec(lhs.into()), offset),
