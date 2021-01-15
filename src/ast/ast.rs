@@ -765,10 +765,10 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                             Some(mut cur_case) => {
                                 let val = expect_num(iter)?;
                                 expect_colon(iter)?;
-                                cur_case
-                                    .push(Node::new_unary(NodeKind::Case(val), stmt(iter, ctx)?));
+                                let node = Node::new_unary(NodeKind::Case(val), stmt(iter, ctx)?);
+                                cur_case.push(node.clone());
                                 ctx.cur_switch = Some(cur_case);
-                                return Ok(Node::new_leaf(NodeKind::Null));
+                                return Ok(node);
                             }
                             None => return Err(Error::stray_case(iter.filepath, iter.s, iter.pos)),
                         }
@@ -778,10 +778,10 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                         match ctx.cur_switch.take() {
                             Some(mut cur_case) => {
                                 expect_colon(iter)?;
-                                cur_case
-                                    .push(Node::new_unary(NodeKind::DefaultCase, stmt(iter, ctx)?));
+                                let node = Node::new_unary(NodeKind::DefaultCase, stmt(iter, ctx)?);
+                                cur_case.push(node.clone());
                                 ctx.cur_switch = Some(cur_case);
-                                return Ok(Node::new_leaf(NodeKind::Null));
+                                return Ok(node);
                             }
                             None => return Err(Error::stray_case(iter.filepath, iter.s, iter.pos)),
                         }

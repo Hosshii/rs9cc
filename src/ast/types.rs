@@ -204,7 +204,6 @@ pub struct Node {
     pub els: Option<Box<Node>>,
     pub init: Option<Vec<Node>>,
     pub inc: Option<Box<Node>>,
-    pub switch: Option<Vec<Node>>,
 }
 
 impl Node {
@@ -224,7 +223,6 @@ impl Node {
         els: Option<Box<Node>>,
         init: Option<Vec<Node>>,
         inc: Option<Box<Node>>,
-        switch: Option<Vec<Node>>,
     ) -> Node {
         Node {
             kind,
@@ -235,7 +233,6 @@ impl Node {
             els,
             init,
             inc,
-            switch,
         }
     }
 
@@ -283,7 +280,6 @@ impl Node {
             els: None,
             init: None,
             inc: None,
-            switch: None,
         }
     }
 
@@ -411,6 +407,7 @@ pub struct Context {
     pub s: Scope,
     pub static_counter: u32,
     pub cur_switch: Option<Vec<Node>>,
+    pub cur_default: Option<Node>,
 }
 
 impl Context {
@@ -421,6 +418,7 @@ impl Context {
             s: Scope::new(),
             static_counter: 0,
             cur_switch: None,
+            cur_default: None,
         }
     }
 

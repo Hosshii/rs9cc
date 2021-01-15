@@ -8,6 +8,7 @@ pub struct Context {
     jump_label: usize,
     break_label: usize,
     continue_label: usize,
+    case_label: (usize, usize), // case_label, end_label
     func_name: String,
     asm: String,
 }
@@ -18,6 +19,7 @@ impl Context {
             jump_label: 1,
             break_label: 0,
             continue_label: 0,
+            case_label: (0, 0),
             func_name: String::new(),
             asm: String::new(),
         }
@@ -354,25 +356,37 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             ctx.continue_label = continue_num;
             return Ok(());
         }
-        NodeKind::Break => match ctx.break_label {
-            0 => return Err(Error::stray_break()),
-            _ => {
-                writeln!(ctx.asm, "    jmp .L.break.{}", ctx.break_label)?;
-                return Ok(());
+        NodeKind::Break => {
+            #[cfg(debug_assertions)]
+            writeln!(ctx.asm, "# NodeKind::Break")?;
+            match ctx.break_label {
+                0 => return Err(Error::stray_break()),
+                _ => {
+                    writeln!(ctx.asm, "    jmp .L.break.{}", ctx.break_label)?;
+                    return Ok(());
+                }
             }
-        },
-        NodeKind::Continue => match ctx.continue_label {
-            0 => return Err(Error::stray_continue()),
-            _ => {
-                writeln!(ctx.asm, "    jmp .L.continue.{}", ctx.continue_label)?;
-                return Ok(());
+        }
+        NodeKind::Continue => {
+            #[cfg(debug_assertions)]
+            writeln!(ctx.asm, "# NodeKind::Continue")?;
+            match ctx.continue_label {
+                0 => return Err(Error::stray_continue()),
+                _ => {
+                    writeln!(ctx.asm, "    jmp .L.continue.{}", ctx.continue_label)?;
+                    return Ok(());
+                }
             }
-        },
+        }
         NodeKind::Goto(ident) => {
+            #[cfg(debug_assertions)]
+            writeln!(ctx.asm, "# NodeKind::Goto")?;
             writeln!(ctx.asm, "    jmp .L.label.{}.{}", ctx.func_name, ident.name)?;
             return Ok(());
         }
         NodeKind::Label(ident) => {
+            #[cfg(debug_assertions)]
+            writeln!(ctx.asm, "# NodeKind::Label")?;
             writeln!(ctx.asm, ".L.label.{}.{}:", ctx.func_name, ident.name)?;
             gen(&node.lhs.as_ref().unwrap(), ctx)?;
             return Ok(());
@@ -387,7 +401,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             gen(node.cond.as_ref().unwrap(), ctx)?;
             writeln!(ctx.asm, "    pop rax")?;
 
-            let mut has_default = false;
+            let mut has_default = -1;
             for case in cases {
                 match case.kind {
                     NodeKind::Case(num) => {
@@ -396,37 +410,36 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                         ctx.jump_label += 1;
                     }
                     NodeKind::DefaultCase => {
-                        has_default = true;
-                    }
-                    _ => return Err(Error::todo()),
-                }
-            }
-            if has_default {
-                writeln!(ctx.asm, "    jmp .L.case.{}", ctx.jump_label)?;
-                ctx.jump_label += 1;
-            }
-
-            writeln!(ctx.asm, "    jmp .L.break.{}", jlb_num)?;
-            gen(node.then.as_ref().unwrap(), ctx)?;
-
-            ctx.jump_label = jlb_num;
-            for case in cases {
-                match case.kind {
-                    NodeKind::Case(_) | NodeKind::DefaultCase => {
-                        writeln!(ctx.asm, ".L.case.{}:", ctx.jump_label)?;
-                        gen(case.lhs.as_ref().unwrap(), ctx)?;
-                        writeln!(ctx.asm, "    jmp .L.break.{}", jlb_num)?;
+                        has_default = ctx.jump_label as isize;
                         ctx.jump_label += 1;
                     }
                     _ => return Err(Error::todo()),
                 }
             }
+            if has_default != -1 {
+                writeln!(ctx.asm, "    jmp .L.case.{}", has_default)?;
+                ctx.jump_label += 1;
+            }
+
+            writeln!(ctx.asm, "    jmp .L.break.{}", jlb_num)?;
+            ctx.jump_label += 1;
+
+            let org = std::mem::replace(&mut ctx.case_label, (jlb_num, jlb_num));
+            gen(node.then.as_ref().unwrap(), ctx)?;
+            ctx.case_label = org;
+
             writeln!(ctx.asm, ".L.break.{}:", jlb_num)?;
             ctx.break_label = break_num;
             return Ok(());
         }
-        // NodeKind::Case(num) => {}
-        // NodeKind::DefaultCase => {}
+        NodeKind::Case(_) | NodeKind::DefaultCase => {
+            writeln!(ctx.asm, ".L.case.{}:", ctx.case_label.0)?;
+            ctx.case_label.0 += 1;
+            let case_lable = ctx.case_label;
+            gen(node.lhs.as_ref().unwrap(), ctx)?;
+            ctx.case_label = case_lable;
+            return Ok(());
+        }
         NodeKind::Block(stmts) | NodeKind::StmtExpr(stmts) => {
             #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Block,StmtExpr")?;
