@@ -44,8 +44,9 @@ stmt                    = expr ";"
                         | "case" num ":" stmt
                         | "default" ":" stmt
 expr                    = assign ("," assign)*
-assign                  = logor (assign-op assign)?
+assign                  = conditional (assign-op assign)?
 assign-op               = "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>="
+conditional             = logor ("?" expr ":" conditional)?
 logor                   = logand ("||" logand)*
 logand                  = bitor ("&&" bitor)*
 bitor                   = bitxor ("|" bitxor)*

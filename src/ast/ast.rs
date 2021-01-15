@@ -911,10 +911,10 @@ pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     Ok(node)
 }
 
-// assign                  = logor (assign-op assign)?
+// assign                  = conditional (assign-op assign)?
 // assign-op               = "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>="
 pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
-    let mut node = log_or(iter, ctx)?;
+    let mut node = conditional(iter, ctx)?;
     if consume(iter, Operator::Assign) {
         let rhs = assign(iter, ctx)?;
         // 左右の型が違っても受け入れる
@@ -957,6 +957,20 @@ pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         node = Node::new(NodeKind::ARShift, node, rhs);
     }
     return Ok(node);
+}
+
+// conditional             = logor ("?" expr ":" conditional)?
+pub fn conditional(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let node = log_or(iter, ctx)?;
+    if !consume_question(iter) {
+        return Ok(node);
+    }
+    let mut ternary = Node::new_leaf(NodeKind::Ternary);
+    ternary.cond = Some(Box::new(node));
+    ternary.then = Some(Box::new(expr(iter, ctx)?));
+    expect_colon(iter)?;
+    ternary.els = Some(Box::new(conditional(iter, ctx)?));
+    return Ok(ternary);
 }
 
 // logor                   = logand ("||" logand)*

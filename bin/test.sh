@@ -623,6 +623,11 @@ _shift() {
     assert 2 'int main(){int i =5; i>>= 1; return i;}'
 }
 
+ternary() {
+    assert 2 'int main(){return 0?1:2;}'
+    assert 1 'int main(){return 1?1:2;}'
+}
+
 build() {
     cargo build
 }
@@ -698,6 +703,7 @@ if [ $# -eq 0 ]; then
     switch
     void_fn
     _shift
+    ternary
 fi
 
 while [ $# -ne 0 ]; do
@@ -756,6 +762,7 @@ while [ $# -ne 0 ]; do
     "52") switch ;;
     "53") void_fn ;;
     "54") _shift ;;
+    "55") ternary ;;
     esac
     shift
 done

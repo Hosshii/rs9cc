@@ -18,6 +18,7 @@ pub enum TokenKind {
     DoubleQuote,
     SingleQuote,
     Period,
+    Question,
     String(String),
     Char(char),
     EOF,
@@ -40,6 +41,7 @@ impl TokenKind {
             DoubleQuote => "\"".to_string(),
             SingleQuote => "'".to_string(),
             Period => ".".to_string(),
+            Question => "?".to_string(),
             String(s) => s.clone(),
             Char(c) => c.to_string(),
             EOF => "EOF".to_string(),
@@ -532,6 +534,18 @@ impl<'a> TokenIter<'a> {
         None
     }
 
+    fn is_question(&self, s: &str) -> Option<(Token, TokenPos)> {
+        use self::TokenKind::*;
+        let ss = s.chars().nth(0).unwrap();
+        if ss.to_string() == Question.as_string() {
+            return Some((
+                Token::new(Question, self.pos, self.prev_pos),
+                TokenPos::new_bytes(1),
+            ));
+        }
+        None
+    }
+
     fn is_ident(&self, s: &str) -> Option<(Token, TokenPos)> {
         let (ident, _, first_non_num_idx) = split_ident(s);
         if !ident.is_empty() {
@@ -768,6 +782,12 @@ impl<'a> Iterator for TokenIter<'a> {
             return Some(tk);
         }
 
+        if let Some((tk, pos)) = self.is_question(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Some(tk);
+        }
+
         if let Some((tk, pos)) = self.is_string(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
@@ -820,6 +840,7 @@ fn split_ident(s: &str) -> (&str, &str, usize) {
             || s[i..].starts_with(Comment::Single.as_str())
             || s[i..].starts_with(Comment::MultiStart.as_str())
             || s[i..].starts_with(&TokenKind::Period.as_string())
+            || s[i..].starts_with(&TokenKind::Question.as_string())
             || c.is_ascii_whitespace()
         {
             break;
@@ -934,7 +955,7 @@ mod tests {
         assert_eq!(None, iter.next());
 
         let input = "
-            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static break continue goto : switch case default";
+            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static break continue goto : switch case default ?";
 
         let expected = vec![
             KeyWord(Return),
@@ -963,6 +984,7 @@ mod tests {
             KeyWord(Switch),
             KeyWord(Case),
             KeyWord(Default),
+            TokenKind::Question,
         ];
         let mut iter = tokenize(input, "");
         for i in expected {

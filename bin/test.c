@@ -573,6 +573,11 @@ int main() {
   assert(-1, ({ int i=-1; i; }), "int i=-1; i;");
   assert(-1, ({ int i=-1; i>>=1; i; }), "int i=1; i>>1;");
 
+  // #55
+  printf("\n\n#55\n");
+  assert( 2, ({0?1:2;}),"({0?1:2;})");
+  assert( 1, ({1?1:2;}),"({1?1:2;})");
+
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;
 }

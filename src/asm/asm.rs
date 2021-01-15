@@ -687,6 +687,23 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             writeln!(ctx.asm, ".Lend{}:", jlb_num)?;
             return Ok(());
         }
+        NodeKind::Ternary => {
+            #[cfg(debug_assertions)]
+            writeln!(ctx.asm, "# ternary")?;
+
+            let jlb_num = ctx.jump_label;
+            ctx.jump_label += 1;
+            gen(node.cond.as_ref().unwrap(), ctx)?;
+            writeln!(ctx.asm, "    pop rax")?;
+            writeln!(ctx.asm, "    cmp rax, 0")?;
+            writeln!(ctx.asm, "    je  .Lelse{}", jlb_num)?;
+            gen(node.then.as_ref().unwrap(), ctx)?;
+            writeln!(ctx.asm, "    jmp .Lend{}", jlb_num)?;
+            writeln!(ctx.asm, ".Lelse{}:", jlb_num)?;
+            gen(node.els.as_ref().unwrap(), ctx)?;
+            writeln!(ctx.asm, ".Lend{}:", jlb_num)?;
+            return Ok(());
+        }
         _ => (),
     }
 

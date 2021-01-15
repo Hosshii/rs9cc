@@ -67,6 +67,7 @@ pub enum NodeKind {
     DefaultCase,
     LShift,
     RShift,
+    Ternary,
     Null,
 }
 
@@ -134,6 +135,7 @@ impl NodeKind {
             DefaultCase => "default case".to_string(),
             LShift => "<<".to_string(),
             RShift => ">>".to_string(),
+            Ternary => "ternary".to_string(),
             Null => "null".to_string(),
         }
     }
