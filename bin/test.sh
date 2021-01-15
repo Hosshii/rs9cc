@@ -611,6 +611,18 @@ void_fn() {
     assert 0 'void void_fn(){} int main(){void_fn(); return 0;}'
 }
 
+# 54
+_shift() {
+    assert 1 'int main(){return 1<<0;}'
+    assert 8 'int main(){return 1<<3;}'
+    assert 10 'int main(){return 5<<1;}'
+    assert 2 'int main(){return 5>>1;}'
+    assert 1 'int main(){int i =1; i<<= 0; return i;}'
+    assert 8 'int main(){int i =1; i<<= 3; return i;}'
+    assert 10 'int main(){int i =5; i<<= 1; return i;}'
+    assert 2 'int main(){int i =5; i>>= 1; return i;}'
+}
+
 build() {
     cargo build
 }
@@ -685,6 +697,7 @@ if [ $# -eq 0 ]; then
     goto
     switch
     void_fn
+    _shift
 fi
 
 while [ $# -ne 0 ]; do
@@ -742,6 +755,7 @@ while [ $# -ne 0 ]; do
     "51") goto ;;
     "52") switch ;;
     "53") void_fn ;;
+    "54") _shift ;;
     esac
     shift
 done

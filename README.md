@@ -45,14 +45,15 @@ stmt                    = expr ";"
                         | "default" ":" stmt
 expr                    = assign ("," assign)*
 assign                  = logor (assign-op assign)?
-assign-op               = "=" | "+=" | "-=" | "*=" | "/=" 
+assign-op               = "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>="
 logor                   = logand ("||" logand)*
 logand                  = bitor ("&&" bitor)*
 bitor                   = bitxor ("|" bitxor)*
 bitxor                  = bitand ("^" bitand)*
 bitand                  = equality ("&" equality)*
 equality                = relational ("==" relational | "!=" relational)*
-relational              = add ("<" add | "<=" | ">" add | ">=" add)*
+relational              = shift ("<" shift | "<=" | ">" shift | ">=" shift)*
+shift                   = add ("<<" add | ">>" add)*
 add                     = mul ("+" mul | "-" mul)*
 mul                     = cast ("*" cast | "/" cast)*
 cast                    = "(" type-name ")" cast | unary

@@ -558,6 +558,21 @@ int main() {
   printf("\n\n#53\n");
   void_fn();
 
+  // #54
+  printf("\n\n#54\n");
+  assert(1, 1<<0, "1<<0");
+  assert(8, 1<<3, "1<<3");
+  assert(10, 5<<1, "5<<1");
+  assert(2, 5>>1, "5>>1");
+  assert(-1, -1>>1, "-1>>1");
+  assert(1, ({ int i=1; i<<=0; i; }), "int i=1; i<<0;");
+  assert(8, ({ int i=1; i<<=3; i; }), "int i=1; i<<3;");
+  assert(10, ({ int i=5; i<<=1; i; }), "int i=5; i<<1;");
+  assert(2, ({ int i=5; i>>=1; i; }), "int i=5; i>>1;");
+  assert(-1, -1, "-1");
+  assert(-1, ({ int i=-1; i; }), "int i=-1; i;");
+  assert(-1, ({ int i=-1; i>>=1; i; }), "int i=1; i>>1;");
+
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;
 }

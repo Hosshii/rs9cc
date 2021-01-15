@@ -13,6 +13,8 @@ pub enum NodeKind {
     ASub,
     AMul,
     ADiv,
+    ALShift,
+    ARShift,
     Equal,
     Neq,
     Lesser,
@@ -63,6 +65,8 @@ pub enum NodeKind {
     Switch(Vec<Node>),
     Case(u64),
     DefaultCase,
+    LShift,
+    RShift,
     Null,
 }
 
@@ -76,6 +80,8 @@ impl NodeKind {
             ASub => "-=".to_string(),
             AMul => "*=".to_string(),
             ADiv => "/=".to_string(),
+            ALShift => "<<=".to_string(),
+            ARShift => ">>=".to_string(),
             Equal => "==".to_string(),
             Neq => "!=".to_string(),
             Lesser => "<".to_string(),
@@ -126,6 +132,8 @@ impl NodeKind {
             Switch(_) => "switch".to_string(),
             Case(num) => format!("case{}", num).to_string(),
             DefaultCase => "default case".to_string(),
+            LShift => "<<".to_string(),
+            RShift => ">>".to_string(),
             Null => "null".to_string(),
         }
     }

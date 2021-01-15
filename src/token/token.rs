@@ -54,6 +54,8 @@ pub enum Operator {
     AMinus,
     AMul,
     ADiv,
+    ALShift,
+    ARShift,
     Equal,
     Neq,
     Lesser,
@@ -80,6 +82,8 @@ pub enum Operator {
     BitXor,
     LogOr,
     LogAnd,
+    RShift,
+    LShift,
 }
 
 impl Operator {
@@ -91,6 +95,8 @@ impl Operator {
             AMinus => "-=",
             AMul => "*=",
             ADiv => "/=",
+            ALShift => "<<=",
+            ARShift => ">>=",
             Equal => "==",
             Neq => "!=",
             Lesser => "<",
@@ -117,12 +123,14 @@ impl Operator {
             BitXor => "^",
             LogOr => "||",
             LogAnd => "&&",
+            RShift => ">>",
+            LShift => "<<",
         }
     }
 
     /// sの最初がOperatorに一致していたらOperatorを返す
     pub fn from_starts(s: &str) -> Result<Operator, ()> {
-        let op_lens = vec![6, 2, 1];
+        let op_lens = vec![6, 3, 2, 1];
         for idx in op_lens {
             let x = s.chars().take(idx).collect::<String>();
             if let Ok(x) = Self::from_str(&s[..x.len()]) {
@@ -149,6 +157,8 @@ impl FromStr for Operator {
             x if x == AMinus.as_str() => Ok(AMinus),
             x if x == AMul.as_str() => Ok(AMul),
             x if x == ADiv.as_str() => Ok(ADiv),
+            x if x == ALShift.as_str() => Ok(ALShift),
+            x if x == ARShift.as_str() => Ok(ARShift),
             x if x == Plus.as_str() => Ok(Plus),
             x if x == Minus.as_str() => Ok(Minus),
             x if x == Mul.as_str() => Ok(Mul),
@@ -168,6 +178,8 @@ impl FromStr for Operator {
             x if x == BitXor.as_str() => Ok(BitXor),
             x if x == LogOr.as_str() => Ok(LogOr),
             x if x == LogAnd.as_str() => Ok(LogAnd),
+            x if x == LShift.as_str() => Ok(LShift),
+            x if x == RShift.as_str() => Ok(RShift),
             _ => Err(()),
         }
     }
@@ -891,11 +903,12 @@ mod tests {
         use self::KeyWord::*;
         use self::Operator::*;
         use self::TokenKind::{KeyWord, Num, Reserved, SemiColon};
-        let input = "== != = < <= > >= + - * / ( ) & sizeof [ ] -> ++ += -= *= /= ! ~ |  ^ || &&";
+        let input =
+            "== != = < <= > >= + - * / ( ) & sizeof [ ] -> ++ += -= *= /= ! ~ |  ^ || && >> << <<= >>=";
         let expected = vec![
             Equal, Neq, Assign, Lesser, Leq, Greater, Geq, Plus, Minus, Mul, Div, LParen, RParen,
             Ampersand, Sizeof, LArr, RArr, Arrow, PlusPlus, APlus, AMinus, AMul, ADiv, Not, BitNot,
-            BitOr, BitXor, LogOr, LogAnd,
+            BitOr, BitXor, LogOr, LogAnd, RShift, LShift, ALShift, ARShift,
         ];
         let mut iter = tokenize(input, "");
         for i in expected {
@@ -1028,7 +1041,6 @@ mod tests {
             ("<=", Ok(Leq)),
             ("<==", Ok(Leq)),
             (">", Ok(Greater)),
-            (">>", Ok(Greater)),
             (">=", Ok(Geq)),
             (">=>", Ok(Geq)),
             ("+", Ok(Plus)),
@@ -1054,6 +1066,10 @@ mod tests {
             ("^", Ok(BitXor)),
             ("||", Ok(LogOr)),
             ("&&", Ok(LogAnd)),
+            (">>", Ok(RShift)),
+            ("<<", Ok(LShift)),
+            ("<<=", Ok(ALShift)),
+            (">>=", Ok(ARShift)),
             ("foo", Err(())),
         ];
         for &(s, ref expected) in &tests {

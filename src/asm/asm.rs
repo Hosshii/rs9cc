@@ -203,7 +203,12 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             store(node, ctx)?;
             return Ok(());
         }
-        NodeKind::AAdd | NodeKind::ASub | NodeKind::AMul | NodeKind::ADiv => {
+        NodeKind::AAdd
+        | NodeKind::ASub
+        | NodeKind::AMul
+        | NodeKind::ADiv
+        | NodeKind::ALShift
+        | NodeKind::ARShift => {
             let lhs = node.lhs.as_ref().expect("lhs not found");
             let rhs = node.rhs.as_ref().expect("rhs not found");
             gen_val(lhs, ctx)?;
@@ -227,6 +232,14 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 NodeKind::ADiv => {
                     writeln!(ctx.asm, "    cqo")?;
                     writeln!(ctx.asm, "    idiv rdi")?;
+                }
+                NodeKind::ALShift => {
+                    writeln!(ctx.asm, "    mov cl, dil")?;
+                    writeln!(ctx.asm, "    shl rax, cl")?;
+                }
+                NodeKind::ARShift => {
+                    writeln!(ctx.asm, "    mov cl, dil")?;
+                    writeln!(ctx.asm, "    sar rax, cl")?;
                 }
                 _ => unreachable!(),
             }
@@ -754,6 +767,14 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             writeln!(ctx.asm, "    cmp rax, rdi")?;
             writeln!(ctx.asm, "    setne al")?;
             writeln!(ctx.asm, "    movzb rax, al")?;
+        }
+        NodeKind::LShift => {
+            writeln!(ctx.asm, "    mov cl, dil")?;
+            writeln!(ctx.asm, "    shl rax, cl")?;
+        }
+        NodeKind::RShift => {
+            writeln!(ctx.asm, "    mov cl, dil")?;
+            writeln!(ctx.asm, "    sar rax, cl")?;
         }
         _ => (),
     }

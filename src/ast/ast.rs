@@ -912,7 +912,7 @@ pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // assign                  = logor (assign-op assign)?
-// assign-op               = "=" | "+=" | "-=" | "*=" | "/="
+// assign-op               = "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>="
 pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = log_or(iter, ctx)?;
     if consume(iter, Operator::Assign) {
@@ -949,6 +949,12 @@ pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     } else if consume(iter, Operator::ADiv) {
         let rhs = assign(iter, ctx)?;
         node = Node::new(NodeKind::ADiv, node, rhs);
+    } else if consume(iter, Operator::ALShift) {
+        let rhs = assign(iter, ctx)?;
+        node = Node::new(NodeKind::ALShift, node, rhs);
+    } else if consume(iter, Operator::ARShift) {
+        let rhs = assign(iter, ctx)?;
+        node = Node::new(NodeKind::ARShift, node, rhs);
     }
     return Ok(node);
 }
@@ -1012,20 +1018,34 @@ pub fn equality(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> 
     }
 }
 
-// relational  = add ("<" add | "<=" | ">" add | ">=" add)*
+// relational              = shift ("<" shift | "<=" | ">" shift | ">=" shift)*
 pub fn relational(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
-    let mut node = add(iter, ctx)?;
+    let mut node = shift(iter, ctx)?;
     loop {
         if consume(iter, Operator::Lesser) {
-            node = Node::new(NodeKind::Lesser, node, add(iter, ctx)?);
+            node = Node::new(NodeKind::Lesser, node, shift(iter, ctx)?);
         } else if consume(iter, Operator::Leq) {
-            node = Node::new(NodeKind::Leq, node, add(iter, ctx)?);
+            node = Node::new(NodeKind::Leq, node, shift(iter, ctx)?);
         } else if consume(iter, Operator::Greater) {
             // 左右を入れ替えて読み変える
-            node = Node::new(NodeKind::Lesser, add(iter, ctx)?, node);
+            node = Node::new(NodeKind::Lesser, shift(iter, ctx)?, node);
         } else if consume(iter, Operator::Geq) {
             // 左右を入れ替えて読み変える
-            node = Node::new(NodeKind::Leq, add(iter, ctx)?, node);
+            node = Node::new(NodeKind::Leq, shift(iter, ctx)?, node);
+        } else {
+            return Ok(node);
+        }
+    }
+}
+
+// shift                   = add ("<<" add | ">>" add)*
+pub fn shift(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+    let mut node = add(iter, ctx)?;
+    loop {
+        if consume(iter, Operator::LShift) {
+            node = Node::new(NodeKind::LShift, node, add(iter, ctx)?);
+        } else if consume(iter, Operator::RShift) {
+            node = Node::new(NodeKind::RShift, node, add(iter, ctx)?);
         } else {
             return Ok(node);
         }
