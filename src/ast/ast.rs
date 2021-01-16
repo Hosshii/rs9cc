@@ -605,31 +605,6 @@ pub fn read_param(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration
     Ok(dec)
 }
 
-// "{" (expr ("," expr)*)? | str
-pub fn multi_field_initialize(iter: &mut TokenIter, ctx: &mut Context) -> Result<Vec<Node>, Error> {
-    let mut nodes = Vec::new();
-
-    // str
-    if let Some(string) = consume_string(iter) {
-        for i in string.chars() {
-            nodes.push(Node::new_num(i as i64))
-        }
-    }
-    // num
-    else {
-        expect_block(iter, Block::LParen)?;
-        if !consume_block(iter, Block::RParen) {
-            nodes.push(assign(iter, ctx)?);
-
-            while consume_comma(iter) {
-                nodes.push(assign(iter, ctx)?);
-            }
-            expect_block(iter, Block::RParen)?;
-        }
-    }
-    Ok(nodes)
-}
-
 pub fn lvar_init_zero(
     iter: &mut TokenIter,
     ctx: &mut Context,
@@ -642,7 +617,7 @@ pub fn lvar_init_zero(
         TypeKind::Array(size, base, _) => {
             let mut i = 0;
             while i < *size {
-                let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
+                let mut desg2 = Some(Box::new(Designator::new(i, desg.clone(), None)));
                 i += 1;
                 let node = lvar_init_zero(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
                 init.push(node);
@@ -683,13 +658,13 @@ fn lvar_initializer(
                 let string = string.as_bytes();
                 let mut init = Vec::new();
                 while i < len {
-                    let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
+                    let mut desg2 = Some(Box::new(Designator::new(i, desg.clone(), None)));
                     let rhs = Node::new_num(string[i as usize] as i64); //
                     init.push(new_desg_node(var.clone(), &mut desg2, rhs)?);
                     i += 1;
                 }
                 for i in i..*size {
-                    let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
+                    let mut desg2 = Some(Box::new(Designator::new(i, desg.clone(), None)));
                     let node = lvar_init_zero(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
                     init.push(node);
                 }
@@ -716,7 +691,7 @@ fn lvar_initializer(
                 let mut i = 0;
                 if !peek_end(iter) {
                     while {
-                        let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
+                        let mut desg2 = Some(Box::new(Designator::new(i, desg.clone(), None)));
                         i += 1;
                         let node =
                             lvar_initializer(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
@@ -728,7 +703,7 @@ fn lvar_initializer(
                 expect_end(iter)?;
 
                 while i < *size {
-                    let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
+                    let mut desg2 = Some(Box::new(Designator::new(i, desg.clone(), None)));
                     i += 1;
                     let node = lvar_init_zero(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
                     init.push(node);
@@ -737,6 +712,57 @@ fn lvar_initializer(
                     *is_sized = true;
                     *size = init.len() as u64;
                 }
+                Ok((
+                    Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), init),
+                    type_kind.clone(),
+                ))
+            }
+            TypeKind::Struct(_struct) => {
+                let members = _struct.borrow().members.clone();
+                let mut init = Vec::new();
+                let mut i = 0;
+                if !peek_end(iter) {
+                    while {
+                        let mut desg2 = Some(Box::new(Designator::new(
+                            0,
+                            desg.clone(),
+                            Some(members[i].clone()),
+                        )));
+                        let node = lvar_initializer(
+                            iter,
+                            ctx,
+                            lvar.clone(),
+                            // todo struct {} だとパニックになる。
+                            // あとrefcellとかもう少しいいやり方ありそう
+                            Rc::new(RefCell::new(members[i].type_kind.as_ref().clone())),
+                            &mut desg2,
+                        )?;
+                        i += 1;
+                        init.push(node.0);
+                        !peek_end(iter) && consume_comma(iter)
+                    } {}
+                }
+                expect_end(iter)?;
+                while members.len() > i {
+                    let mut desg2 = Some(Box::new(Designator::new(
+                        0,
+                        desg.clone(),
+                        Some(members[i].clone()),
+                    )));
+
+                    let node = lvar_init_zero(
+                        iter,
+                        ctx,
+                        lvar.clone(),
+                        // todo struct {} だとパニックになる。
+                        // あとrefcellとかもう少しいいやり方ありそう
+                        Rc::new(RefCell::new(members[i].type_kind.as_ref().clone())),
+                        &mut desg2,
+                    )?;
+                    init.push(node);
+                    i += 1;
+                }
+
                 Ok((
                     Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), init),
                     type_kind.clone(),

@@ -796,23 +796,12 @@ impl Declaration {
 pub struct Designator {
     pub idx: u64,
     pub next: Option<Box<Designator>>,
+    pub member: Option<Rc<Member>>,
 }
 
 impl Designator {
-    pub fn new(idx: u64, next: Option<Box<Designator>>) -> Self {
-        Self { idx, next }
-    }
-
-    pub fn push_front(&mut self) -> Self {
-        if self.idx == u64::MAX {
-            Self { idx: 0, next: None }
-        } else {
-            let next = self.next.take();
-            Self {
-                idx: self.idx + 1,
-                next,
-            }
-        }
+    pub fn new(idx: u64, next: Option<Box<Designator>>, member: Option<Rc<Member>>) -> Self {
+        Self { idx, next, member }
     }
 }
 

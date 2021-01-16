@@ -674,6 +674,21 @@ unsized_arr() {
     assert 6 'int main(){char p[] = "Hello"; return sizeof p;}'
 }
 
+# 61
+struct_ini() {
+    assert 1 'int main(){ struct {int a; int b; int c;} x={1,2,3}; return x.a;}'
+    assert 2 'int main(){ struct {int a; int b; int c;} x={1,2,3}; return x.b;}'
+    assert 3 'int main(){ struct {int a; int b; int c;} x={1,2,3}; return x.c;}'
+    assert 1 'int main(){struct {int a; int b; int c;} x={1}; return x.a;}'
+    assert 0 'int main(){struct {int a; int b; int c;} x={1}; return x.b;}'
+    assert 0 'int main(){struct {int a; int b; int c;} x={1}; return x.c;}'
+    assert 1 'int main(){struct {int a; int b;} x[2]={{1,2},{3,4}}; return x[0].a;}'
+    assert 2 'int main(){struct {int a; int b;} x[2]={{1,2},{3,4}}; return x[0].b;}'
+    assert 3 'int main(){struct {int a; int b;} x[2]={{1,2},{3,4}}; return x[1].a;}'
+    assert 4 'int main(){struct {int a; int b;} x[2]={{1,2},{3,4}}; return x[1].b;}'
+    assert 0 'int main(){struct {int a; int b;} x[2]={{1,2}}; return x[1].b; }'
+}
+
 build() {
     cargo build
 }
@@ -755,6 +770,7 @@ if [ $# -eq 0 ]; then
     arr_zero_ini
     string_arr_ini
     unsized_arr
+    struct_ini
 fi
 
 while [ $# -ne 0 ]; do
@@ -819,6 +835,7 @@ while [ $# -ne 0 ]; do
     "58") arr_zero_ini ;;
     "59") string_arr_ini ;;
     "60") unsized_arr ;;
+    "61") struct_ini ;;
     esac
     shift
 done

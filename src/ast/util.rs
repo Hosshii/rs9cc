@@ -469,8 +469,15 @@ pub(crate) fn new_desg_node2(var: Var, desg: &mut Option<Box<Designator>>) -> Re
     match desg {
         None => Ok(Node::new_var(var)),
         Some(desg) => {
-            let node = new_desg_node2(var, &mut desg.next)?;
-            let node = Node::new(NodeKind::Add, node, Node::new_num(desg.idx as i64));
+            let mut node = new_desg_node2(var, &mut desg.next)?;
+            if let Some(member) = &desg.member {
+                node = Node::new_unary(
+                    NodeKind::Member(member.as_ref().ident.clone(), member.clone()),
+                    node,
+                );
+                return Ok(node);
+            }
+            node = Node::new(NodeKind::Add, node, Node::new_num(desg.idx as i64));
             Ok(Node::new_unary(NodeKind::Deref, node))
         }
     }
