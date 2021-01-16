@@ -280,6 +280,22 @@ impl Node {
         Node::new(Assign, lhs, rhs)
     }
 
+    pub fn new_lvar(lvar: Rc<Lvar>) -> Node {
+        Node::new_leaf(NodeKind::Lvar(lvar))
+    }
+
+    pub fn new_gvar(gvar: Rc<Gvar>) -> Node {
+        Node::new_leaf(NodeKind::Gvar(gvar))
+    }
+
+    pub fn new_var(var: Var) -> Node {
+        use Var::*;
+        match var {
+            L(lvar) => Node::new_lvar(lvar),
+            G(gvar) => Node::new_gvar(gvar),
+        }
+    }
+
     pub fn new_none(kind: NodeKind) -> Node {
         Node {
             kind,
@@ -773,6 +789,29 @@ impl Declaration {
     // todo: remove clone
     fn get_type(&self) -> TypeKind {
         self.type_kind.clone()
+    }
+}
+#[derive(Debug, Clone)]
+pub struct Designator {
+    pub idx: u64,
+    pub next: Option<Box<Designator>>,
+}
+
+impl Designator {
+    pub fn new(idx: u64, next: Option<Box<Designator>>) -> Self {
+        Self { idx, next }
+    }
+
+    pub fn push_front(&mut self) -> Self {
+        if self.idx == u64::MAX {
+            Self { idx: 0, next: None }
+        } else {
+            let next = self.next.take();
+            Self {
+                idx: self.idx + 1,
+                next,
+            }
+        }
     }
 }
 

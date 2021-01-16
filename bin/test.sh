@@ -638,6 +638,17 @@ const_expression() {
     assert 3 'int main(){char x[0?2:3]; return sizeof(x);}'
 }
 
+# 57
+lvar_initialize() {
+    assert 1 'int main(){int x[3]={1,2,3}; return x[0];}'
+    assert 2 'int main(){int x[3]={1,2,3}; return x[1];}'
+    assert 3 'int main(){int x[3]={1,2,3}; return x[2];}'
+    assert 3 'int main(){int x[3]={1,2,3,}; return x[2];}'
+    assert 2 'int main(){int x[2][3]={{1,2,3},{4,5,6}}; return x[0][1];}'
+    assert 4 'int main(){int x[2][3]={{1,2,3},{4,5,6}}; return x[1][0];}'
+    assert 6 'int main(){int x[2][3]={{1,2,3},{4,5,6}}; return x[1][2];}'
+}
+
 build() {
     cargo build
 }
@@ -715,6 +726,7 @@ if [ $# -eq 0 ]; then
     _shift
     ternary
     const_expression
+    lvar_initialize
 fi
 
 while [ $# -ne 0 ]; do
@@ -775,6 +787,7 @@ while [ $# -ne 0 ]; do
     "54") _shift ;;
     "55") ternary ;;
     "56") const_expression ;;
+    "57") lvar_initialize ;;
     esac
     shift
 done

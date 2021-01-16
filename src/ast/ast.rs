@@ -2,7 +2,8 @@ use super::error::Error;
 use super::util::*;
 use super::NodeKind;
 use super::{
-    Context, Declaration, FuncPrototype, Function, Gvar, Ident, LocalContext, Node, Program, Var,
+    Context, Declaration, Designator, FuncPrototype, Function, Gvar, Ident, LocalContext, Lvar,
+    Node, Program, Var,
 };
 use crate::base_types::{self, Enum, Member, Struct, TagTypeKind, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
@@ -619,44 +620,42 @@ pub fn multi_field_initialize(iter: &mut TokenIter, ctx: &mut Context) -> Result
     Ok(nodes)
 }
 
-// expr
-// for local var
-pub fn unary_initialize(
+
+// lvar-initializer = assign
+//                  | "{" lvar-initializer ("," lvar-initializer)* ","? "}"
+fn lvar_initializer(
     iter: &mut TokenIter,
     ctx: &mut Context,
-    dec: &mut Declaration,
+    lvar: Rc<Lvar>,
+    desg: &mut Option<Box<Designator>>,
 ) -> Result<Node, Error> {
-    // let type_kind = &dec.base_type.kind;
-    ctx.push_front(
-        dec.clone(),
-        ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
-    );
-    let node = assign(iter, ctx)?;
-    // if let Ok(x) = node.get_type() {
-    //     if !TypeKind::partial_comp(&x, &type_kind) {
-    //         return Err(Error::invalid_assignment(
-    //             iter.filepath,
-    //             iter.s,
-    //             iter.pos,
-    //             type_kind.clone(),
-    //             x,
-    //         ));
-    //     }
-    // }
-    let node = Node::new_unary(
-        NodeKind::ExprStmt,
-        Node::new(
-            NodeKind::Assign,
-            Node::new_leaf(NodeKind::Lvar(
-                ctx.s.find_cur_lvar(dec.ident.clone()).unwrap(),
-            )),
-            node,
-        ),
-    );
-    return Ok(Node::new_init(
-        NodeKind::Declaration(dec.clone()),
-        vec![node],
-    ));
+    if !consume_block(iter, Block::LParen) {
+        let var = Var::L(lvar.clone());
+        Ok(Node::new_init(
+            NodeKind::Declaration(lvar.dec.clone()),
+            vec![new_desg_node(var, desg, assign(iter, ctx)?)?],
+        ))
+    } else {
+        match &lvar.dec.type_kind {
+            TypeKind::Array(_, _, _) => {
+                let mut init = Vec::new();
+                let mut i = 0;
+                while {
+                    let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
+                    i += 1;
+                    let node = lvar_initializer(iter, ctx, lvar.clone(), &mut desg2)?;
+                    init.push(node);
+                    !peek_end(iter) && consume_comma(iter)
+                } {}
+                expect_end(iter)?;
+                Ok(Node::new_init(
+                    NodeKind::Declaration(lvar.dec.clone()),
+                    init,
+                ))
+            }
+            _ => Err(Error::todo(iter.filepath, iter.s, iter.pos)),
+        }
+    }
 }
 
 // stmt        = expr ";"
@@ -852,45 +851,15 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             return Ok(Node::new_leaf(NodeKind::Declaration(dec)));
         }
         expect(iter, Operator::Assign)?;
-        match &mut dec.type_kind {
-            TypeKind::Array(size, _, sized) => {
-                let nodes = multi_field_initialize(iter, ctx)?;
-                expect_semi(iter)?;
 
-                if !*sized {
-                    *sized = true;
-                    *size = nodes.len() as u64;
-                }
-                ctx.push_front(
-                    dec.clone(),
-                    ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
-                );
-                let lvar = ctx.s.find_cur_lvar(dec.ident.clone()).unwrap();
-                let node = make_arr_init(lvar.clone(), &dec, nodes).map_err(|size| {
-                    iter.prev();
-                    Error::invalid_initialization(
-                        iter.filepath,
-                        iter.s,
-                        iter.pos,
-                        lvar,
-                        format!("length is: {}", size),
-                    )
-                })?;
-                return Ok(node);
-            }
-            _ => {
-                let node = expr(iter, ctx)?;
-                expect_semi(iter)?;
-                // todo err handling
-                ctx.push_front(
-                    dec.clone(),
-                    ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
-                );
-                let lvar = ctx.s.find_cur_lvar(dec.ident.clone()).unwrap();
-                let node = make_unary_init(lvar, &dec, node).unwrap();
-                return Ok(node);
-            }
-        }
+        ctx.push_front(
+            dec.clone(),
+            ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+        );
+        let lvar = ctx.s.find_cur_lvar(dec.ident.clone()).unwrap();
+        let node = lvar_initializer(iter, ctx, lvar, &mut None)?;
+        expect_semi(iter)?;
+        return Ok(node);
     }
 
     let node = read_expr_stmt(iter, ctx)?;

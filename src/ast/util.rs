@@ -1,6 +1,7 @@
 use super::error::Error;
 use super::{
-    Context, Declaration, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident, Lvar, Node, NodeKind,
+    Context, Declaration, Designator, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident, Node,
+    NodeKind, Var,
 };
 use crate::base_types::{self, TagTypeKind, TypeKind};
 
@@ -410,60 +411,6 @@ pub(crate) fn make_string_node(label: impl Into<String>, size: u64, init: Vec<No
     )))
 }
 
-pub(crate) fn make_array_idx_node(idx: i64, lvar: Rc<Lvar>) -> Node {
-    Node::new(
-        NodeKind::Add,
-        Node::new_leaf(NodeKind::Lvar(lvar)),
-        Node::new_num(idx),
-    )
-}
-
-pub(crate) fn make_arr_init(
-    lvar: Rc<Lvar>,
-    dec: &Declaration,
-    nodes: Vec<Node>,
-) -> Result<Node, usize> {
-    if let TypeKind::Array(size, _, _) = dec.type_kind {
-        let mut assign_nodes = Vec::new();
-        let len = nodes.len();
-        let mut idx = 0;
-        for node in nodes {
-            assign_nodes.push(Node::new_expr_stmt(Node::new_assign(
-                Node::new_unary(NodeKind::Deref, make_array_idx_node(idx, lvar.clone())),
-                node,
-            )));
-            idx += 1;
-        }
-        if size < assign_nodes.len() as u64 {
-            return Err(assign_nodes.len());
-        }
-        for _ in 0..(size - len as u64) {
-            assign_nodes.push(Node::new_expr_stmt(Node::new_assign(
-                Node::new_unary(NodeKind::Deref, make_array_idx_node(idx, lvar.clone())),
-                Node::new_num(0),
-            )));
-            idx += 1;
-        }
-        return Ok(Node::new_init(
-            NodeKind::Declaration(dec.clone()),
-            assign_nodes,
-        ));
-    } else {
-        unreachable!()
-    }
-}
-
-pub(crate) fn make_unary_init(lvar: Rc<Lvar>, dec: &Declaration, node: Node) -> Result<Node, ()> {
-    let node = Node::new_unary(
-        NodeKind::ExprStmt,
-        Node::new(NodeKind::Assign, Node::new_leaf(NodeKind::Lvar(lvar)), node),
-    );
-    Ok(Node::new_init(
-        NodeKind::Declaration(dec.clone()),
-        vec![node],
-    ))
-}
-
 pub(crate) fn is_typename(iter: &mut TokenIter, ctx: &Context) -> bool {
     if let Some(x) = iter.peek() {
         match x.kind {
@@ -494,4 +441,47 @@ pub(crate) fn is_typedef_name(ident: Rc<Ident>, ctx: &Context) -> Option<Rc<Decl
         }
     }
     None
+}
+
+pub(crate) fn peek_end(iter: &mut TokenIter) -> bool {
+    let pos = iter.pos;
+    let end = if consume_block(iter, Block::RParen)
+        || (consume_comma(iter) && consume_block(iter, Block::RParen))
+    {
+        true
+    } else {
+        false
+    };
+    iter.pos = pos;
+    end
+}
+
+pub(crate) fn expect_end(iter: &mut TokenIter) -> Result<(), Error> {
+    if consume_comma(iter) && consume_block(iter, Block::RParen) {
+        Ok(())
+    } else {
+        expect_block(iter, Block::RParen)?;
+        Ok(())
+    }
+}
+
+pub(crate) fn new_desg_node2(var: Var, desg: &mut Option<Box<Designator>>) -> Result<Node, Error> {
+    match desg {
+        None => Ok(Node::new_var(var)),
+        Some(desg) => {
+            let node = new_desg_node2(var, &mut desg.next)?;
+            let node = Node::new(NodeKind::Add, node, Node::new_num(desg.idx as i64));
+            Ok(Node::new_unary(NodeKind::Deref, node))
+        }
+    }
+}
+
+pub(crate) fn new_desg_node(
+    var: Var,
+    desg: &mut Option<Box<Designator>>,
+    rhs: Node,
+) -> Result<Node, Error> {
+    let lhs = new_desg_node2(var, desg)?;
+    let node = Node::new(NodeKind::Assign, lhs, rhs);
+    Ok(Node::new_expr_stmt(node))
 }
