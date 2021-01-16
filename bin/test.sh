@@ -667,6 +667,13 @@ string_arr_ini() {
     assert 102 'int main(){char x[2][4]={"abc","def"};return x[1][2];}'
 }
 
+# 60
+unsized_arr() {
+    assert 3 'int main(){int x[]={1,2,3}; return x[2];}'
+    assert 16 'int main(){int x[]={1,2,3,4}; return sizeof x;}'
+    assert 6 'int main(){char p[] = "Hello"; return sizeof p;}'
+}
+
 build() {
     cargo build
 }
@@ -747,6 +754,7 @@ if [ $# -eq 0 ]; then
     lvar_initialize
     arr_zero_ini
     string_arr_ini
+    unsized_arr
 fi
 
 while [ $# -ne 0 ]; do
@@ -810,6 +818,7 @@ while [ $# -ne 0 ]; do
     "57") lvar_initialize ;;
     "58") arr_zero_ini ;;
     "59") string_arr_ini ;;
+    "60") unsized_arr ;;
     esac
     shift
 done

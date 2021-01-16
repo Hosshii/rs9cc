@@ -603,6 +603,22 @@ int main() {
   assert( 0,({int x[2][3]={{1,2}}; x[1][0];}), "({int x[2][3]={{1,2}}; x[1][0];})");
   assert( 0,({int x[2][3]={{1,2}}; x[1][2];}), "({int x[2][3]={{1,2}}; x[1][2];})");
 
+  // #59
+  printf("\n\n#59\n");
+  assert( 104, ({char p[6] = "hello"; p[0];}), "({char p[6] = \"hello\"; p[0];})");
+  assert( 108, ({char p[6] = "hello"; p[3];}), "({char p[6] = \"hello\"; p[3];})");
+  assert( 0, ({char p[6] = "hello"; p[5];}), "({char p[6] = \"hello\"; p[5];})");
+  assert( 97, ({char x[2][4]={"abc","def"};x[0][0];}), "({char x[2][4]={\"abc\",\"def\"};x[0][0];})");
+  assert( 0, ({char x[2][4]={"abc","def"};x[0][3];}), "({char x[2][4]={\"abc\",\"def\"};x[0][3];})");
+  assert( 100, ({char x[2][4]={"abc","def"};x[1][0];}), "({char x[2][4]={\"abc\",\"def\"};x[1][0];})");
+  assert( 102, ({char x[2][4]={"abc","def"};x[1][2];}), "({char x[2][4]={\"abc\",\"def\"};x[1][2];})");
+
+  // #60
+  printf("\n\n#60\n");
+  assert( 3, ({int x[]={1,2,3}; x[2];}),"({int x[]={1,2,3}; x[2];})");
+  assert( 16, ({int x[]={1,2,3,4}; sizeof x;}),"({int x[]={1,2,3,4}; sizeof x;})");
+  assert( 6, ({char p[] = "Hello"; sizeof p;}),"({char p[] = \"Hello\"; sizeof p;})");
+
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;
 }

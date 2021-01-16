@@ -3,6 +3,7 @@ use self::NodeKind::*;
 use crate::base_types;
 use crate::base_types::{Member, TagTypeKind, TypeKind};
 use crate::token::Operator;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -36,7 +37,7 @@ pub enum NodeKind {
     Func(Rc<FuncPrototype>, Vec<Node>), // (func_name,args)
     Num(i64),
     // Ident(Ident),
-    Lvar(Rc<Lvar>), // usize はベースポインタからのオフセット
+    Lvar(Rc<RefCell<Lvar>>), // usize はベースポインタからのオフセット
     TypeKind(TypeKind),
     Declaration(Declaration),
     Gvar(Rc<Gvar>),
@@ -280,7 +281,7 @@ impl Node {
         Node::new(Assign, lhs, rhs)
     }
 
-    pub fn new_lvar(lvar: Rc<Lvar>) -> Node {
+    pub fn new_lvar(lvar: Rc<RefCell<Lvar>>) -> Node {
         Node::new_leaf(NodeKind::Lvar(lvar))
     }
 
@@ -291,7 +292,7 @@ impl Node {
     pub fn new_var(var: Var) -> Node {
         use Var::*;
         match var {
-            L(lvar) => Node::new_lvar(lvar),
+            L(lvar) => Node::new_lvar(lvar.clone()), // todo
             G(gvar) => Node::new_gvar(gvar),
         }
     }
@@ -333,7 +334,7 @@ impl Node {
                     Err("addr")
                 }
             }
-            Lvar(lvar) => Ok(lvar.get_type()),
+            Lvar(lvar) => Ok(lvar.borrow().get_type()),
             Gvar(gvar) => Ok(gvar.get_type()),
             Func(func_prototype, _) => Ok(func_prototype.type_kind.clone()),
             Num(num) => {
@@ -374,13 +375,13 @@ impl Node {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum Var {
-    L(Rc<Lvar>),
+    L(Rc<RefCell<Lvar>>),
     G(Rc<Gvar>),
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Lvar {
-    next: Option<Rc<Lvar>>,
+    next: Option<Rc<RefCell<Lvar>>>,
     pub dec: Declaration,
     pub offset: u64,
 }
@@ -388,7 +389,7 @@ pub struct Lvar {
 impl Lvar {
     pub fn new(next: Lvar, dec: Declaration, offset: u64) -> Self {
         Self {
-            next: Some(Rc::new(next)),
+            next: Some(Rc::new(RefCell::new(next))),
             dec,
             offset,
         }
@@ -490,7 +491,7 @@ impl GlobalContext {
 
 #[derive(Clone, Debug)]
 pub struct LocalContext {
-    pub lvar: Option<Rc<Lvar>>,
+    pub lvar: Option<Rc<RefCell<Lvar>>>,
     pub(crate) lvar_count: usize,
 }
 
@@ -506,11 +507,11 @@ impl LocalContext {
         self.lvar_count += 1;
         let offset = offset + dec.type_kind.size();
         let offset = base_types::align_to(offset, dec.type_kind.align());
-        self.lvar = Some(Rc::new(Lvar {
+        self.lvar = Some(Rc::new(RefCell::new(Lvar {
             next: self.lvar.take(),
             dec,
             offset,
-        }))
+        })))
     }
 
     // pub fn push_front_param(&mut self, dec: Declaration, offset: u64) {
@@ -523,7 +524,7 @@ impl LocalContext {
     //     }))
     // }
 
-    pub fn find_lvar(&self, name: impl Into<String>) -> Option<Rc<Lvar>> {
+    pub fn find_lvar(&self, name: impl Into<String>) -> Option<Rc<RefCell<Lvar>>> {
         if let Some(ref lvar) = self.lvar {
             Self::_find_lvar(lvar, name)
         } else {
@@ -531,12 +532,12 @@ impl LocalContext {
         }
     }
 
-    fn _find_lvar(lvar: &Rc<Lvar>, name: impl Into<String>) -> Option<Rc<Lvar>> {
+    fn _find_lvar(lvar: &Rc<RefCell<Lvar>>, name: impl Into<String>) -> Option<Rc<RefCell<Lvar>>> {
         let name = name.into();
-        if lvar.dec.ident.name == name {
+        if lvar.borrow().dec.ident.name == name {
             Some(lvar.clone())
         } else {
-            if let Some(ref next) = lvar.next {
+            if let Some(ref next) = lvar.borrow().next {
                 Self::_find_lvar(next, name)
             } else {
                 None
@@ -573,7 +574,7 @@ impl Scope {
         *self = sc;
     }
 
-    pub fn find_cur_lvar(&self, ident: Ident) -> Option<Rc<Lvar>> {
+    pub fn find_cur_lvar(&self, ident: Ident) -> Option<Rc<RefCell<Lvar>>> {
         if let Some(vr) = self.v.get(&(ident, self.depth)) {
             match vr.as_ref() {
                 Var::L(lvar) => Some(lvar.clone()),
@@ -584,12 +585,12 @@ impl Scope {
         }
     }
 
-    pub fn find_upper_lvar(&self, ident: Ident) -> Option<Rc<Lvar>> {
+    pub fn find_upper_lvar(&self, ident: Ident) -> Option<Rc<RefCell<Lvar>>> {
         self.find_lvar(ident, self.depth)
     }
 
     /// depthとそれより浅い範囲にある物を探す。深いものからみつかる
-    pub fn find_lvar(&self, ident: Ident, depth: usize) -> Option<Rc<Lvar>> {
+    pub fn find_lvar(&self, ident: Ident, depth: usize) -> Option<Rc<RefCell<Lvar>>> {
         for i in (0..=depth).rev() {
             if let Some(vr) = self.v.get(&(ident.clone(), i)) {
                 // todo performance
@@ -683,7 +684,7 @@ impl Program {
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Function {
     pub def: Rc<FuncPrototype>,
-    pub all_vars: Option<Rc<Lvar>>,
+    pub all_vars: Option<Rc<RefCell<Lvar>>>,
     pub all_var_num: usize,
     pub nodes: Vec<Node>,
 }
@@ -702,7 +703,7 @@ impl From<Function> for FuncPrototype {
 impl Function {
     pub fn new(
         def: Rc<FuncPrototype>,
-        all_vars: Option<Rc<Lvar>>,
+        all_vars: Option<Rc<RefCell<Lvar>>>,
         all_var_num: usize,
         nodes: Vec<Node>,
     ) -> Self {
@@ -718,7 +719,7 @@ impl Function {
     /// 最後には8バイト境界になるようにパディングが追加される
     pub fn get_all_var_size(&self) -> u64 {
         if let Some(ref lvar) = self.all_vars {
-            let size = lvar.offset + lvar.dec.type_kind.size();
+            let size = lvar.borrow().offset;
             let size = base_types::align_to(size, 8);
             return size;
         } else {

@@ -808,7 +808,7 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# lvar")?;
             writeln!(ctx.asm, "    mov rax, rbp")?;
-            writeln!(ctx.asm, "    sub rax, {}", x.offset)?;
+            writeln!(ctx.asm, "    sub rax, {}", x.borrow().offset)?;
             writeln!(ctx.asm, "    push rax")?;
             Ok(())
         }

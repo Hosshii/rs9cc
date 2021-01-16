@@ -453,7 +453,12 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
         if consume(iter, Operator::Assign) {
             count = const_expr(iter, ctx)?;
         }
-        let l = ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0);
+        let l = ctx
+            .l
+            .lvar
+            .as_ref()
+            .map(|lvar| lvar.borrow().offset)
+            .unwrap_or(0);
         ctx.push_front(
             Declaration::new_const(TypeKind::Int, ident.clone(), count),
             l,
@@ -560,7 +565,12 @@ pub fn function(
 
     ctx.l = LocalContext::new();
     for fn_param in func_prototype.params.clone() {
-        let l = ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0);
+        let l = ctx
+            .l
+            .lvar
+            .as_ref()
+            .map(|lvar| lvar.borrow().offset)
+            .unwrap_or(0);
         ctx.push_front(fn_param, l)
     }
 
@@ -623,7 +633,7 @@ pub fn multi_field_initialize(iter: &mut TokenIter, ctx: &mut Context) -> Result
 pub fn lvar_init_zero(
     iter: &mut TokenIter,
     ctx: &mut Context,
-    lvar: Rc<Lvar>,
+    lvar: Rc<RefCell<Lvar>>,
     type_kind: Rc<RefCell<TypeKind>>,
     desg: &mut Option<Box<Designator>>,
 ) -> Result<Node, Error> {
@@ -639,14 +649,14 @@ pub fn lvar_init_zero(
                 i += 1;
             }
             return Ok(Node::new_init(
-                NodeKind::Declaration(lvar.dec.clone()),
+                NodeKind::Declaration(lvar.borrow().dec.clone()),
                 init,
             ));
         }
         _ => (),
     }
     Ok(Node::new_init(
-        NodeKind::Declaration(lvar.dec.clone()),
+        NodeKind::Declaration(lvar.borrow().dec.clone()),
         vec![new_desg_node(Var::L(lvar.clone()), desg, Node::new_num(0))?],
     ))
 }
@@ -656,14 +666,18 @@ pub fn lvar_init_zero(
 fn lvar_initializer(
     iter: &mut TokenIter,
     ctx: &mut Context,
-    lvar: Rc<Lvar>,
+    lvar: Rc<RefCell<Lvar>>,
     type_kind: Rc<RefCell<TypeKind>>,
     desg: &mut Option<Box<Designator>>,
-) -> Result<Node, Error> {
+) -> Result<(Node, Rc<RefCell<TypeKind>>), Error> {
     let var = Var::L(lvar.clone());
-    if let Some(string) = consume_string(iter) {
-        if let TypeKind::Array(size, base, _) = &*type_kind.borrow() {
-            if &*base.borrow() == &TypeKind::Char {
+    if let TypeKind::Array(size, base, is_sized) = &mut *type_kind.borrow_mut() {
+        if &*base.borrow() == &TypeKind::Char {
+            if let Some(string) = consume_string(iter) {
+                if !*is_sized {
+                    *is_sized = true;
+                    *size = string.len() as u64;
+                }
                 let len = min(string.len() as u64, *size);
                 let mut i = 0;
                 let string = string.as_bytes();
@@ -679,31 +693,38 @@ fn lvar_initializer(
                     let node = lvar_init_zero(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
                     init.push(node);
                 }
-                return Ok(Node::new_init(
-                    NodeKind::Declaration(lvar.dec.clone()),
-                    init,
+                return Ok((
+                    Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), init),
+                    type_kind.clone(),
                 ));
             }
         }
     }
 
     if !consume_block(iter, Block::LParen) {
-        Ok(Node::new_init(
-            NodeKind::Declaration(lvar.dec.clone()),
-            vec![new_desg_node(var, desg, assign(iter, ctx)?)?],
+        Ok((
+            Node::new_init(
+                NodeKind::Declaration(lvar.borrow().dec.clone()),
+                vec![new_desg_node(var, desg, assign(iter, ctx)?)?],
+            ),
+            type_kind,
         ))
     } else {
-        match &*type_kind.borrow() {
-            TypeKind::Array(size, base, _) => {
+        match &mut *type_kind.borrow_mut() {
+            TypeKind::Array(size, base, is_sized) => {
                 let mut init = Vec::new();
                 let mut i = 0;
-                while {
-                    let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
-                    i += 1;
-                    let node = lvar_initializer(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
-                    init.push(node);
-                    !peek_end(iter) && consume_comma(iter)
-                } {}
+                if !peek_end(iter) {
+                    while {
+                        let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
+                        i += 1;
+                        let node =
+                            lvar_initializer(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
+                        init.push(node.0);
+                        !peek_end(iter) && consume_comma(iter)
+                    } {}
+                }
+
                 expect_end(iter)?;
 
                 while i < *size {
@@ -712,9 +733,13 @@ fn lvar_initializer(
                     let node = lvar_init_zero(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
                     init.push(node);
                 }
-                Ok(Node::new_init(
-                    NodeKind::Declaration(lvar.dec.clone()),
-                    init,
+                if !*is_sized {
+                    *is_sized = true;
+                    *size = init.len() as u64;
+                }
+                Ok((
+                    Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), init),
+                    type_kind.clone(),
                 ))
             }
             _ => Err(Error::todo(iter.filepath, iter.s, iter.pos)),
@@ -909,7 +934,11 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             } else {
                 ctx.push_front(
                     dec.clone(),
-                    ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+                    ctx.l
+                        .lvar
+                        .as_ref()
+                        .map(|lvar| lvar.borrow().offset)
+                        .unwrap_or(0),
                 );
             }
             return Ok(Node::new_leaf(NodeKind::Declaration(dec)));
@@ -918,16 +947,22 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 
         ctx.push_front(
             dec.clone(),
-            ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
+            ctx.l
+                .lvar
+                .as_ref()
+                .map(|lvar| lvar.borrow().offset)
+                .unwrap_or(0),
         );
         let lvar = ctx.s.find_cur_lvar(dec.ident.clone()).unwrap();
-        let node = lvar_initializer(
+        let (node, type_kind) = lvar_initializer(
             iter,
             ctx,
             lvar.clone(),
-            Rc::new(RefCell::new(lvar.dec.type_kind.clone())),
+            Rc::new(RefCell::new(lvar.borrow().dec.type_kind.clone())),
             &mut None,
         )?;
+        lvar.borrow_mut().dec.type_kind = type_kind.borrow().clone();
+        lvar.borrow_mut().offset += type_kind.borrow().size();
         expect_semi(iter)?;
         return Ok(node);
     }
@@ -1421,8 +1456,8 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             )));
         }
         if let Some(lvar) = ctx.s.find_upper_lvar(ident.clone()) {
-            if lvar.dec.is_const.0 {
-                return Ok(Node::new_num(lvar.dec.is_const.1));
+            if lvar.borrow().dec.is_const.0 {
+                return Ok(Node::new_num(lvar.borrow().dec.is_const.1));
             }
             return Ok(Node::new_leaf(NodeKind::Lvar(lvar)));
         } else if let Some(x) = ctx.s.find_upper_gvar(ident.clone()) {
@@ -1568,43 +1603,43 @@ mod tests {
         let expected = vec![
             Node::new_num(1),
             Node::new_num(1),
-            Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
+            Node::new_leaf(NodeKind::Lvar(Rc::new(RefCell::new(Lvar::new_leaf(
                 make_int_dec("hoge"),
                 8,
-            )))),
+            ))))),
             Node::new(NodeKind::Sub, Node::new_num(0), Node::new_num(1)),
             Node::new(
                 NodeKind::Sub,
                 Node::new_num(0),
-                Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
+                Node::new_leaf(NodeKind::Lvar(Rc::new(RefCell::new(Lvar::new_leaf(
                     make_int_dec("hoge"),
                     8,
-                )))),
+                ))))),
             ),
             Node::new_unary(NodeKind::Deref, Node::new_num(1)),
             Node::new_unary(NodeKind::Addr, Node::new_num(1)),
             Node::new_unary(
                 NodeKind::Deref,
-                Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
+                Node::new_leaf(NodeKind::Lvar(Rc::new(RefCell::new(Lvar::new_leaf(
                     make_int_dec("hoge"),
                     8,
-                )))),
+                ))))),
             ),
             Node::new_unary(
                 NodeKind::Addr,
-                Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
+                Node::new_leaf(NodeKind::Lvar(Rc::new(RefCell::new(Lvar::new_leaf(
                     make_int_dec("hoge"),
                     8,
-                )))),
+                ))))),
             ),
             Node::new_unary(
                 NodeKind::Deref,
                 Node::new_unary(
                     NodeKind::Addr,
-                    Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
+                    Node::new_leaf(NodeKind::Lvar(Rc::new(RefCell::new(Lvar::new_leaf(
                         make_int_dec("hoge"),
                         8,
-                    )))),
+                    ))))),
                 ),
             ),
         ];
@@ -1613,10 +1648,10 @@ mod tests {
         let iter = &mut token::tokenize(input, "");
         for i in expected {
             let ctx = &mut Context::new();
-            ctx.l.lvar = Some(Rc::new(make_int_lvar("hoge", 8)));
+            ctx.l.lvar = Some(Rc::new(RefCell::new(make_int_lvar("hoge", 8))));
             ctx.s.insert_v(
                 Ident::new("hoge"),
-                Rc::new(Var::L(Rc::new(make_int_lvar("hoge", 8)))),
+                Rc::new(Var::L(Rc::new(RefCell::new(make_int_lvar("hoge", 8))))),
             );
             assert_eq!(i, unary(iter, ctx).unwrap());
         }
@@ -1632,9 +1667,11 @@ mod tests {
         let iter = &mut token::tokenize(input, "");
         for i in expected {
             let ctx = &mut Context::new();
-            ctx.l.lvar = Some(Rc::new(i.1.clone()));
-            ctx.s
-                .insert_v(i.1.dec.ident.clone(), Rc::new(Var::L(Rc::new(i.1))));
+            ctx.l.lvar = Some(Rc::new(RefCell::new(i.1.clone())));
+            ctx.s.insert_v(
+                i.1.dec.ident.clone(),
+                Rc::new(Var::L(Rc::new(RefCell::new(i.1)))),
+            );
 
             assert_eq!(i.0, unary(iter, ctx).unwrap());
         }
@@ -1823,38 +1860,38 @@ mod tests {
         let init = Node::new_unary(NodeKind::ExprStmt, make_assign_node("i", 0, 8));
         let cond = Node::new(
             NodeKind::Lesser,
-            Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
+            Node::new_leaf(NodeKind::Lvar(Rc::new(RefCell::new(Lvar::new_leaf(
                 make_int_dec("i"),
                 8,
-            )))),
+            ))))),
             Node::new_num(10),
         );
         let tmp_inc = Node::new(
             NodeKind::Add,
-            Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
+            Node::new_leaf(NodeKind::Lvar(Rc::new(RefCell::new(Lvar::new_leaf(
                 make_int_dec("i"),
                 8,
-            )))),
+            ))))),
             Node::new_num(1),
         );
         let inc = Node::new_unary(
             NodeKind::ExprStmt,
             Node::new(
                 NodeKind::Assign,
-                Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
+                Node::new_leaf(NodeKind::Lvar(Rc::new(RefCell::new(Lvar::new_leaf(
                     make_int_dec("i"),
                     8,
-                )))),
+                ))))),
                 tmp_inc,
             ),
         );
 
         let ret = Node::new(
             NodeKind::Add,
-            Node::new_leaf(NodeKind::Lvar(Rc::new(Lvar::new_leaf(
+            Node::new_leaf(NodeKind::Lvar(Rc::new(RefCell::new(Lvar::new_leaf(
                 make_int_dec("i"),
                 8,
-            )))),
+            ))))),
             Node::new_num(2),
         );
         let then = Node::new_unary(NodeKind::Return, ret);
@@ -1863,10 +1900,10 @@ mod tests {
 
         let input = "for( i=0;i<10;i=i+1)return i+2;";
         let ctx = &mut Context::new();
-        ctx.l.lvar = Some(Rc::new(make_int_lvar("i", 8)));
+        ctx.l.lvar = Some(Rc::new(RefCell::new(make_int_lvar("i", 8))));
         ctx.s.insert_v(
             Ident::new("i"),
-            Rc::new(Var::L(Rc::new(make_int_lvar("i", 8)))),
+            Rc::new(Var::L(Rc::new(RefCell::new(make_int_lvar("i", 8))))),
         );
         let actual = stmt(&mut token::tokenize(input, ""), ctx).unwrap();
 
@@ -1978,7 +2015,7 @@ mod tests {
         ));
         let lvar1 = Lvar::new_leaf(make_int_dec("foo"), 4);
         let lvar2 = Lvar::new(lvar1.clone(), make_int_dec("bar"), 8);
-        let expected_lvar = Rc::new(lvar2.clone());
+        let expected_lvar = Rc::new(RefCell::new(lvar2.clone()));
         let node1 = Node::new_leaf(NodeKind::Declaration(make_int_dec("foo")));
         let node2 = Node::new_unary(NodeKind::ExprStmt, make_assign_node("foo", 1, 4));
         let node3 = Node::new_leaf(NodeKind::Declaration(make_int_dec("bar")));
@@ -1986,7 +2023,7 @@ mod tests {
             NodeKind::ExprStmt,
             Node::new(
                 NodeKind::Assign,
-                Node::new_leaf(NodeKind::Lvar(Rc::new(lvar2.clone()))),
+                Node::new_leaf(NodeKind::Lvar(Rc::new(RefCell::new(lvar2.clone())))),
                 Node::new_num(2),
             ),
         );
@@ -1994,8 +2031,8 @@ mod tests {
             NodeKind::Return,
             Node::new(
                 NodeKind::Add,
-                Node::new_leaf(NodeKind::Lvar(Rc::new(lvar1))),
-                Node::new_leaf(NodeKind::Lvar(Rc::new(lvar2))),
+                Node::new_leaf(NodeKind::Lvar(Rc::new(RefCell::new(lvar1)))),
+                Node::new_leaf(NodeKind::Lvar(Rc::new(RefCell::new(lvar2)))),
             ),
         );
         let expected_nodes = vec![node1, node2, node3, node4, node5];
@@ -2069,7 +2106,7 @@ mod tests {
         let expected_lvar = Lvar::new_leaf(make_int_dec("foo"), 4);
         let expected = Function::new(
             func_prototype,
-            Some(Rc::new(expected_lvar)),
+            Some(Rc::new(RefCell::new(expected_lvar))),
             1,
             expected_nodes,
         );
@@ -2112,7 +2149,7 @@ mod tests {
         );
         let expected = Function::new(
             expected_func_prototype,
-            Some(Rc::new(expected_lvar)),
+            Some(Rc::new(RefCell::new(expected_lvar))),
             4,
             expected_nodes,
         );
@@ -2251,7 +2288,7 @@ mod tests {
     fn make_assign_node(lhs: impl Into<String>, rhs: i64, offset: u64) -> Node {
         let mut node = Node::new_none(NodeKind::Assign);
         node.lhs = Some(Box::new(Node::new_leaf(NodeKind::Lvar(Rc::new(
-            Lvar::new_leaf(make_int_dec(lhs.into()), offset),
+            RefCell::new(Lvar::new_leaf(make_int_dec(lhs.into()), offset)),
         )))));
         node.rhs = Some(Box::new(Node::new_num(rhs)));
         node
