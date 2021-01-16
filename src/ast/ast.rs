@@ -620,6 +620,36 @@ pub fn multi_field_initialize(iter: &mut TokenIter, ctx: &mut Context) -> Result
     Ok(nodes)
 }
 
+pub fn lvar_init_zero(
+    iter: &mut TokenIter,
+    ctx: &mut Context,
+    lvar: Rc<Lvar>,
+    type_kind: Rc<RefCell<TypeKind>>,
+    desg: &mut Option<Box<Designator>>,
+) -> Result<Node, Error> {
+    let mut init = Vec::new();
+    match &*type_kind.borrow() {
+        TypeKind::Array(size, base, _) => {
+            let mut i = 0;
+            while i < *size {
+                let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
+                i += 1;
+                let node = lvar_init_zero(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
+                init.push(node);
+                i += 1;
+            }
+            return Ok(Node::new_init(
+                NodeKind::Declaration(lvar.dec.clone()),
+                init,
+            ));
+        }
+        _ => (),
+    }
+    Ok(Node::new_init(
+        NodeKind::Declaration(lvar.dec.clone()),
+        vec![new_desg_node(Var::L(lvar.clone()), desg, Node::new_num(0))?],
+    ))
+}
 
 // lvar-initializer = assign
 //                  | "{" lvar-initializer ("," lvar-initializer)* ","? "}"
@@ -627,6 +657,7 @@ fn lvar_initializer(
     iter: &mut TokenIter,
     ctx: &mut Context,
     lvar: Rc<Lvar>,
+    type_kind: Rc<RefCell<TypeKind>>,
     desg: &mut Option<Box<Designator>>,
 ) -> Result<Node, Error> {
     if !consume_block(iter, Block::LParen) {
@@ -636,18 +667,25 @@ fn lvar_initializer(
             vec![new_desg_node(var, desg, assign(iter, ctx)?)?],
         ))
     } else {
-        match &lvar.dec.type_kind {
-            TypeKind::Array(_, _, _) => {
+        match &*type_kind.borrow() {
+            TypeKind::Array(size, base, _) => {
                 let mut init = Vec::new();
                 let mut i = 0;
                 while {
                     let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
                     i += 1;
-                    let node = lvar_initializer(iter, ctx, lvar.clone(), &mut desg2)?;
+                    let node = lvar_initializer(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
                     init.push(node);
                     !peek_end(iter) && consume_comma(iter)
                 } {}
                 expect_end(iter)?;
+
+                while i < *size {
+                    let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
+                    i += 1;
+                    let node = lvar_init_zero(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
+                    init.push(node);
+                }
                 Ok(Node::new_init(
                     NodeKind::Declaration(lvar.dec.clone()),
                     init,
@@ -857,7 +895,13 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             ctx.l.lvar.as_ref().map(|lvar| lvar.offset).unwrap_or(0),
         );
         let lvar = ctx.s.find_cur_lvar(dec.ident.clone()).unwrap();
-        let node = lvar_initializer(iter, ctx, lvar, &mut None)?;
+        let node = lvar_initializer(
+            iter,
+            ctx,
+            lvar.clone(),
+            Rc::new(RefCell::new(lvar.dec.type_kind.clone())),
+            &mut None,
+        )?;
         expect_semi(iter)?;
         return Ok(node);
     }

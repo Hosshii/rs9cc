@@ -649,6 +649,13 @@ lvar_initialize() {
     assert 6 'int main(){int x[2][3]={{1,2,3},{4,5,6}}; return x[1][2];}'
 }
 
+# 58
+arr_zero_ini() {
+    assert 2 'int main(){int x[2][3]={{1,2}}; return x[0][1];}'
+    assert 0 'int main(){int x[2][3]={{1,2}}; return x[1][0];}'
+    assert 0 'int main(){int x[2][3]={{1,2}}; return x[1][2];}'
+}
+
 build() {
     cargo build
 }
@@ -727,6 +734,7 @@ if [ $# -eq 0 ]; then
     ternary
     const_expression
     lvar_initialize
+    arr_zero_ini
 fi
 
 while [ $# -ne 0 ]; do
@@ -788,6 +796,7 @@ while [ $# -ne 0 ]; do
     "55") ternary ;;
     "56") const_expression ;;
     "57") lvar_initialize ;;
+    "58") arr_zero_ini ;;
     esac
     shift
 done
