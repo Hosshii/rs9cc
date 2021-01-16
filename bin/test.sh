@@ -656,6 +656,17 @@ arr_zero_ini() {
     assert 0 'int main(){int x[2][3]={{1,2}}; return x[1][2];}'
 }
 
+# 59
+string_arr_ini() {
+    assert 104 'int main(){char p[6] = "hello"; return p[0];}'
+    assert 108 'int main(){char p[6] = "hello"; return p[3];}'
+    assert 0 'int main(){char p[6] = "hello"; return p[5];}'
+    assert 97 'int main(){char x[2][4]={"abc","def"};return x[0][0];}'
+    assert 0 'int main(){char x[2][4]={"abc","def"};return x[0][3];}'
+    assert 100 'int main(){char x[2][4]={"abc","def"};return x[1][0];}'
+    assert 102 'int main(){char x[2][4]={"abc","def"};return x[1][2];}'
+}
+
 build() {
     cargo build
 }
@@ -735,6 +746,7 @@ if [ $# -eq 0 ]; then
     const_expression
     lvar_initialize
     arr_zero_ini
+    string_arr_ini
 fi
 
 while [ $# -ne 0 ]; do
@@ -797,6 +809,7 @@ while [ $# -ne 0 ]; do
     "56") const_expression ;;
     "57") lvar_initialize ;;
     "58") arr_zero_ini ;;
+    "59") string_arr_ini ;;
     esac
     shift
 done

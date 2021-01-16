@@ -7,8 +7,8 @@ use super::{
 };
 use crate::base_types::{self, Enum, Member, Struct, TagTypeKind, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
-use std::cell::RefCell;
 use std::rc::Rc;
+use std::{cell::RefCell, cmp::min};
 
 // program         = (function | declaration ("=" initialize)? ";" | func-prototype )*
 pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
@@ -660,8 +660,34 @@ fn lvar_initializer(
     type_kind: Rc<RefCell<TypeKind>>,
     desg: &mut Option<Box<Designator>>,
 ) -> Result<Node, Error> {
+    let var = Var::L(lvar.clone());
+    if let Some(string) = consume_string(iter) {
+        if let TypeKind::Array(size, base, _) = &*type_kind.borrow() {
+            if &*base.borrow() == &TypeKind::Char {
+                let len = min(string.len() as u64, *size);
+                let mut i = 0;
+                let string = string.as_bytes();
+                let mut init = Vec::new();
+                while i < len {
+                    let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
+                    let rhs = Node::new_num(string[i as usize] as i64); //
+                    init.push(new_desg_node(var.clone(), &mut desg2, rhs)?);
+                    i += 1;
+                }
+                for i in i..*size {
+                    let mut desg2 = Some(Box::new(Designator::new(i, desg.clone())));
+                    let node = lvar_init_zero(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
+                    init.push(node);
+                }
+                return Ok(Node::new_init(
+                    NodeKind::Declaration(lvar.dec.clone()),
+                    init,
+                ));
+            }
+        }
+    }
+
     if !consume_block(iter, Block::LParen) {
-        let var = Var::L(lvar.clone());
         Ok(Node::new_init(
             NodeKind::Declaration(lvar.dec.clone()),
             vec![new_desg_node(var, desg, assign(iter, ctx)?)?],
