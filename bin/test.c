@@ -46,6 +46,9 @@ int *g_ptr1= &g_3;
 char *hello = "hello";
 char hello2[]="hello2";
 int g_arr3[]= {1,2,3};
+struct {char a;int b;}g4[2] = {{1,2},{3,4}};
+struct {int a[2];}g5[2] = {{{1,2}}, {{3,4}}};
+char *g6[] = {"foo","bar"}; 
 
 int assert(int expected, int actual, char *msg) {
   if (expected == actual) {
@@ -634,6 +637,19 @@ int main() {
   assert(4, ({ struct {int a; int b;} x[2]={{1,2},{3,4}}; x[1].b; }), "struct {int a; int b;} x[2]={{1,2},{3,4}}; x[1].b;");
 
   assert(0, ({ struct {int a; int b;} x[2]={{1,2}}; x[1].b; }), "struct {int a; int b;} x[2]={{1,2}}; x[1].b;");
+
+  // #62,63
+  printf("\n\n#62,#63\n");
+  assert(1,g4[0].a,"g4[0].a");
+  assert(2,g4[0].b,"g4[0].b");
+  assert(3,g4[1].a,"g4[1].a");
+  assert(4,g4[1].b,"g4[1].b");
+  assert(1,g5[0].a[0],"g5[0].a[0]");
+  assert(2,g5[0].a[1],"g5[0].a[1]");
+  assert(3,g5[1].a[0],"g5[1].a[0]");
+  assert(4,g5[1].a[1],"g5[1].a[1]");
+  assert(102,g6[0][0],"g6[0][0]");
+  assert(114,g6[1][2],"g6[1][2]");
 
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;

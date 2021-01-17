@@ -3,7 +3,7 @@ use super::{
     Context, Declaration, Designator, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident,
     Initializer, Node, NodeKind, Var,
 };
-use crate::base_types::{self, TagTypeKind, TypeKind};
+use crate::base_types::{self, Member, TagTypeKind, TypeKind};
 
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
 use std::{cell::RefCell, rc::Rc};
@@ -508,5 +508,28 @@ pub(crate) fn new_init_label(initializers: &mut Vec<Initializer>, label: String)
 pub(crate) fn gvar_init_string(initializers: &mut Vec<Initializer>, content: String) {
     for i in content.as_bytes() {
         new_init_val(initializers, 1, *i as i64);
+    }
+}
+
+pub(crate) fn new_init_zero(initializers: &mut Vec<Initializer>, nbytes: u64) {
+    for _ in 0..nbytes {
+        new_init_val(initializers, 1, 0);
+    }
+}
+
+pub(crate) fn emit_struct_padding(
+    initializer: &mut Vec<Initializer>,
+    size: u64,
+    member: Rc<Member>,
+    next: Option<Rc<Member>>,
+) {
+    let end = member.offset + member.type_kind.size();
+
+    let padding = match next {
+        Some(x) => x.offset - end,
+        None => size - end,
+    };
+    if padding > 0 {
+        new_init_zero(initializer, padding);
     }
 }

@@ -21,10 +21,10 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
         // if next token is ; or [], it is global variable
         // if next token is ( , it is function
 
-        let (_type_kind, _) = type_specifier(iter, ctx)?;
-        let type_kind = Rc::new(RefCell::new(_type_kind.clone()));
+        let (type_kind, _) = type_specifier(iter, ctx)?;
+        let type_kind = Rc::new(RefCell::new(type_kind.clone()));
         let mut ident = Ident::new_anonymous();
-        let dec = declarator(iter, ctx, type_kind, &mut ident)?;
+        let type_kind = declarator(iter, ctx, type_kind, &mut ident)?;
 
         if let Some(next) = iter.next() {
             match &next.kind {
@@ -37,7 +37,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                     }
 
                     let func_prototype =
-                        FuncPrototype::new(dec.replace(TypeKind::Int), ident, fn_params);
+                        FuncPrototype::new(type_kind.replace(TypeKind::Int), ident, fn_params);
                     let checked_func_prototype = Rc::new(check_func_prototype(
                         iter,
                         &ctx.g.func_prototype_mp,
@@ -56,10 +56,9 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                     program.functions.push(func);
                 }
                 x => {
-                    let type_kind = dec.replace(TypeKind::Int);
                     let mut init = Vec::new();
                     if x == &TokenKind::Reserved(Operator::Assign) {
-                        gvar_initializer(iter, ctx, &mut init, _type_kind)?;
+                        gvar_initializer(iter, ctx, &mut init, type_kind.clone())?;
                         expect_semi(iter)?;
                     } else if x != &TokenKind::SemiColon {
                         return Err(Error::unexpected_token(
@@ -69,7 +68,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                             TokenKind::SemiColon,
                         ));
                     }
-                    let dec = Declaration::new(type_kind, ident);
+                    let dec = Declaration::new(type_kind.borrow().clone(), ident);
                     let ident = dec.ident.clone();
                     ctx.insert_g(Rc::new(check_g_var(
                         iter,
@@ -89,8 +88,68 @@ pub fn gvar_initializer(
     iter: &mut TokenIter,
     ctx: &mut Context,
     initializer: &mut Vec<Initializer>,
-    type_kind: TypeKind,
+    type_kind: Rc<RefCell<TypeKind>>,
 ) -> Result<(), Error> {
+    if consume_block(iter, Block::LParen) {
+        match &mut *type_kind.borrow_mut() {
+            TypeKind::Array(size, base, is_sized) => {
+                let mut i = 0;
+                if !peek_end(iter) {
+                    while {
+                        gvar_initializer(iter, ctx, initializer, base.clone())?;
+                        i += 1;
+                        !peek_end(iter) && consume_comma(iter)
+                    } {}
+                }
+
+                expect_end(iter)?;
+                if i < *size {
+                    new_init_zero(initializer, base.borrow().size() * (*size - i));
+                }
+
+                if *is_sized {
+                    *is_sized = true;
+                    *size = i;
+                }
+                return Ok(());
+            }
+            TypeKind::Struct(_struct) => {
+                let members = _struct.borrow().members.clone();
+                let mut i = 0;
+                if !peek_end(iter) {
+                    while {
+                        gvar_initializer(
+                            iter,
+                            ctx,
+                            initializer,
+                            Rc::new(RefCell::new(members[i].type_kind.as_ref().clone())), // todo
+                        )?;
+                        let next = if members.len() > i + 1 {
+                            Some(members[i + 1].clone())
+                        } else {
+                            None
+                        };
+                        emit_struct_padding(
+                            initializer,
+                            _struct.borrow().get_size(),
+                            members[i].clone(),
+                            next,
+                        );
+                        i += 1;
+
+                        !peek_end(iter) && consume_comma(iter)
+                    } {}
+                }
+                expect_end(iter)?;
+                if members.len() > i {
+                    let size = type_kind.borrow().size() - members[i].offset;
+                    new_init_zero(initializer, size);
+                }
+                return Ok(());
+            }
+            _ => return Err(Error::todo(iter.filepath, iter.s, iter.pos)),
+        }
+    }
     let mut node = conditional(iter, ctx)?;
     if node.kind == NodeKind::Addr {
         if let Some(x) = &node.lhs {
@@ -109,7 +168,7 @@ pub fn gvar_initializer(
         }
     }
 
-    new_init_val(initializer, type_kind.size(), eval(&mut node)?);
+    new_init_val(initializer, type_kind.borrow().size(), eval(&mut node)?);
 
     Ok(())
 }

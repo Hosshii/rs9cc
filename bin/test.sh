@@ -700,6 +700,14 @@ gvar_scalar_ini() {
     assert 97 ' char *g = "abc"; int main(){return g[0];}'
 }
 
+# 62
+gvar_arr_ini() {
+    assert 2 'int g[3] = {0,1,2}; int main(){return g[2];}'
+    assert 98 'char *g[] = {"foo","bar"}; int main(){return g[1][0];}'
+    assert 3 'struct {char a; int b;}g[2]={{1,2},{3,4}}; int main(){return g[1].a;}'
+    assert 4 'struct {int a[2];}g[2] = {{{1,2}}, {{3,4}}}; int main(){return g[1].a[1];}'
+}
+
 build() {
     cargo build
 }
@@ -783,6 +791,7 @@ if [ $# -eq 0 ]; then
     unsized_arr
     struct_ini
     gvar_scalar_ini
+    gvar_arr_ini
 fi
 
 while [ $# -ne 0 ]; do
@@ -849,6 +858,7 @@ while [ $# -ne 0 ]; do
     "60") unsized_arr ;;
     "61") struct_ini ;;
     "62") gvar_scalar_ini ;;
+    "63") gvar_arr_ini ;;
     esac
     shift
 done

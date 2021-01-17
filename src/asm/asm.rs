@@ -41,16 +41,20 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
     // define global variable
     for (name, gvar) in program.ctx.g.gvar_mp {
         writeln!(ctx.asm, "{}:", name)?;
-        for i in &gvar.init {
-            match i {
-                Initializer::Label(label) => {
-                    writeln!(ctx.asm, "    .quad {}", label)?;
-                }
-                Initializer::Val(size, val) => {
-                    if *size == 1 {
-                        writeln!(ctx.asm, "    .byte {}", val)?;
-                    } else {
-                        writeln!(ctx.asm, "    .{}byte {}", size, val)?;
+        if gvar.init.len() == 0 {
+            writeln!(ctx.asm, "    .zero {}", gvar.size)?;
+        } else {
+            for i in &gvar.init {
+                match i {
+                    Initializer::Label(label) => {
+                        writeln!(ctx.asm, "    .quad {}", label)?;
+                    }
+                    Initializer::Val(size, val) => {
+                        if *size == 1 {
+                            writeln!(ctx.asm, "    .byte {}", val)?;
+                        } else {
+                            writeln!(ctx.asm, "    .{}byte {}", size, val)?;
+                        }
                     }
                 }
             }
