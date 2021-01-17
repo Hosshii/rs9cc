@@ -412,11 +412,11 @@ impl Lvar {
 pub struct Gvar {
     pub dec: Declaration,
     pub size: u64,
-    pub init: Vec<Node>,
+    pub init: Vec<Initializer>,
 }
 
 impl Gvar {
-    pub fn new(dec: Declaration, size: u64, init: Vec<Node>) -> Self {
+    pub fn new(dec: Declaration, size: u64, init: Vec<Initializer>) -> Self {
         Self { dec, size, init }
     }
 
@@ -803,6 +803,13 @@ impl Designator {
     pub fn new(idx: u64, next: Option<Box<Designator>>, member: Option<Rc<Member>>) -> Self {
         Self { idx, next, member }
     }
+}
+
+/// global var initializer
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub enum Initializer {
+    Val(u64, i64), // size, value
+    Label(String), // pointer
 }
 
 #[cfg(test)]

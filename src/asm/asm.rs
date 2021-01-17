@@ -1,5 +1,5 @@
 use super::error::Error;
-use crate::ast::{Node, NodeKind, Program};
+use crate::ast::{Initializer, Node, NodeKind, Program};
 use crate::base_types::{self, TypeKind};
 use std::fmt::Write;
 
@@ -41,58 +41,16 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
     // define global variable
     for (name, gvar) in program.ctx.g.gvar_mp {
         writeln!(ctx.asm, "{}:", name)?;
-        match &gvar.dec.type_kind {
-            TypeKind::Array(size, type_kind, _) => {
-                let word = match &type_kind.borrow().size() {
-                    1 => "byte",
-                    2 => "value",
-                    4 => "long",
-                    8 => "quad",
-                    _ => {
-                        dbg!();
-                        return Err(Error::todo());
-                    }
-                };
-                for i in &gvar.init {
-                    if let NodeKind::Num(x) = i.kind {
-                        writeln!(ctx.asm, "    .{} {}", word, x)?;
-                    } else {
-                        unreachable!();
-                    }
+        for i in &gvar.init {
+            match i {
+                Initializer::Label(label) => {
+                    writeln!(ctx.asm, "    .quad {}", label)?;
                 }
-                for _ in 0..(size - gvar.init.len() as u64) {
-                    writeln!(ctx.asm, "    .{} {}", word, 0)?;
-                }
-            }
-            TypeKind::Ptr(_) => {
-                if gvar.init.len() <= 0 {
-                    writeln!(ctx.asm, "    .quad {}", 0)?;
-                } else {
-                    if let Ok(gvar) = &gvar.init[0].get_gvar() {
-                        writeln!(ctx.asm, "    .quad {}", gvar.dec.ident.name)?;
+                Initializer::Val(size, val) => {
+                    if *size == 1 {
+                        writeln!(ctx.asm, "    .byte {}", val)?;
                     } else {
-                        return Err(Error::not_gvar());
-                    }
-                }
-            }
-            type_kind => {
-                let word = match &type_kind.size() {
-                    1 => "byte",
-                    2 => "value",
-                    4 => "long",
-                    8 => "quad",
-                    _ => {
-                        dbg!();
-                        return Err(Error::todo());
-                    }
-                };
-                if gvar.init.len() <= 0 {
-                    writeln!(ctx.asm, "    .{} {}", word, 0)?;
-                } else {
-                    if let NodeKind::Num(x) = gvar.init[0].kind {
-                        writeln!(ctx.asm, "    .{} {}", word, x)?;
-                    } else {
-                        writeln!(ctx.asm, "    .{} {}", word, 0)?;
+                        writeln!(ctx.asm, "    .{}byte {}", size, val)?;
                     }
                 }
             }

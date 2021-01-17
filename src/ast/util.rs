@@ -1,7 +1,7 @@
 use super::error::Error;
 use super::{
-    Context, Declaration, Designator, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident, Node,
-    NodeKind, Var,
+    Context, Declaration, Designator, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident,
+    Initializer, Node, NodeKind, Var,
 };
 use crate::base_types::{self, TagTypeKind, TypeKind};
 
@@ -361,7 +361,7 @@ pub(crate) fn check_g_var(
     g_var: &GvarMp,
     type_kind: TypeKind,
     ident: Ident,
-    init: Vec<Node>,
+    init: Vec<Initializer>,
 ) -> Result<Gvar, Error> {
     match g_var.get(&ident.name) {
         Some(_) => {
@@ -400,7 +400,11 @@ pub(crate) fn check_func_prototype(
     }
 }
 
-pub(crate) fn make_string_node(label: impl Into<String>, size: u64, init: Vec<Node>) -> NodeKind {
+pub(crate) fn make_string_node(
+    label: impl Into<String>,
+    size: u64,
+    init: Vec<Initializer>,
+) -> NodeKind {
     NodeKind::Gvar(Rc::new(Gvar::new(
         Declaration::new(
             TypeKind::Array(size, Rc::new(RefCell::new(TypeKind::Char)), true),
@@ -491,4 +495,18 @@ pub(crate) fn new_desg_node(
     let lhs = new_desg_node2(var, desg)?;
     let node = Node::new(NodeKind::Assign, lhs, rhs);
     Ok(Node::new_expr_stmt(node))
+}
+
+pub(crate) fn new_init_val(initializers: &mut Vec<Initializer>, size: u64, val: i64) {
+    initializers.push(Initializer::Val(size, val))
+}
+
+pub(crate) fn new_init_label(initializers: &mut Vec<Initializer>, label: String) {
+    initializers.push(Initializer::Label(label));
+}
+
+pub(crate) fn gvar_init_string(initializers: &mut Vec<Initializer>, content: String) {
+    for i in content.as_bytes() {
+        new_init_val(initializers, 1, *i as i64);
+    }
 }

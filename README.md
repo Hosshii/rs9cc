@@ -6,7 +6,7 @@ mini C compiler written in Rust. This is my hobby project. I use [compilerbook](
 
 ## EBNF
 ```
-program                 = (function | declaration ("=" initialize)? ";" | func-prototype )*
+program                 = (function | declaration ("=" gvar-initializer)? ";" | func-prototype )*
 type-specifier          = builtin-type | struct-dec | typedef-name | enum-specifier"
 builtin-type            = "void" 
                         | "_Bool"
@@ -36,7 +36,7 @@ stmt                    = expr ";"
                         | "while" "(" expr ")" stmt
                         | "for" "(" stmt? ";" expr? ";" expr? ")" stmt
                         | "{" stmt* "}"
-                        | declaration ("=" initialize)? ";"
+                        | declaration ("=" lvar-initializer)? ";"
                         | "break" ";" 
                         | "continue" ";"
                         | "goto" ident ";"
@@ -44,6 +44,8 @@ stmt                    = expr ";"
                         | "switch" "("expr")" stmt
                         | "case" const-expr ":" stmt
                         | "default" ":" stmt
+lvar-initializer        = assign
+                        | "{" lvar-initializer ("," lvar-initializer)* ","? "}"
 expr                    = assign ("," assign)*
 assign                  = conditional (assign-op assign)?
 assign-op               = "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>="

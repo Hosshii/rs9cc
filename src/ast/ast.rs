@@ -2,8 +2,8 @@ use super::error::Error;
 use super::util::*;
 use super::NodeKind;
 use super::{
-    Context, Declaration, Designator, FuncPrototype, Function, Gvar, Ident, LocalContext, Lvar,
-    Node, Program, Var,
+    Context, Declaration, Designator, FuncPrototype, Function, Gvar, Ident, Initializer,
+    LocalContext, Lvar, Node, Program, Var,
 };
 use crate::base_types::{self, Enum, Member, Struct, TagTypeKind, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
@@ -21,13 +21,13 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
         // if next token is ; or [], it is global variable
         // if next token is ( , it is function
 
-        let (type_kind, _) = type_specifier(iter, ctx)?;
-        let type_kind = Rc::new(RefCell::new(type_kind));
+        let (_type_kind, _) = type_specifier(iter, ctx)?;
+        let type_kind = Rc::new(RefCell::new(_type_kind.clone()));
         let mut ident = Ident::new_anonymous();
         let dec = declarator(iter, ctx, type_kind, &mut ident)?;
 
         if let Some(next) = iter.next() {
-            match next.kind {
+            match &next.kind {
                 // function
                 TokenKind::Reserved(Operator::LParen) => {
                     let mut fn_params = Vec::new();
@@ -56,92 +56,64 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                     program.functions.push(func);
                 }
                 x => {
-                    let mut dec = dec.replace(TypeKind::Int);
-                    match &mut dec {
-                        TypeKind::Array(size, _, sized) => {
-                            let mut init = Vec::new();
-
-                            if x == TokenKind::Reserved(Operator::Assign) {
-                                let mut nodes = Vec::new();
-
-                                // str
-                                if let Some(string) = consume_string(iter) {
-                                    for i in string.chars() {
-                                        nodes.push(Node::new_num(i as i64))
-                                    }
-                                }
-                                // num
-                                else {
-                                    expect_block(iter, Block::LParen)?;
-                                    if !consume_block(iter, Block::RParen) {
-                                        nodes.push(assign(iter, ctx)?);
-
-                                        while consume_comma(iter) {
-                                            nodes.push(assign(iter, ctx)?);
-                                        }
-                                        expect_block(iter, Block::RParen)?;
-                                    }
-                                }
-                                expect_semi(iter)?;
-                                if !*sized {
-                                    *size = nodes.len() as u64;
-                                    *sized = true;
-                                }
-                                init = nodes
-                            }
-
-                            let dec = Declaration::new(dec, ident);
-                            let ident = dec.ident.clone();
-                            ctx.insert_g(Rc::new(check_g_var(
-                                iter,
-                                &ctx.g.gvar_mp,
-                                dec.type_kind,
-                                ident,
-                                init,
-                            )?));
-                        }
-                        _ => {
-                            let mut init = vec![];
-                            if x == TokenKind::Reserved(Operator::Assign) {
-                                if let Some(xx) = iter.peek() {
-                                    if let TokenKind::String(_) = xx.kind {
-                                        init.push(assign(iter, ctx)?);
-                                    } else {
-                                        let node = assign(iter, ctx)?;
-                                        match &node.kind {
-                                            NodeKind::Gvar(_) | NodeKind::Lvar(_) => {
-                                                // todo error handling.
-                                                dbg!("initialize element is not constant");
-                                                return Err(Error::todo(
-                                                    iter.filepath,
-                                                    iter.s,
-                                                    iter.pos,
-                                                ));
-                                            }
-                                            _ => (),
-                                        }
-                                        init.push(node);
-                                    }
-                                }
-                                expect_semi(iter)?;
-                            }
-                            let dec = Declaration::new(dec, ident);
-                            let ident = dec.ident.clone();
-                            ctx.insert_g(Rc::new(check_g_var(
-                                iter,
-                                &ctx.g.gvar_mp,
-                                dec.type_kind,
-                                ident,
-                                init,
-                            )?));
-                        }
+                    let type_kind = dec.replace(TypeKind::Int);
+                    let mut init = Vec::new();
+                    if x == &TokenKind::Reserved(Operator::Assign) {
+                        gvar_initializer(iter, ctx, &mut init, _type_kind)?;
+                        expect_semi(iter)?;
+                    } else if x != &TokenKind::SemiColon {
+                        return Err(Error::unexpected_token(
+                            iter.filepath,
+                            iter.s,
+                            next,
+                            TokenKind::SemiColon,
+                        ));
                     }
+                    let dec = Declaration::new(type_kind, ident);
+                    let ident = dec.ident.clone();
+                    ctx.insert_g(Rc::new(check_g_var(
+                        iter,
+                        &ctx.g.gvar_mp,
+                        dec.type_kind,
+                        ident,
+                        init,
+                    )?));
                 }
             }
         }
     }
     Ok(program)
 }
+
+pub fn gvar_initializer(
+    iter: &mut TokenIter,
+    ctx: &mut Context,
+    initializer: &mut Vec<Initializer>,
+    type_kind: TypeKind,
+) -> Result<(), Error> {
+    let mut node = conditional(iter, ctx)?;
+    if node.kind == NodeKind::Addr {
+        if let Some(x) = &node.lhs {
+            if let NodeKind::Gvar(x) = &x.kind {
+                new_init_label(initializer, x.as_ref().dec.ident.name.clone());
+                return Ok(());
+            }
+        }
+        return Err(Error::todo(iter.filepath, iter.s, iter.pos));
+    }
+
+    if let NodeKind::Gvar(x) = &node.kind {
+        if let TypeKind::Array(_, _, _) = x.dec.type_kind {
+            new_init_label(initializer, x.dec.ident.name.clone());
+            return Ok(());
+        }
+    }
+
+    new_init_val(initializer, type_kind.size(), eval(&mut node)?);
+
+    Ok(())
+}
+
 // type-specifier  = builtin-type | struct-dec | typedef-name | enum-specifier"
 // builtin-type    = "void"
 //                 | "_Bool"
@@ -1508,10 +1480,12 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         ctx.g
             .tk_string
             .push((string.clone(), Rc::new(label.clone())));
+        let mut init = Vec::new();
+        gvar_init_string(&mut init, string.as_ref().clone());
         return Ok(Node::new_leaf(make_string_node(
             label,
             (string.len()) as u64,
-            vec![Node::new_leaf(NodeKind::TkString(string.clone()))],
+            init,
         )));
     }
 
@@ -2225,6 +2199,8 @@ mod tests {
                 ],
             )),
         );
+        let mut ini = Vec::new();
+        gvar_init_string(&mut ini, "aaa\u{0}".to_string());
         let tests = [
             ("1", Node::new_num(1), g_ctx_1.clone()),
             ("foo()", make_fn_node("foo", vec![]), g_ctx_1),
@@ -2240,13 +2216,7 @@ mod tests {
             ),
             (
                 "\"aaa\"",
-                Node::new_leaf(super::make_string_node(
-                    ".LC0",
-                    4,
-                    vec![Node::new_leaf(NodeKind::TkString(Rc::new(
-                        "aaa\u{0}".to_string(),
-                    )))],
-                )),
+                Node::new_leaf(super::make_string_node(".LC0", 4, ini)),
                 GlobalContext::new(),
             ),
         ];

@@ -7,5 +7,5 @@ pub use ast::program;
 pub use error::Error;
 pub use types::{
     Context, Declaration, Designator, FuncPrototype, FuncPrototypeMp, Function, GlobalContext,
-    Gvar, GvarMp, Ident, LocalContext, Lvar, Node, NodeKind, Program, Scope, Var,
+    Gvar, GvarMp, Ident, Initializer, LocalContext, Lvar, Node, NodeKind, Program, Scope, Var,
 };
