@@ -90,67 +90,77 @@ pub fn gvar_initializer(
     initializer: &mut Vec<Initializer>,
     type_kind: Rc<RefCell<TypeKind>>,
 ) -> Result<(), Error> {
-    if consume_block(iter, Block::LParen) {
-        match &mut *type_kind.borrow_mut() {
-            TypeKind::Array(size, base, is_sized) => {
-                let mut i = 0;
-                if !peek_end(iter) {
-                    while {
-                        gvar_initializer(iter, ctx, initializer, base.clone())?;
-                        i += 1;
-                        !peek_end(iter) && consume_comma(iter)
-                    } {}
-                }
-
-                expect_end(iter)?;
-                if i < *size {
-                    new_init_zero(initializer, base.borrow().size() * (*size - i));
-                }
-
-                if *is_sized {
-                    *is_sized = true;
-                    *size = i;
-                }
-                return Ok(());
+    match &mut *type_kind.borrow_mut() {
+        TypeKind::Array(size, base, is_sized) => {
+            let open = consume_block(iter, Block::LParen);
+            let mut i = 0;
+            let limit = if !*is_sized { u64::MAX } else { *size };
+            if !peek_end(iter) {
+                while {
+                    gvar_initializer(iter, ctx, initializer, base.clone())?;
+                    i += 1;
+                    i < limit && !peek_end(iter) && consume_comma(iter)
+                } {}
             }
-            TypeKind::Struct(_struct) => {
-                let members = _struct.borrow().members.clone();
-                let mut i = 0;
-                if !peek_end(iter) {
-                    while {
-                        gvar_initializer(
-                            iter,
-                            ctx,
-                            initializer,
-                            Rc::new(RefCell::new(members[i].type_kind.as_ref().clone())), // todo
-                        )?;
-                        let next = if members.len() > i + 1 {
-                            Some(members[i + 1].clone())
-                        } else {
-                            None
-                        };
-                        emit_struct_padding(
-                            initializer,
-                            _struct.borrow().get_size(),
-                            members[i].clone(),
-                            next,
-                        );
-                        i += 1;
 
-                        !peek_end(iter) && consume_comma(iter)
-                    } {}
-                }
+            if open {
                 expect_end(iter)?;
-                if members.len() > i {
-                    let size = type_kind.borrow().size() - members[i].offset;
-                    new_init_zero(initializer, size);
-                }
-                return Ok(());
             }
-            _ => return Err(Error::todo(iter.filepath, iter.s, iter.pos)),
+            if i < *size {
+                new_init_zero(initializer, base.borrow().size() * (*size - i));
+            }
+
+            if !*is_sized {
+                *is_sized = true;
+                *size = i;
+            }
+            return Ok(());
         }
+        TypeKind::Struct(_struct) => {
+            let open = consume_block(iter, Block::LParen);
+            let members = _struct.borrow().members.clone();
+            let mut i = 0;
+            if !peek_end(iter) {
+                while {
+                    gvar_initializer(
+                        iter,
+                        ctx,
+                        initializer,
+                        Rc::new(RefCell::new(members[i].type_kind.as_ref().clone())), // todo
+                    )?;
+                    let next = if members.len() > i + 1 {
+                        Some(members[i + 1].clone())
+                    } else {
+                        None
+                    };
+                    emit_struct_padding(
+                        initializer,
+                        _struct.borrow().get_size(),
+                        members[i].clone(),
+                        next,
+                    );
+                    i += 1;
+
+                    i < members.len() && !peek_end(iter) && consume_comma(iter)
+                } {}
+            }
+            if open {
+                expect_end(iter)?;
+            }
+            if members.len() > i {
+                let size = type_kind.borrow().size() - members[i].offset;
+                new_init_zero(initializer, size);
+            }
+            return Ok(());
+        }
+        _ => (),
     }
+
+    let open = consume_block(iter, Block::LParen);
     let mut node = conditional(iter, ctx)?;
+    if open {
+        expect_end(iter)?;
+    }
     if node.kind == NodeKind::Addr {
         if let Some(x) = &node.lhs {
             if let NodeKind::Gvar(x) = &x.kind {
@@ -707,81 +717,54 @@ fn lvar_initializer(
         }
     }
 
-    if !consume_block(iter, Block::LParen) {
-        Ok((
-            Node::new_init(
-                NodeKind::Declaration(lvar.borrow().dec.clone()),
-                vec![new_desg_node(var, desg, assign(iter, ctx)?)?],
-            ),
-            type_kind,
-        ))
-    } else {
-        match &mut *type_kind.borrow_mut() {
-            TypeKind::Array(size, base, is_sized) => {
-                let mut init = Vec::new();
-                let mut i = 0;
-                if !peek_end(iter) {
-                    while {
-                        let mut desg2 = Some(Box::new(Designator::new(i, desg.clone(), None)));
-                        i += 1;
-                        let node =
-                            lvar_initializer(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
-                        init.push(node.0);
-                        !peek_end(iter) && consume_comma(iter)
-                    } {}
-                }
-
-                expect_end(iter)?;
-
-                while i < *size {
+    match &mut *type_kind.borrow_mut() {
+        TypeKind::Array(size, base, is_sized) => {
+            let mut init = Vec::new();
+            let mut i = 0;
+            let open = consume_block(iter, Block::LParen);
+            let limit = if !*is_sized { u64::MAX } else { *size };
+            if !peek_end(iter) {
+                while {
                     let mut desg2 = Some(Box::new(Designator::new(i, desg.clone(), None)));
                     i += 1;
-                    let node = lvar_init_zero(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
-                    init.push(node);
-                }
-                if !*is_sized {
-                    *is_sized = true;
-                    *size = init.len() as u64;
-                }
-                Ok((
-                    Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), init),
-                    type_kind.clone(),
-                ))
+                    let node = lvar_initializer(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
+                    init.push(node.0);
+                    i < limit && !peek_end(iter) && consume_comma(iter)
+                } {}
             }
-            TypeKind::Struct(_struct) => {
-                let members = _struct.borrow().members.clone();
-                let mut init = Vec::new();
-                let mut i = 0;
-                if !peek_end(iter) {
-                    while {
-                        let mut desg2 = Some(Box::new(Designator::new(
-                            0,
-                            desg.clone(),
-                            Some(members[i].clone()),
-                        )));
-                        let node = lvar_initializer(
-                            iter,
-                            ctx,
-                            lvar.clone(),
-                            // todo struct {} だとパニックになる。
-                            // あとrefcellとかもう少しいいやり方ありそう
-                            Rc::new(RefCell::new(members[i].type_kind.as_ref().clone())),
-                            &mut desg2,
-                        )?;
-                        i += 1;
-                        init.push(node.0);
-                        !peek_end(iter) && consume_comma(iter)
-                    } {}
-                }
+
+            if open {
                 expect_end(iter)?;
-                while members.len() > i {
+            }
+
+            while i < *size {
+                let mut desg2 = Some(Box::new(Designator::new(i, desg.clone(), None)));
+                i += 1;
+                let node = lvar_init_zero(iter, ctx, lvar.clone(), base.clone(), &mut desg2)?;
+                init.push(node);
+            }
+            if !*is_sized {
+                *is_sized = true;
+                *size = init.len() as u64;
+            }
+            return Ok((
+                Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), init),
+                type_kind.clone(),
+            ));
+        }
+        TypeKind::Struct(_struct) => {
+            let members = _struct.borrow().members.clone();
+            let mut init = Vec::new();
+            let mut i = 0;
+            let open = consume_block(iter, Block::LParen);
+            if !peek_end(iter) {
+                while {
                     let mut desg2 = Some(Box::new(Designator::new(
                         0,
                         desg.clone(),
                         Some(members[i].clone()),
                     )));
-
-                    let node = lvar_init_zero(
+                    let node = lvar_initializer(
                         iter,
                         ctx,
                         lvar.clone(),
@@ -790,18 +773,50 @@ fn lvar_initializer(
                         Rc::new(RefCell::new(members[i].type_kind.as_ref().clone())),
                         &mut desg2,
                     )?;
-                    init.push(node);
                     i += 1;
-                }
-
-                Ok((
-                    Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), init),
-                    type_kind.clone(),
-                ))
+                    init.push(node.0);
+                    i < members.len() && !peek_end(iter) && consume_comma(iter)
+                } {}
             }
-            _ => Err(Error::todo(iter.filepath, iter.s, iter.pos)),
+            if open {
+                expect_end(iter)?;
+            }
+            while members.len() > i {
+                let mut desg2 = Some(Box::new(Designator::new(
+                    0,
+                    desg.clone(),
+                    Some(members[i].clone()),
+                )));
+
+                let node = lvar_init_zero(
+                    iter,
+                    ctx,
+                    lvar.clone(),
+                    // todo struct {} だとパニックになる。
+                    // あとrefcellとかもう少しいいやり方ありそう
+                    Rc::new(RefCell::new(members[i].type_kind.as_ref().clone())),
+                    &mut desg2,
+                )?;
+                init.push(node);
+                i += 1;
+            }
+
+            return Ok((
+                Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), init),
+                type_kind.clone(),
+            ));
         }
+        _ => {}
     }
+    let open = consume_block(iter, Block::LParen);
+    let init = new_desg_node(var, desg, assign(iter, ctx)?)?;
+    if open {
+        expect_block(iter, Block::RParen)?;
+    }
+    Ok((
+        Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), vec![init]),
+        type_kind,
+    ))
 }
 
 // stmt        = expr ";"

@@ -1,5 +1,6 @@
 int printf(char *p);
 int exit(int status);
+int strcmp(char *p,char *q);
 
 int ret3(){return 3;}
 int add(int x, int y) { return x + y; }
@@ -49,6 +50,10 @@ int g_arr3[]= {1,2,3};
 struct {char a;int b;}g4[2] = {{1,2},{3,4}};
 struct {int a[2];}g5[2] = {{{1,2}}, {{3,4}}};
 char *g6[] = {"foo","bar"}; 
+struct {int a[2];} g7[2] = {{1, 2}, 3, 4};
+struct {int a[2];} g8[2] = {1, 2, 3, 4};
+char *g9 = {"foo"};
+char g10[][4] = {'f', 'o', 'o', 0, 'b', 'a', 'r', 0};
 
 int assert(int expected, int actual, char *msg) {
   if (expected == actual) {
@@ -650,6 +655,28 @@ int main() {
   assert(4,g5[1].a[1],"g5[1].a[1]");
   assert(102,g6[0][0],"g6[0][0]");
   assert(114,g6[1][2],"g6[1][2]");
+
+  // #64
+  printf("\n\n#62,#63\n");
+  assert(1, g7[0].a[0], "g13[0].a[0]");
+  assert(2, g7[0].a[1], "g13[0].a[1]");
+  assert(3, g7[1].a[0], "g13[1].a[0]");
+  assert(4, g7[1].a[1], "g13[1].a[1]");
+
+  assert(1, g8[0].a[0], "g14[0].a[0]");
+  assert(2, g8[0].a[1], "g14[0].a[1]");
+  assert(3, g8[1].a[0], "g14[1].a[0]");
+  assert(4, g8[1].a[1], "g14[1].a[1]");
+
+  assert(0, ({ int x[2][3]={0,1,2,3,4,5,}; x[0][0]; }), "int x[2][3]={0,1,2,3,4,5,}; x[0][0];");
+  assert(3, ({ int x[2][3]={0,1,2,3,4,5,}; x[1][0]; }), "int x[2][3]={0,1,2,3,4,5,}; x[1][0];");
+
+  assert(0, ({ struct {int a; int b;} x[2]={0,1,2,3}; x[0].a; }), "struct {int a; int b;} x[2]={0,1,2,3}; x[0].a;");
+  assert(2, ({ struct {int a; int b;} x[2]={0,1,2,3}; x[1].a; }), "struct {int a; int b;} x[2]={0,1,2,3}; x[1].a;");
+
+  assert(0, strcmp(g9, "foo"), "strcmp(g15, \"foo\")");
+  assert(0, strcmp(g10[0], "foo"), "strcmp(g16[0], \"foo\")");
+  assert(0, strcmp(g10[1], "bar"), "strcmp(g16[1], \"bar\")");
 
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;

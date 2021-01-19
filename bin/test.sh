@@ -689,7 +689,7 @@ struct_ini() {
     assert 0 'int main(){struct {int a; int b;} x[2]={{1,2}}; return x[1].b; }'
 }
 
-# 61
+# 62
 gvar_scalar_ini() {
     assert 0 'int x; int y; int main(){return x;}'
     assert 3 'char g = 3; int main(){return g;}'
@@ -700,12 +700,32 @@ gvar_scalar_ini() {
     assert 97 ' char *g = "abc"; int main(){return g[0];}'
 }
 
-# 62
+# 63
 gvar_arr_ini() {
     assert 2 'int g[3] = {0,1,2}; int main(){return g[2];}'
     assert 98 'char *g[] = {"foo","bar"}; int main(){return g[1][0];}'
     assert 3 'struct {char a; int b;}g[2]={{1,2},{3,4}}; int main(){return g[1].a;}'
     assert 4 'struct {int a[2];}g[2] = {{{1,2}}, {{3,4}}}; int main(){return g[1].a[1];}'
+}
+
+# 64
+omit_paran() {
+    assert 1 'struct {int a[2];}g[2] = {{1,2},3,4}; int main(){return g[0].a[0];}'
+    assert 2 'struct {int a[2];}g[2] = {{1,2},3,4}; int main(){return g[0].a[1];}'
+    assert 3 'struct {int a[2];}g[2] = {{1,2},3,4}; int main(){return g[1].a[0];}'
+    assert 4 'struct {int a[2];}g[2] = {{1,2},3,4}; int main(){return g[1].a[1];}'
+
+    assert 1 'struct {int a[2];}g[2] = {1,2,3,4}; int main(){return g[0].a[0];}'
+    assert 2 'struct {int a[2];}g[2] = {1,2,3,4}; int main(){return g[0].a[1];}'
+    assert 3 'struct {int a[2];}g[2] = {1,2,3,4}; int main(){return g[1].a[0];}'
+    assert 4 'struct {int a[2];}g[2] = {1,2,3,4}; int main(){return g[1].a[1];}'
+
+    assert 102 'char *g = {"foo"}; int main(){return g[0];}'
+    assert 102 "char g[][4] = {'f', 'o', 'o', 0, 'b', 'a', 'r', 0}; int main(){return g[0][0];}"
+    assert 0 "char g[][4] = {'f', 'o', 'o', 0, 'b', 'a', 'r', 0}; int main(){return g[0][3];}"
+    assert 98 "char g[][4] = {'f', 'o', 'o', 0, 'b', 'a', 'r', 0}; int main(){return g[1][0];}"
+    assert 0 "char g[][4] = {'f', 'o', 'o', 0, 'b', 'a', 'r', 0}; int main(){return g[1][3];}"
+
 }
 
 build() {
@@ -792,6 +812,7 @@ if [ $# -eq 0 ]; then
     struct_ini
     gvar_scalar_ini
     gvar_arr_ini
+    omit_paran
 fi
 
 while [ $# -ne 0 ]; do
@@ -859,6 +880,7 @@ while [ $# -ne 0 ]; do
     "61") struct_ini ;;
     "62") gvar_scalar_ini ;;
     "63") gvar_arr_ini ;;
+    "64") omit_paran ;;
     esac
     shift
 done
