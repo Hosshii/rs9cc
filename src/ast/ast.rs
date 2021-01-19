@@ -87,9 +87,32 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
 pub fn gvar_initializer(
     iter: &mut TokenIter,
     ctx: &mut Context,
-    initializer: &mut Vec<Initializer>,
+    initializers: &mut Vec<Initializer>,
     type_kind: Rc<RefCell<TypeKind>>,
 ) -> Result<(), Error> {
+    if let TypeKind::Array(size, base, is_sized) = &mut *type_kind.borrow_mut() {
+        if &*base.borrow() == &TypeKind::Char {
+            if let Some(string) = consume_string(iter) {
+                if !*is_sized {
+                    *is_sized = true;
+                    *size = string.len() as u64;
+                }
+                let len = min(string.len() as u64, *size);
+                let string = string.as_bytes();
+                let mut i = 0;
+
+                while i < len {
+                    new_init_val(initializers, 1, string[i as usize] as i64);
+                    i += 1;
+                }
+                if i < *size {
+                    new_init_zero(initializers, base.borrow().size() * (*size - i));
+                }
+                return Ok(());
+            }
+        }
+    }
+
     match &mut *type_kind.borrow_mut() {
         TypeKind::Array(size, base, is_sized) => {
             let open = consume_block(iter, Block::LParen);
@@ -97,17 +120,17 @@ pub fn gvar_initializer(
             let limit = if !*is_sized { u64::MAX } else { *size };
             if !peek_end(iter) {
                 while {
-                    gvar_initializer(iter, ctx, initializer, base.clone())?;
+                    gvar_initializer(iter, ctx, initializers, base.clone())?;
                     i += 1;
                     i < limit && !peek_end(iter) && consume_comma(iter)
                 } {}
             }
 
-            if open && consume_end(iter) {
+            if open && !consume_end(iter) {
                 skip_excess_elements(iter, ctx)?;
             }
             if i < *size {
-                new_init_zero(initializer, base.borrow().size() * (*size - i));
+                new_init_zero(initializers, base.borrow().size() * (*size - i));
             }
 
             if !*is_sized {
@@ -125,7 +148,7 @@ pub fn gvar_initializer(
                     gvar_initializer(
                         iter,
                         ctx,
-                        initializer,
+                        initializers,
                         Rc::new(RefCell::new(members[i].type_kind.as_ref().clone())), // todo
                     )?;
                     let next = if members.len() > i + 1 {
@@ -134,7 +157,7 @@ pub fn gvar_initializer(
                         None
                     };
                     emit_struct_padding(
-                        initializer,
+                        initializers,
                         _struct.borrow().get_size(),
                         members[i].clone(),
                         next,
@@ -149,7 +172,7 @@ pub fn gvar_initializer(
             }
             if members.len() > i {
                 let size = type_kind.borrow().size() - members[i].offset;
-                new_init_zero(initializer, size);
+                new_init_zero(initializers, size);
             }
             return Ok(());
         }
@@ -164,7 +187,7 @@ pub fn gvar_initializer(
     if node.kind == NodeKind::Addr {
         if let Some(x) = &node.lhs {
             if let NodeKind::Gvar(x) = &x.kind {
-                new_init_label(initializer, x.as_ref().dec.ident.name.clone());
+                new_init_label(initializers, x.as_ref().dec.ident.name.clone());
                 return Ok(());
             }
         }
@@ -173,12 +196,12 @@ pub fn gvar_initializer(
 
     if let NodeKind::Gvar(x) = &node.kind {
         if let TypeKind::Array(_, _, _) = x.dec.type_kind {
-            new_init_label(initializer, x.dec.ident.name.clone());
+            new_init_label(initializers, x.dec.ident.name.clone());
             return Ok(());
         }
     }
 
-    new_init_val(initializer, type_kind.borrow().size(), eval(&mut node)?);
+    new_init_val(initializers, type_kind.borrow().size(), eval(&mut node)?);
 
     Ok(())
 }

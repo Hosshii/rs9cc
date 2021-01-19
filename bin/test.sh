@@ -728,6 +728,19 @@ omit_paran() {
 
 }
 
+# 65
+gvar_string() {
+    assert 104 'char g[] = "hello"; int main(){return g[0];}'
+    assert 0 'char g[] = "hello"; int main(){return g[5];}'
+    assert 6 'char g[] = "hello"; int main(){return sizeof g;}'
+    assert 10 'char g[10] = "hello";int main(){return sizeof g;}'
+    assert 104 'char g[10] = "hello";int main(){return  g[0];}'
+    assert 0 'char g[10] = "hello";int main(){return  g[9];}'
+    assert 3 'char g[3] = "hello";int main(){return sizeof g;}'
+    assert 104 'char g[3] = "hello";int main(){return g[0];}'
+    assert 108 'char g[3] = "hello";int main(){return  g[2];}'
+}
+
 build() {
     cargo build
 }
@@ -813,6 +826,7 @@ if [ $# -eq 0 ]; then
     gvar_scalar_ini
     gvar_arr_ini
     omit_paran
+    gvar_string
 fi
 
 while [ $# -ne 0 ]; do
@@ -881,6 +895,7 @@ while [ $# -ne 0 ]; do
     "62") gvar_scalar_ini ;;
     "63") gvar_arr_ini ;;
     "64") omit_paran ;;
+    "65") gvar_string ;;
     esac
     shift
 done
