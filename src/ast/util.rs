@@ -1,4 +1,7 @@
-use super::error::Error;
+use super::{
+    ast::assign,
+    error::{Error, Warn},
+};
 use super::{
     Context, Declaration, Designator, FuncPrototype, FuncPrototypeMp, Gvar, GvarMp, Ident,
     Initializer, Node, NodeKind, Var,
@@ -278,7 +281,7 @@ pub(crate) fn expect_keyword(iter: &mut TokenIter, keyword: KeyWord) -> Result<(
         None,
     ))
 }
-pub(crate) fn _expect_comma(iter: &mut TokenIter) -> Result<(), Error> {
+pub(crate) fn expect_comma(iter: &mut TokenIter) -> Result<(), Error> {
     expect_token_kind(iter, TokenKind::Comma)?;
     Ok(())
 }
@@ -469,6 +472,17 @@ pub(crate) fn expect_end(iter: &mut TokenIter) -> Result<(), Error> {
     }
 }
 
+pub(crate) fn consume_end(iter: &mut TokenIter) -> bool {
+    let pos = iter.pos;
+    match expect_end(iter) {
+        Ok(_) => true,
+        Err(_) => {
+            iter.pos = pos;
+            false
+        }
+    }
+}
+
 pub(crate) fn new_desg_node2(var: Var, desg: &mut Option<Box<Designator>>) -> Result<Node, Error> {
     match desg {
         None => Ok(Node::new_var(var)),
@@ -532,4 +546,24 @@ pub(crate) fn emit_struct_padding(
     if padding > 0 {
         new_init_zero(initializer, padding);
     }
+}
+
+pub(crate) fn skip_excess_element2(iter: &mut TokenIter, ctx: &mut Context) -> Result<(), Error> {
+    loop {
+        if consume_block(iter, Block::LParen) {
+            skip_excess_element2(iter, ctx)?;
+        } else {
+            assign(iter, ctx)?;
+        }
+        if consume_end(iter) {
+            return Ok(());
+        }
+        expect_comma(iter)?;
+    }
+}
+
+pub(crate) fn skip_excess_elements(iter: &mut TokenIter, ctx: &mut Context) -> Result<(), Error> {
+    expect_comma(iter)?;
+    Warn::excess_initializer(iter.filepath, iter.s, iter.pos);
+    skip_excess_element2(iter, ctx)
 }

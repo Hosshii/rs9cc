@@ -446,3 +446,73 @@ fn invalid_initialization_err_format(
 fn invalid_stmt_expr_err_format(err: &Error, f: &mut fmt::Formatter) -> fmt::Result {
     err_format(err, "stmt expr return void is not supported", f)
 }
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub enum WarnKind {
+    ExcessInitializer,
+}
+
+pub struct Warn {
+    filepath: String,
+    kind: WarnKind,
+    pos: TokenPos,
+    input: String,
+    msg: Option<String>,
+}
+
+impl Warn {
+    pub fn excess_initializer(
+        filepath: impl Into<String>,
+        input: impl Into<String>,
+        pos: TokenPos,
+    ) {
+        let warn = Warn {
+            filepath: filepath.into(),
+            kind: WarnKind::ExcessInitializer,
+            pos,
+            input: input.into(),
+            msg: None,
+        };
+        eprintln!("{}", warn);
+    }
+}
+
+impl fmt::Display for Warn {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use WarnKind::*;
+        match &self.kind {
+            ExcessInitializer => warn_format(&self, "excess elements initializer", f),
+        }
+    }
+}
+
+fn warn_format(err: &Warn, msg: impl Into<String>, f: &mut fmt::Formatter) -> fmt::Result {
+    let mut line_num = 1;
+    let mut bytes = 0;
+    let mut err_input = String::new();
+    for line in err.input.lines() {
+        let len = line.as_bytes().len();
+        if bytes + len >= err.pos.bytes {
+            err_input = line.to_string();
+            break;
+        }
+        line_num += 1;
+        bytes += len + 1;
+    }
+
+    let info = format!("{}: {}", err.filepath, line_num);
+    let err_input = format!("{} {}", info, err_input);
+    writeln!(f, "{}", err_input)?;
+    let result = writeln!(
+        f,
+        "{number:>width$} {err_msg}",
+        number = '^',
+        width = err.pos.bytes + 1 + info.len() + 1 - bytes,
+        err_msg = msg.into(),
+    );
+    if let Some(x) = &err.msg {
+        writeln!(f, "{}", x)
+    } else {
+        result
+    }
+}

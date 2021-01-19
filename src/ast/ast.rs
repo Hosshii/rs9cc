@@ -103,8 +103,8 @@ pub fn gvar_initializer(
                 } {}
             }
 
-            if open {
-                expect_end(iter)?;
+            if open && consume_end(iter) {
+                skip_excess_elements(iter, ctx)?;
             }
             if i < *size {
                 new_init_zero(initializer, base.borrow().size() * (*size - i));
@@ -144,8 +144,8 @@ pub fn gvar_initializer(
                     i < members.len() && !peek_end(iter) && consume_comma(iter)
                 } {}
             }
-            if open {
-                expect_end(iter)?;
+            if open && !consume_end(iter) {
+                skip_excess_elements(iter, ctx)?;
             }
             if members.len() > i {
                 let size = type_kind.borrow().size() - members[i].offset;
@@ -733,8 +733,8 @@ fn lvar_initializer(
                 } {}
             }
 
-            if open {
-                expect_end(iter)?;
+            if open && !consume_end(iter) {
+                skip_excess_elements(iter, ctx)?;
             }
 
             while i < *size {
@@ -778,8 +778,8 @@ fn lvar_initializer(
                     i < members.len() && !peek_end(iter) && consume_comma(iter)
                 } {}
             }
-            if open {
-                expect_end(iter)?;
+            if open && !consume_end(iter) {
+                skip_excess_elements(iter, ctx)?;
             }
             while members.len() > i {
                 let mut desg2 = Some(Box::new(Designator::new(
