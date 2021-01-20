@@ -751,6 +751,12 @@ gvar_addend() {
     assert 104 'char g[]="hello"; char *g2=g-3; int main(){return g2[3];}'
 }
 
+# 67
+global_typedef() {
+    assert 1 'typedef int INT; INT main(){INT a = 1; return a;}'
+    assert 1 'typedef struct node_t{struct node_t *next; int val;}node; int main(){node a ; a.val = 1; node b; b.next = &a; node c;c.next = &b; return c.next->next->val;}'
+}
+
 build() {
     cargo build
 }
@@ -838,6 +844,7 @@ if [ $# -eq 0 ]; then
     omit_paran
     gvar_string
     gvar_addend
+    global_typedef
 fi
 
 while [ $# -ne 0 ]; do
@@ -908,6 +915,7 @@ while [ $# -ne 0 ]; do
     "64") omit_paran ;;
     "65") gvar_string ;;
     "66") gvar_addend ;;
+    "67") global_typedef ;;
     esac
     shift
 done

@@ -21,7 +21,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
         // if next token is ; or [], it is global variable
         // if next token is ( , it is function
 
-        let (type_kind, (_, is_static, is_extern)) = type_specifier(iter, ctx)?;
+        let (type_kind, (is_typedef, is_static, is_extern)) = type_specifier(iter, ctx)?;
         let type_kind = Rc::new(RefCell::new(type_kind.clone()));
         let mut ident = Ident::new_anonymous();
         let type_kind = declarator(iter, ctx, type_kind, &mut ident)?;
@@ -72,7 +72,25 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                         ));
                     }
                     let mut dec = Declaration::new(type_kind.borrow().clone(), ident);
+                    dec.is_typedef = is_typedef;
+                    dec.is_static = is_static;
                     dec.is_extern = is_extern;
+                    if is_typedef {
+                        let result = ctx.s.insert_t(
+                            Rc::new(dec.ident.clone()),
+                            TagTypeKind::Typedef(Rc::new(dec.clone())),
+                        );
+                        if let Some(_) = result {
+                            return Err(Error::re_declare(
+                                iter.filepath,
+                                iter.s,
+                                dec.ident.clone(),
+                                iter.pos,
+                                None,
+                            ));
+                        }
+                        continue;
+                    }
                     ctx.insert_g(Rc::new(check_g_var(iter, &ctx.g.gvar_mp, dec, init)?));
                 }
             }
