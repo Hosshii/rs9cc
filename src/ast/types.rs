@@ -687,6 +687,7 @@ pub struct Function {
     pub all_vars: Option<Rc<RefCell<Lvar>>>,
     pub all_var_num: usize,
     pub nodes: Vec<Node>,
+    pub is_static: bool,
 }
 
 impl From<Function> for FuncPrototype {
@@ -696,6 +697,7 @@ impl From<Function> for FuncPrototype {
             ident: from.def.ident.clone(),
             params: from.def.params.clone(),
             param_num: from.def.param_num,
+            is_static: from.is_static,
         }
     }
 }
@@ -706,12 +708,14 @@ impl Function {
         all_vars: Option<Rc<RefCell<Lvar>>>,
         all_var_num: usize,
         nodes: Vec<Node>,
+        is_static: bool,
     ) -> Self {
         Self {
             def,
             all_vars,
             all_var_num,
             nodes,
+            is_static,
         }
     }
 
@@ -742,16 +746,23 @@ pub struct FuncPrototype {
     pub ident: Ident,
     pub params: Vec<Declaration>,
     pub param_num: usize,
+    pub is_static: bool,
 }
 
 impl FuncPrototype {
-    pub fn new(type_kind: TypeKind, ident: Ident, params: Vec<Declaration>) -> Self {
+    pub fn new(
+        type_kind: TypeKind,
+        ident: Ident,
+        params: Vec<Declaration>,
+        is_static: bool,
+    ) -> Self {
         let param_num = params.len();
         Self {
             type_kind,
             ident,
             params,
             param_num,
+            is_static,
         }
     }
 }

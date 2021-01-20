@@ -68,12 +68,14 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
     }
 
     writeln!(ctx.asm, ".text")?;
-    writeln!(ctx.asm, ".global main")?;
     // asm生成
     for function in program.functions {
         ctx.func_name = function.def.ident.name.clone();
         #[cfg(debug_assertions)]
         writeln!(ctx.asm, "# start prologue")?;
+        if !function.is_static {
+            writeln!(ctx.asm, ".global {}", function.def.ident.name)?;
+        }
 
         writeln!(ctx.asm, "{}:", function.def.ident.name)?;
         // プロローグ

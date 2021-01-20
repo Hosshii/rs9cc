@@ -21,7 +21,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
         // if next token is ; or [], it is global variable
         // if next token is ( , it is function
 
-        let (type_kind, _) = type_specifier(iter, ctx)?;
+        let (type_kind, (_, is_static)) = type_specifier(iter, ctx)?;
         let type_kind = Rc::new(RefCell::new(type_kind.clone()));
         let mut ident = Ident::new_anonymous();
         let type_kind = declarator(iter, ctx, type_kind, &mut ident)?;
@@ -35,8 +35,12 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                         fn_params = params(iter, ctx)?;
                     }
 
-                    let func_prototype =
-                        FuncPrototype::new(type_kind.replace(TypeKind::Int), ident, fn_params);
+                    let func_prototype = FuncPrototype::new(
+                        type_kind.replace(TypeKind::Int),
+                        ident,
+                        fn_params,
+                        is_static,
+                    );
                     let checked_func_prototype = Rc::new(check_func_prototype(
                         iter,
                         &ctx.g.func_prototype_mp,
@@ -633,11 +637,13 @@ pub fn function(
     let mut stmt_vec = Vec::new();
     loop {
         if consume_block(iter, Block::RParen) {
+            let is_static = func_prototype.is_static;
             return Ok(Function::new(
                 func_prototype,
                 ctx.l.lvar.clone(),
                 ctx.l.lvar_count.clone(),
                 stmt_vec,
+                is_static,
             ));
         }
         stmt_vec.push(stmt(iter, ctx)?);
@@ -2064,6 +2070,7 @@ mod tests {
                 TypeKind::Int,
                 Ident::new("add"),
                 Vec::new(),
+                false,
             )),
         );
         let mut ctx = Context::new();
@@ -2091,6 +2098,7 @@ mod tests {
                     Declaration::new(TypeKind::Int, Ident::new("a")),
                     Declaration::new(TypeKind::Int, Ident::new("a")),
                 ],
+                false,
             )),
         );
 
@@ -2111,15 +2119,17 @@ mod tests {
             TypeKind::Int,
             Ident::new("main"),
             Vec::new(),
+            false,
         ));
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(1))];
-        let expected = Function::new(expected_func_prototype, None, 0, expected_nodes);
+        let expected = Function::new(expected_func_prototype, None, 0, expected_nodes, false);
 
         let input = "{return 1;}";
         let func_prototype = Rc::new(FuncPrototype::new(
             TypeKind::Int,
             Ident::new("main"),
             vec![],
+            false,
         ));
         let iter = &mut token::tokenize(input, "");
         let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
@@ -2130,6 +2140,7 @@ mod tests {
             TypeKind::Int,
             Ident::new("main"),
             vec![],
+            false,
         ));
         let lvar1 = Lvar::new_leaf(make_int_dec("foo"), 4);
         let lvar2 = Lvar::new(lvar1.clone(), make_int_dec("bar"), 8);
@@ -2159,6 +2170,7 @@ mod tests {
             Some(expected_lvar),
             2,
             expected_nodes,
+            false,
         );
 
         let input = "{int foo;foo = 1; int bar;bar = 2; return foo+bar;}";
@@ -2200,14 +2212,16 @@ mod tests {
             TypeKind::Int,
             Ident::new("main"),
             Vec::new(),
+            false,
         ));
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(0))];
-        let expected = Function::new(expected_func_prototype, None, 0, expected_nodes);
+        let expected = Function::new(expected_func_prototype, None, 0, expected_nodes, false);
 
         let expected_func_prototype = Rc::new(FuncPrototype::new(
             TypeKind::Int,
             Ident::new("main"),
             Vec::new(),
+            false,
         ));
         let input = "{return 0;}";
         let iter = &mut token::tokenize(input, "");
@@ -2219,6 +2233,7 @@ mod tests {
             TypeKind::Int,
             Ident::new("main"),
             vec![Declaration::new(TypeKind::Int, Ident::new("foo"))],
+            false,
         ));
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(0))];
         let expected_lvar = Lvar::new_leaf(make_int_dec("foo"), 4);
@@ -2227,12 +2242,14 @@ mod tests {
             Some(Rc::new(RefCell::new(expected_lvar))),
             1,
             expected_nodes,
+            false,
         );
 
         let expected_func_prototype = Rc::new(FuncPrototype::new(
             TypeKind::Int,
             Ident::new("main"),
             vec![Declaration::new(TypeKind::Int, Ident::new("foo"))],
+            false,
         ));
         let input = "{return 0;}";
         let iter = &mut token::tokenize(input, "");
@@ -2250,6 +2267,7 @@ mod tests {
             TypeKind::Int,
             Ident::new("main"),
             expected_param.clone(),
+            false,
         ));
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(0))];
         let expected_lvar = Lvar::new(
@@ -2270,6 +2288,7 @@ mod tests {
             Some(Rc::new(RefCell::new(expected_lvar))),
             4,
             expected_nodes,
+            false,
         );
 
         let input = "{return 0;}";
@@ -2277,6 +2296,7 @@ mod tests {
             TypeKind::Int,
             Ident::new("main"),
             expected_param,
+            false,
         ));
         let iter = &mut token::tokenize(input, "");
         let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
@@ -2294,6 +2314,7 @@ mod tests {
                 TypeKind::Int,
                 Ident::new("foo"),
                 Vec::new(),
+                false,
             )),
         );
         let mut g_ctx_2 = GlobalContext::new();
@@ -2303,6 +2324,7 @@ mod tests {
                 TypeKind::Int,
                 Ident::new("foo"),
                 vec![Declaration::new(TypeKind::Int, Ident::new("a"))],
+                false,
             )),
         );
         let mut g_ctx_3 = GlobalContext::new();
@@ -2315,6 +2337,7 @@ mod tests {
                     Declaration::new(TypeKind::Int, Ident::new("a")),
                     Declaration::new(TypeKind::Int, Ident::new("a")),
                 ],
+                false,
             )),
         );
         let mut ini = Vec::new();
@@ -2448,7 +2471,12 @@ mod tests {
             dec.push(Declaration::new(TypeKind::Int, Ident::new("a")));
         }
         Node::new_none(NodeKind::Func(
-            Rc::new(FuncPrototype::new(TypeKind::Int, Ident::new(name), dec)),
+            Rc::new(FuncPrototype::new(
+                TypeKind::Int,
+                Ident::new(name),
+                dec,
+                false,
+            )),
             args,
         ))
     }
