@@ -808,8 +808,8 @@ impl Designator {
 /// global var initializer
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub enum Initializer {
-    Val(u64, i64), // size, value
-    Label(String), // pointer
+    Val(u64, i64),      // size, value
+    Label(String, i64), // pointer, addend
 }
 
 #[cfg(test)]

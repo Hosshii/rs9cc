@@ -54,6 +54,11 @@ struct {int a[2];} g7[2] = {{1, 2}, 3, 4};
 struct {int a[2];} g8[2] = {1, 2, 3, 4};
 char *g9 = {"foo"};
 char g10[][4] = {'f', 'o', 'o', 0, 'b', 'a', 'r', 0};
+char *g11 = hello2 + 0;
+char *g12 = hello2 + 3;
+char *g13 = hello2 - 3;
+int g14 = 3;
+int *g15 = &g14;
 
 int assert(int expected, int actual, char *msg) {
   if (expected == actual) {
@@ -657,7 +662,7 @@ int main() {
   assert(114,g6[1][2],"g6[1][2]");
 
   // #64
-  printf("\n\n#62,#63\n");
+  printf("\n\n#64\n");
   assert(1, g7[0].a[0], "g13[0].a[0]");
   assert(2, g7[0].a[1], "g13[0].a[1]");
   assert(3, g7[1].a[0], "g13[1].a[0]");
@@ -677,6 +682,15 @@ int main() {
   assert(0, strcmp(g9, "foo"), "strcmp(g15, \"foo\")");
   assert(0, strcmp(g10[0], "foo"), "strcmp(g16[0], \"foo\")");
   assert(0, strcmp(g10[1], "bar"), "strcmp(g16[1], \"bar\")");
+
+  // #65
+  printf("\n\n#65\n");
+  assert(0, strcmp(g11, "hello2"), "strcmp(g11, \"hello\")");
+  assert(0, strcmp(g12, "lo2"), "strcmp(g12, \"lo\")");
+  assert(0, strcmp(g13+3, "hello2"), "strcmp(g13+3, \"hello\")");
+
+  assert(3, g14, "g14");
+  assert(3, *g15, "*g15");
 
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;

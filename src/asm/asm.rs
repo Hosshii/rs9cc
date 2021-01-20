@@ -46,8 +46,8 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
         } else {
             for i in &gvar.init {
                 match i {
-                    Initializer::Label(label) => {
-                        writeln!(ctx.asm, "    .quad {}", label)?;
+                    Initializer::Label(label, addend) => {
+                        writeln!(ctx.asm, "    .quad {}+{}", label, addend)?;
                     }
                     Initializer::Val(size, val) => {
                         if *size == 1 {

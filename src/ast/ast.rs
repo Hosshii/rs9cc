@@ -184,26 +184,19 @@ pub fn gvar_initializer(
     if open {
         expect_end(iter)?;
     }
-    if node.kind == NodeKind::Addr {
-        if let Some(x) = &node.lhs {
-            if let NodeKind::Gvar(x) = &x.kind {
-                new_init_label(initializers, x.as_ref().dec.ident.name.clone());
-                return Ok(());
-            }
-        }
-        return Err(Error::todo(iter.filepath, iter.s, iter.pos));
-    }
+    let mut var = None;
+    let addend = eval2(&mut node, &mut var)?;
 
-    if let NodeKind::Gvar(x) = &node.kind {
-        if let TypeKind::Array(_, _, _) = x.dec.type_kind {
-            new_init_label(initializers, x.dec.ident.name.clone());
+    match var {
+        Some(gvar) => {
+            new_init_label(initializers, gvar.dec.ident.name, addend);
+            return Ok(());
+        }
+        None => {
+            new_init_val(initializers, type_kind.borrow().size(), addend);
             return Ok(());
         }
     }
-
-    new_init_val(initializers, type_kind.borrow().size(), eval(&mut node)?);
-
-    Ok(())
 }
 
 // type-specifier  = builtin-type | struct-dec | typedef-name | enum-specifier"
@@ -1082,17 +1075,20 @@ pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 fn eval(node: &mut Node) -> Result<i64, Error> {
+    eval2(node, &mut None)
+}
+
+fn eval2(node: &mut Node, var: &mut Option<Gvar>) -> Result<i64, Error> {
     use NodeKind::*;
-    match node.kind {
+    match &node.kind {
         Add => {
-            return Ok(
-                eval(&mut **node.lhs.as_mut().unwrap())? + eval(&mut node.rhs.as_mut().unwrap())?
-            )
+            let lhs = eval2(node.lhs.as_mut().unwrap(), var)?;
+
+            return Ok(lhs + eval2(&mut node.rhs.as_mut().unwrap(), var)?);
         }
         Sub => {
-            return Ok(
-                eval(&mut node.lhs.as_mut().unwrap())? - eval(&mut node.rhs.as_mut().unwrap())?
-            )
+            let lhs = eval2(node.lhs.as_mut().unwrap(), var)?;
+            return Ok(lhs - eval(&mut node.rhs.as_mut().unwrap())?);
         }
         Mul => {
             return Ok(
@@ -1191,7 +1187,27 @@ fn eval(node: &mut Node) -> Result<i64, Error> {
                 return Ok(0);
             }
         }
-        Num(num) => return Ok(num as i64),
+        Num(num) => return Ok(*num as i64),
+        Addr => match var {
+            Some(_) => todo!(),
+            None => {
+                if let NodeKind::Gvar(gvar) = &node.lhs.as_ref().unwrap().kind {
+                    *var = Some(gvar.as_ref().clone());
+                    return Ok(0);
+                }
+                todo!()
+            }
+        },
+        Gvar(gvar) => match var {
+            Some(_) => todo!(),
+            None => {
+                if let crate::base_types::TypeKind::Array(_, _, _) = gvar.dec.type_kind {
+                    *var = Some(gvar.as_ref().clone());
+                    return Ok(0);
+                }
+                todo!()
+            }
+        },
         _ => todo!(),
     }
 }

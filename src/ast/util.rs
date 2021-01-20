@@ -515,8 +515,8 @@ pub(crate) fn new_init_val(initializers: &mut Vec<Initializer>, size: u64, val: 
     initializers.push(Initializer::Val(size, val))
 }
 
-pub(crate) fn new_init_label(initializers: &mut Vec<Initializer>, label: String) {
-    initializers.push(Initializer::Label(label));
+pub(crate) fn new_init_label(initializers: &mut Vec<Initializer>, label: String, addend: i64) {
+    initializers.push(Initializer::Label(label, addend));
 }
 
 pub(crate) fn gvar_init_string(initializers: &mut Vec<Initializer>, content: String) {

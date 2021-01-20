@@ -741,6 +741,14 @@ gvar_string() {
     assert 108 'char g[3] = "hello";int main(){return  g[2];}'
 }
 
+# 66
+gvar_addend() {
+    assert 104 'char g[]="hello"; char *g2=g+0; int main(){return g2[0];}'
+    assert 101 'char g[]="hello"; char *g2=g+1; int main(){return g2[0];}'
+    assert 111 'char g[]="hello"; char *g2=g+4; int main(){return g2[0];}'
+    assert 104 'char g[]="hello"; char *g2=g-3; int main(){return g2[3];}'
+}
+
 build() {
     cargo build
 }
@@ -827,6 +835,7 @@ if [ $# -eq 0 ]; then
     gvar_arr_ini
     omit_paran
     gvar_string
+    gvar_addend
 fi
 
 while [ $# -ne 0 ]; do
@@ -896,6 +905,7 @@ while [ $# -ne 0 ]; do
     "63") gvar_arr_ini ;;
     "64") omit_paran ;;
     "65") gvar_string ;;
+    "66") gvar_addend ;;
     esac
     shift
 done
