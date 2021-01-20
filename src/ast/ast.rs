@@ -33,7 +33,6 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                     let mut fn_params = Vec::new();
                     if !consume(iter, Operator::RParen) {
                         fn_params = params(iter, ctx)?;
-                        expect(iter, Operator::RParen)?;
                     }
 
                     let func_prototype =
@@ -645,10 +644,16 @@ pub fn function(
     }
 }
 
-// params      = declaration ("," declaration)*
+// params      = declaration ("," declaration)* | "void"
 pub fn params(iter: &mut TokenIter, ctx: &mut Context) -> Result<Vec<Declaration>, Error> {
+    let pos = iter.pos;
+    if consume_type_kind(iter) == Some(TypeKind::Void) && consume(iter, Operator::RParen) {
+        return Ok(Vec::new());
+    }
+    iter.pos = pos;
     let mut params = vec![read_param(iter, ctx)?];
-    while consume_comma(iter) {
+    while !consume(iter, Operator::RParen) {
+        expect_comma(iter)?;
         params.push(read_param(iter, ctx)?);
     }
     Ok(params)
@@ -2169,7 +2174,7 @@ mod tests {
 
         let expected = vec![make_int_dec("hoge")];
 
-        let input = "int hoge";
+        let input = "int hoge)";
         let iter = &mut token::tokenize(input, "");
         let actual = params(iter, &mut Context::new()).unwrap();
 
@@ -2180,7 +2185,7 @@ mod tests {
             make_int_dec("bar"),
             make_int_dec("hoge"),
         ];
-        let input = "int foo,int bar,int hoge";
+        let input = "int foo,int bar,int hoge)";
         let iter = &mut token::tokenize(input, "");
         let actual = params(iter, &mut Context::new()).unwrap();
 

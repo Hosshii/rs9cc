@@ -36,6 +36,7 @@ int count(){static int cnt; cnt = cnt+1; return cnt;}
 int arr_param(int x[]) {return x[0];}
 int label_test(){label_test: return 1;}
 void void_fn(){}
+void voidfn(void){}
 
 int g_1;
 int g_2;

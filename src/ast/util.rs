@@ -144,7 +144,6 @@ pub(crate) fn consume_declarator(
     }
 }
 
-#[allow(dead_code)]
 pub(crate) fn consume_type_kind(iter: &mut TokenIter) -> Option<base_types::TypeKind> {
     if let Some(x) = iter.peek() {
         if let TokenKind::TypeKind(bt) = x.kind {
