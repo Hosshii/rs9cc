@@ -40,6 +40,10 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
     writeln!(ctx.asm, ".data")?;
     // define global variable
     for (name, gvar) in program.ctx.g.gvar_mp {
+        if gvar.dec.is_extern {
+            continue;
+        }
+        writeln!(ctx.asm, ".global {}", name)?;
         writeln!(ctx.asm, "{}:", name)?;
         if gvar.init.len() == 0 {
             writeln!(ctx.asm, "    .zero {}", gvar.size)?;

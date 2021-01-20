@@ -774,6 +774,7 @@ pub struct Declaration {
     pub ident: Ident,
     pub is_typedef: bool,
     pub is_static: bool,
+    pub is_extern: bool,
     pub is_const: (bool, i64), // for enum
 }
 
@@ -784,6 +785,7 @@ impl Declaration {
             ident,
             is_typedef: false,
             is_static: false,
+            is_extern: false,
             is_const: (false, 0),
         }
     }
@@ -794,6 +796,7 @@ impl Declaration {
             ident,
             is_typedef: false,
             is_static: false,
+            is_extern: false,
             is_const: (true, val),
         }
     }

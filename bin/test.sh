@@ -24,14 +24,16 @@ int alloc4(int **p, int x,int y,int z , int a) {
 EOF
 
 test() {
-    local bin="./target/debug/rs9cc"
-    if [ -n "$RS9CC_ON_WORKFLOW" ]; then
-        bin="./target/release/rs9cc"
-    fi
+    cd bin
+    make
+    echo "test.c"
+    ./test.exe
 
-    $bin bin/test.c >$HOME/test.s
-    cc -no-pie -o "${HOME}/test" $HOME/test.s
-    $HOME/test
+    echo " "
+    echo "extern.c"
+    ./extern.exe
+    make clean
+    cd ..
 }
 
 assert() {

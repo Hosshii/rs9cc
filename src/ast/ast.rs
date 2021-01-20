@@ -21,7 +21,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
         // if next token is ; or [], it is global variable
         // if next token is ( , it is function
 
-        let (type_kind, (_, is_static)) = type_specifier(iter, ctx)?;
+        let (type_kind, (_, is_static, is_extern)) = type_specifier(iter, ctx)?;
         let type_kind = Rc::new(RefCell::new(type_kind.clone()));
         let mut ident = Ident::new_anonymous();
         let type_kind = declarator(iter, ctx, type_kind, &mut ident)?;
@@ -71,15 +71,9 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                             TokenKind::SemiColon,
                         ));
                     }
-                    let dec = Declaration::new(type_kind.borrow().clone(), ident);
-                    let ident = dec.ident.clone();
-                    ctx.insert_g(Rc::new(check_g_var(
-                        iter,
-                        &ctx.g.gvar_mp,
-                        dec.type_kind,
-                        ident,
-                        init,
-                    )?));
+                    let mut dec = Declaration::new(type_kind.borrow().clone(), ident);
+                    dec.is_extern = is_extern;
+                    ctx.insert_g(Rc::new(check_g_var(iter, &ctx.g.gvar_mp, dec, init)?));
                 }
             }
         }
@@ -209,14 +203,15 @@ pub fn gvar_initializer(
 //                 | "short" | "short" "int" | "int" "short"
 //                 | "int"
 //                 | "long" | "int" "long" | "long" "int"
-// static and typedef can appear anywhere in type-specifier
+// static, typedef and extern can appear anywhere in type-specifier
 pub fn type_specifier(
     iter: &mut TokenIter,
     ctx: &mut Context,
-) -> Result<(TypeKind, (bool, bool)), Error> {
+) -> Result<(TypeKind, (bool, bool, bool)), Error> {
     let mut ty_vec = Vec::new();
     let mut is_typedef = false;
     let mut is_static = false;
+    let mut is_extern = false;
     let mut ty = None;
     while let Some(x) = iter.peek() {
         if let TokenKind::TypeKind(ref type_kind) = x.kind {
@@ -225,12 +220,12 @@ pub fn type_specifier(
         } else if x.kind == TokenKind::KeyWord(KeyWord::Struct) {
             return Ok((
                 TypeKind::Struct(struct_dec(iter, ctx)?),
-                (is_typedef, is_static),
+                (is_typedef, is_static, is_extern),
             ));
         } else if x.kind == TokenKind::KeyWord(KeyWord::Enum) {
             return Ok((
                 TypeKind::Enum(enum_specifier(iter, ctx)?),
-                (is_typedef, is_static),
+                (is_typedef, is_static, is_extern),
             ));
         } else if x.kind == TokenKind::KeyWord(KeyWord::Typedef) {
             iter.next();
@@ -240,15 +235,19 @@ pub fn type_specifier(
             iter.next();
             is_static = true;
             continue;
+        } else if x.kind == TokenKind::KeyWord(KeyWord::Extern) {
+            iter.next();
+            is_extern = true;
+            continue;
         } else {
             if let Some(xx) = ty {
-                return Ok((xx, (is_typedef, is_static)));
+                return Ok((xx, (is_typedef, is_static, is_extern)));
             }
             if let TokenKind::Ident(ref ident) = x.kind {
                 let ident = Rc::new(Ident::from(ident.clone()));
                 if let Some(dec) = is_typedef_name(ident, ctx) {
                     iter.next();
-                    return Ok((dec.type_kind.clone(), (is_typedef, is_static)));
+                    return Ok((dec.type_kind.clone(), (is_typedef, is_static, is_extern)));
                 }
 
                 // else {
@@ -551,7 +550,7 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
 // declaration     = type-specifier declarator type-suffix
 //                 | type-specifier
 pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration, Error> {
-    let (type_kind, (is_typedef, is_static)) = type_specifier(iter, ctx)?;
+    let (type_kind, (is_typedef, is_static, is_extern)) = type_specifier(iter, ctx)?;
     let type_kind = Rc::new(RefCell::new(type_kind));
     let mut ident = Ident::new_anonymous();
     let mut dec = if let Some(dec) = consume_declarator(iter, ctx, type_kind.clone(), &mut ident) {
@@ -562,6 +561,10 @@ pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Dec
         let type_kind = type_kind.borrow().clone();
         Declaration::new(type_kind, ident)
     };
+
+    dec.is_typedef = is_typedef;
+    dec.is_static = is_static;
+    dec.is_extern = is_extern;
 
     match (
         ctx.s.find_cur_lvar(dec.ident.clone()),
@@ -596,8 +599,6 @@ pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Dec
         }
     }
 
-    dec.is_typedef = is_typedef;
-    dec.is_static = is_static;
     if is_static {
         //     let ident = Ident::new(ctx.make_label());
         //     ctx.g.gvar_mp.insert(

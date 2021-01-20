@@ -221,6 +221,7 @@ pub enum KeyWord {
     Switch,
     Case,
     Default,
+    Extern,
 }
 
 impl KeyWord {
@@ -242,6 +243,7 @@ impl KeyWord {
             Switch => "switch",
             Case => "case",
             Default => "default",
+            Extern => "extern",
         }
     }
 
@@ -263,6 +265,7 @@ impl KeyWord {
             x if x.starts_with(Switch.as_str()) => Ok(Switch),
             x if x.starts_with(Case.as_str()) => Ok(Case),
             x if x.starts_with(Default.as_str()) => Ok(Default),
+            x if x.starts_with(Extern.as_str()) => Ok(Extern),
             _ => Err(()),
         }
     }
@@ -288,6 +291,7 @@ impl FromStr for KeyWord {
             x if x == Switch.as_str() => Ok(Switch),
             x if x == Case.as_str() => Ok(Case),
             x if x == Default.as_str() => Ok(Default),
+            x if x == Extern.as_str() => Ok(Extern),
             _ => Err(()),
         }
     }
@@ -955,7 +959,7 @@ mod tests {
         assert_eq!(None, iter.next());
 
         let input = "
-            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static break continue goto : switch case default ?";
+            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static break continue goto : switch case default ? extern";
 
         let expected = vec![
             KeyWord(Return),
@@ -985,6 +989,7 @@ mod tests {
             KeyWord(Case),
             KeyWord(Default),
             TokenKind::Question,
+            KeyWord(Extern),
         ];
         let mut iter = tokenize(input, "");
         for i in expected {

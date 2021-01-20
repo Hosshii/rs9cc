@@ -1,6 +1,4 @@
-int printf(char *p);
-int exit(int status);
-int strcmp(char *p,char *q);
+#include "test.h"
 
 int ret3(){return 3;}
 int add(int x, int y) { return x + y; }
@@ -61,21 +59,6 @@ char *g12 = hello2 + 3;
 char *g13 = hello2 - 3;
 int g14 = 3;
 int *g15 = &g14;
-
-int assert(int expected, int actual, char *msg) {
-  if (expected == actual) {
-    printf("ok ");
-    return 0;
-  } else {
-    printf("\n\n");
-    printf("err occurred\n\n");
-    printf("-----  INPUT  START  -----\n\n");
-    printf(msg);
-    printf("\n\n");
-    printf("-----  INPUT  END  -----\n");
-    exit(actual);
-  }
-}
 
 int main() {
   /*

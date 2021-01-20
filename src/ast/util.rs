@@ -361,23 +361,21 @@ pub(crate) fn expect_block(iter: &mut TokenIter, block: Block) -> Result<(), Err
 pub(crate) fn check_g_var(
     iter: &mut TokenIter,
     g_var: &GvarMp,
-    type_kind: TypeKind,
-    ident: Ident,
+    dec: Declaration,
     init: Vec<Initializer>,
 ) -> Result<Gvar, Error> {
-    match g_var.get(&ident.name) {
+    match g_var.get(&dec.ident.name) {
         Some(_) => {
             return Err(Error::re_declare(
                 iter.filepath,
                 iter.s,
-                ident,
+                dec.ident,
                 iter.pos,
                 None,
             ))
         }
         None => {
-            let size = type_kind.size();
-            let dec = Declaration::new(type_kind, ident);
+            let size = dec.type_kind.size();
             return Ok(Gvar::new(dec, size, init));
         }
     }
@@ -424,7 +422,8 @@ pub(crate) fn is_typename(iter: &mut TokenIter, ctx: &Context) -> bool {
             TokenKind::KeyWord(KeyWord::Struct)
             | TokenKind::KeyWord(KeyWord::Static)
             | TokenKind::KeyWord(KeyWord::Typedef)
-            | TokenKind::KeyWord(KeyWord::Enum) => return true,
+            | TokenKind::KeyWord(KeyWord::Enum)
+            | TokenKind::KeyWord(KeyWord::Extern) => return true,
             TokenKind::Ident(ident) => {
                 let ident = Rc::new(Ident::from(ident.clone()));
 
