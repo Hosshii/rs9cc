@@ -1049,6 +1049,10 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 let gvar = Rc::new(Gvar::new(dec.clone(), size, vec![]));
                 ctx.g.gvar_mp.insert(dec.ident.name.clone(), gvar.clone());
                 ctx.s.insert_v(Ident::new(label), Rc::new(Var::G(gvar)));
+            } else if dec.is_extern {
+                let size = dec.type_kind.size();
+                let gvar = Rc::new(Gvar::new(dec.clone(), size, vec![]));
+                ctx.s.insert_v(dec.ident.clone(), Rc::new(Var::G(gvar)));
             } else {
                 ctx.push_front(
                     dec.clone(),

@@ -18,3 +18,5 @@ int assert(int expected, int actual, char *msg) {
 
 int ext1 = 5;
 int *ext2 = &ext1;
+int ext3 = 10;
+int *ext4 = &ext3;
