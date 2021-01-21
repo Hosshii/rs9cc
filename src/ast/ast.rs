@@ -31,8 +31,11 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                 // function
                 TokenKind::Reserved(Operator::LParen) => {
                     let mut fn_params = Vec::new();
+                    let mut is_variadic = false;
                     if !consume(iter, Operator::RParen) {
-                        fn_params = params(iter, ctx)?;
+                        let tmp = params(iter, ctx)?;
+                        fn_params = tmp.0;
+                        is_variadic = tmp.1;
                     }
 
                     let func_prototype = FuncPrototype::new(
@@ -669,19 +672,24 @@ pub fn function(
     }
 }
 
-// params      = declaration ("," declaration)* | "void"
-pub fn params(iter: &mut TokenIter, ctx: &mut Context) -> Result<Vec<Declaration>, Error> {
+// params      = declaration ("," declaration)* ("," "...")? | "void"
+pub fn params(iter: &mut TokenIter, ctx: &mut Context) -> Result<(Vec<Declaration>, bool), Error> {
     let pos = iter.pos;
     if consume_type_kind(iter) == Some(TypeKind::Void) && consume(iter, Operator::RParen) {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), false));
     }
     iter.pos = pos;
     let mut params = vec![read_param(iter, ctx)?];
     while !consume(iter, Operator::RParen) {
         expect_comma(iter)?;
+        if consume(iter, Operator::ThreeDots) {
+            expect(iter, Operator::RParen)?;
+
+            return Ok((params, true));
+        }
         params.push(read_param(iter, ctx)?);
     }
-    Ok(params)
+    Ok((params, false))
 }
 
 pub fn read_param(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration, Error> {
@@ -2228,7 +2236,7 @@ mod tests {
         let iter = &mut token::tokenize(input, "");
         let actual = params(iter, &mut Context::new()).unwrap();
 
-        assert_eq!(expected, actual);
+        assert_eq!(expected, actual.0);
 
         let expected = vec![
             make_int_dec("foo"),
@@ -2239,7 +2247,7 @@ mod tests {
         let iter = &mut token::tokenize(input, "");
         let actual = params(iter, &mut Context::new()).unwrap();
 
-        assert_eq!(expected, actual);
+        assert_eq!(expected, actual.0);
     }
 
     #[test]

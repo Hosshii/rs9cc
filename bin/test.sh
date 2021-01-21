@@ -2,6 +2,7 @@
 cat <<EOF | gcc -xc -c -o tmp2.o -
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 int ret3() { return 3; }
 int ret5() { return 5; }
 
@@ -20,6 +21,15 @@ int alloc4(int **p, int x,int y,int z , int a) {
     *p = malloc(sizeof(int)*4);
     (*p)[0] = x; (*p)[1] = y; (*p)[2] = z; (*p)[3] = a;
     return 1;
+}
+int add_all(int n, ...) {
+    va_list ap;
+    va_start(ap, n);
+
+    int sum = 0;
+    for (int i = 0; i < n; i++)
+        sum += va_arg(ap, int);
+    return sum;
 }
 EOF
 
@@ -768,6 +778,13 @@ do_while() {
     assert 4 'int main(){int i = 0; int j =0; int k = 0; do{if (++j > 3)break; continue; k++;}while(1); return j;}'
 }
 
+# 70
+read_variadic_fn() {
+    assert 6 'int add_all(int n,...);int main(){return add_all(3,1,2,3);}'
+    assert 5 'int add_all(int n,...);int main(){return add_all(4,1,2,3,-1);}'
+    assert 3 'int printf(char *p,...);int main(){int i = 10; return printf("%d\n", i);}'
+}
+
 build() {
     cargo build
 }
@@ -858,6 +875,7 @@ if [ $# -eq 0 ]; then
     global_typedef
     return_only
     do_while
+    read_variadic_fn
 fi
 
 while [ $# -ne 0 ]; do
@@ -931,6 +949,7 @@ while [ $# -ne 0 ]; do
     "67") global_typedef ;;
     "68") return_only ;;
     "69") do_while ;;
+    "70") read_variadic_fn ;;
     esac
     shift
 done

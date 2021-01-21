@@ -29,7 +29,7 @@ initialize              = "{" (expr ("," expr)*)? "}"
                         | expr 
 func-prototype          = type-specifier declarator "(" params? ")" 
 function                = func-prototype "{" stmt* "}"
-params                  = declaration ("," declaration)* | "void" 
+params                  = declaration ("," declaration)* ("," "...")? | "void" 
 stmt                    = expr ";"
                         | "return" expr? ";"
                         | "if" "(" expr ")" stmt

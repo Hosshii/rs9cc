@@ -86,6 +86,7 @@ pub enum Operator {
     LogAnd,
     RShift,
     LShift,
+    ThreeDots,
 }
 
 impl Operator {
@@ -127,6 +128,7 @@ impl Operator {
             LogAnd => "&&",
             RShift => ">>",
             LShift => "<<",
+            ThreeDots => "...",
         }
     }
 
@@ -182,6 +184,7 @@ impl FromStr for Operator {
             x if x == LogAnd.as_str() => Ok(LogAnd),
             x if x == LShift.as_str() => Ok(LShift),
             x if x == RShift.as_str() => Ok(RShift),
+            x if x == ThreeDots.as_str() => Ok(ThreeDots),
             _ => Err(()),
         }
     }
@@ -933,11 +936,11 @@ mod tests {
         use self::Operator::*;
         use self::TokenKind::{KeyWord, Num, Reserved, SemiColon};
         let input =
-            "== != = < <= > >= + - * / ( ) & sizeof [ ] -> ++ += -= *= /= ! ~ |  ^ || && >> << <<= >>=";
+            "== != = < <= > >= + - * / ( ) & sizeof [ ] -> ++ += -= *= /= ! ~ |  ^ || && >> << <<= >>= ...";
         let expected = vec![
             Equal, Neq, Assign, Lesser, Leq, Greater, Geq, Plus, Minus, Mul, Div, LParen, RParen,
             Ampersand, Sizeof, LArr, RArr, Arrow, PlusPlus, APlus, AMinus, AMul, ADiv, Not, BitNot,
-            BitOr, BitXor, LogOr, LogAnd, RShift, LShift, ALShift, ARShift,
+            BitOr, BitXor, LogOr, LogAnd, RShift, LShift, ALShift, ARShift, ThreeDots,
         ];
         let mut iter = tokenize(input, "");
         for i in expected {
@@ -1102,6 +1105,7 @@ mod tests {
             ("<<", Ok(LShift)),
             ("<<=", Ok(ALShift)),
             (">>=", Ok(ARShift)),
+            ("...", Ok(ThreeDots)),
             ("foo", Err(())),
         ];
         for &(s, ref expected) in &tests {
