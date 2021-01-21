@@ -452,7 +452,7 @@ pub(crate) fn is_typedef_name(ident: Rc<Ident>, ctx: &Context) -> Option<Rc<Decl
 }
 
 pub(crate) fn peek_end(iter: &mut TokenStream) -> bool {
-    let pos = iter.pos;
+    let idx = iter.idx;
     let end = if consume_block(iter, Block::RParen)
         || (consume_comma(iter) && consume_block(iter, Block::RParen))
     {
@@ -460,7 +460,7 @@ pub(crate) fn peek_end(iter: &mut TokenStream) -> bool {
     } else {
         false
     };
-    iter.pos = pos;
+    iter.idx = idx;
     end
 }
 
@@ -474,11 +474,11 @@ pub(crate) fn expect_end(iter: &mut TokenStream) -> Result<(), Error> {
 }
 
 pub(crate) fn consume_end(iter: &mut TokenStream) -> bool {
-    let pos = iter.pos;
+    let idx = iter.idx;
     match expect_end(iter) {
         Ok(_) => true,
         Err(_) => {
-            iter.pos = pos;
+            iter.idx = idx;
             false
         }
     }

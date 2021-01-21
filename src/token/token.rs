@@ -1,5 +1,6 @@
 use super::error::Error;
 use crate::base_types::TypeKind;
+use crate::preprocessor;
 use std::ops::{Add, AddAssign};
 use std::rc::Rc;
 use std::str::FromStr;
@@ -380,6 +381,7 @@ pub struct Token {
     pub kind: TokenKind,
     pub pos: TokenPos,
     pub prev_pos: TokenPos,
+    pub is_bol: bool,
 }
 
 impl Token {
@@ -389,6 +391,7 @@ impl Token {
         prev_pos: TokenPos,
         input: Rc<String>,
         filepath: Rc<String>,
+        is_bol: bool,
     ) -> Self {
         Self {
             input,
@@ -396,6 +399,7 @@ impl Token {
             kind,
             pos,
             prev_pos,
+            is_bol,
         }
     }
 }
@@ -460,12 +464,12 @@ impl TokenStream {
     }
 
     pub fn next(&mut self) -> Option<Token> {
-        let result = self.tokens.get(self.pos.tk);
+        let result = self.tokens.get(self.idx);
+        self.idx += 1;
 
         match result {
             Some(v) => {
                 self.pos = v.pos;
-                self.pos.tk += 1;
                 Some(v.clone())
             }
             None => None,
@@ -473,18 +477,18 @@ impl TokenStream {
     }
 
     pub fn peek(&mut self) -> Option<Token> {
-        self.tokens.get(self.pos.tk).and_then(|v| Some(v.clone()))
+        self.tokens.get(self.idx).and_then(|v| Some(v.clone()))
     }
 
     pub fn prev(&mut self) -> Option<Token> {
-        if self.pos.tk as isize - 1 >= 0 {
+        if self.idx as isize - 1 >= 0 {
             let mut pos = self.pos;
-            let result = self.tokens.get(self.pos.tk - 1).and_then(|v| {
+            let result = self.tokens.get(self.idx - 1).and_then(|v| {
                 pos = v.pos;
                 Some(v.clone())
             });
             self.pos = pos;
-            self.pos.tk -= 1;
+            self.idx -= 1;
             result
         } else {
             None
@@ -504,9 +508,15 @@ pub struct TokenIter {
 pub fn tokenize(input: Rc<String>, filepath: Rc<String>) -> Result<TokenStream, Error> {
     let mut vec = Vec::new();
     let mut token_iter = TokenIter::new(input.clone(), filepath.clone());
+    if let Some(mut x) = token_iter.next()? {
+        x.is_bol = true;
+        vec.push(x);
+    }
     while let Some(x) = token_iter.next()? {
         vec.push(x);
     }
+
+    vec = preprocessor::preprocessor(vec)?;
 
     Ok(TokenStream::new(input, filepath, vec))
 }
@@ -522,9 +532,11 @@ impl TokenIter {
     }
 
     pub fn next(&mut self) -> Result<Option<Token>, Error> {
+        let mut is_bol = false;
         match calc_space_len(self.cur_str()) {
-            Ok(sp) => {
+            Ok((sp, _is_bol)) => {
                 self.pos.bytes += sp;
+                is_bol = _is_bol;
             }
             Err(e) => return Err(self.error_at(&e)),
         }
@@ -533,83 +545,97 @@ impl TokenIter {
             return Ok(None);
         }
 
-        if let Some((tk, pos)) = self.is_op(s) {
+        if let Some((mut tk, pos)) = self.is_op(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
 
-        if let Some((tk, pos)) = self.is_keyword(s) {
+        if let Some((mut tk, pos)) = self.is_keyword(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
 
-        if let Some((tk, pos)) = self.is_num(s) {
+        if let Some((mut tk, pos)) = self.is_num(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
 
-        if let Some((tk, pos)) = self.is_semi(s) {
+        if let Some((mut tk, pos)) = self.is_semi(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
 
-        if let Some((tk, pos)) = self.is_colon(s) {
+        if let Some((mut tk, pos)) = self.is_colon(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
 
-        if let Some((tk, pos)) = self.is_block_paren(s) {
+        if let Some((mut tk, pos)) = self.is_block_paren(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
 
-        if let Some((tk, pos)) = self.is_comma(s) {
+        if let Some((mut tk, pos)) = self.is_comma(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
 
-        if let Some((tk, pos)) = self.is_period(s) {
+        if let Some((mut tk, pos)) = self.is_period(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
 
-        if let Some((tk, pos)) = self.is_question(s) {
+        if let Some((mut tk, pos)) = self.is_question(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
 
-        if let Some((tk, pos)) = self.is_string(s)? {
+        if let Some((mut tk, pos)) = self.is_string(s)? {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
 
-        if let Some((tk, pos)) = self.is_char(s)? {
+        if let Some((mut tk, pos)) = self.is_char(s)? {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
 
-        if let Some((tk, pos)) = self.is_base_type(s) {
+        if let Some((mut tk, pos)) = self.is_base_type(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
 
         // これ最後の方がいい
         // 最後にしないと予約後が変数として扱われちゃう
-        if let Some((tk, pos)) = self.is_ident(s) {
+        if let Some((mut tk, pos)) = self.is_ident(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
+            tk.is_bol = is_bol;
             return Ok(Some(tk));
         }
         Err(self.error_at("トークナイズできません"))
@@ -641,6 +667,7 @@ impl TokenIter {
             self.prev_pos,
             self.input.clone(),
             self.filepath.clone(),
+            false,
         )
     }
 
@@ -889,8 +916,10 @@ fn split_ident(s: &str) -> (&str, &str, usize) {
 
 /// 入力の先頭から空白がなくなるところを探して
 /// 最初に出てくる空白ではない文字の位置を返す
-fn calc_space_len(s: &str) -> Result<usize, String> {
+/// 次のトークンが行頭のものだったtrueを返す
+fn calc_space_len(s: &str) -> Result<(usize, bool), String> {
     let mut begin = s.char_indices().peekable();
+    let mut is_bol = false;
 
     while let Some((mut pos, mut chars)) = begin.next() {
         // for comment //
@@ -914,7 +943,7 @@ fn calc_space_len(s: &str) -> Result<usize, String> {
                                     break;
                                 }
                             } else {
-                                return Err("comment is no closed.".to_string());
+                                return Err("comment is not closed.".to_string());
                             }
                         }
                     }
@@ -922,14 +951,18 @@ fn calc_space_len(s: &str) -> Result<usize, String> {
             }
         }
 
+        if chars == '\n' {
+            is_bol = true;
+        }
+
         if !chars.is_whitespace() {
-            return Ok(pos);
+            return Ok((pos, is_bol));
         }
         if begin.peek() == None {
-            return Ok(pos + 1);
+            return Ok((pos + 1, is_bol));
         }
     }
-    Ok(0)
+    Ok((0, true))
 }
 
 fn is_alnum(c: char) -> bool {
@@ -1152,7 +1185,7 @@ mod tests {
     fn test_calc_space_len() {
         let tests = [("    a", 4), ("a", 0), ("// ", 3)];
         for (s, expected) in &tests {
-            assert_eq!(expected, &calc_space_len(s).unwrap());
+            assert_eq!(expected, &calc_space_len(s).unwrap().0);
         }
     }
 

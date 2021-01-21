@@ -10,11 +10,8 @@ tmp_extern.c: extern.c
 tmp_test.c: test.c
 	$(CC) -o tmp_test.c -E -P -C test.c
 
-tmp_common.c: common.c
-	$(CC) -o tmp_common.c -E -P -C common.c
-
-common: tmp_common.c
-	$(RS9CC) tmp_common.c > tmp_common.s
+common: common.c
+	$(RS9CC) common.c > tmp_common.s
 
 test.exe: common tmp_test.c
 	$(RS9CC) tmp_test.c > tmp_test.s

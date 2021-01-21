@@ -1,5 +1,7 @@
 int printf(char *p);
 int exit(int status);
+#
+    #
 
 int assert(int expected, int actual, char *msg) {
   if (expected == actual) {

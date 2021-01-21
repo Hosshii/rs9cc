@@ -431,8 +431,7 @@ pub fn struct_dec(iter: &mut TokenStream, ctx: &mut Context) -> Result<Rc<RefCel
                 return Ok(_struct);
             }
         } else {
-            iter.pos.bytes -= 1;
-            iter.pos.tk -= 1;
+            iter.prev();
         }
     }
 
@@ -691,11 +690,11 @@ pub fn params(
     iter: &mut TokenStream,
     ctx: &mut Context,
 ) -> Result<(Vec<Declaration>, bool), Error> {
-    let pos = iter.pos;
+    let idx = iter.idx;
     if consume_type_kind(iter) == Some(TypeKind::Void) && consume(iter, Operator::RParen) {
         return Ok((Vec::new(), false));
     }
-    iter.pos = pos;
+    iter.idx = idx;
     let mut params = vec![read_param(iter, ctx)?];
     while !consume(iter, Operator::RParen) {
         expect_comma(iter)?;
@@ -1499,8 +1498,7 @@ pub fn cast(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
                 ));
             }
             // `(`をconsumeした分を戻す
-            iter.pos.tk -= 1;
-            iter.pos.bytes -= 1;
+            iter.prev();
         }
     }
 
@@ -1719,8 +1717,7 @@ pub fn primary(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error>
                 expect(iter, Operator::RParen)?;
                 return Ok(Node::new_num(ty.borrow().size() as i64));
             } else {
-                iter.pos.bytes -= 1;
-                iter.pos.tk -= 1;
+                iter.prev();
             }
         }
         let node = unary(iter, ctx)?;
