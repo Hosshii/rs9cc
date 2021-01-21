@@ -20,3 +20,4 @@ int ext1 = 5;
 int *ext2 = &ext1;
 int ext3 = 10;
 int *ext4 = &ext3;
+static int inner1 = 20;

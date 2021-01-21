@@ -2,6 +2,7 @@
 
 extern int ext1;
 extern int *ext2;
+static int inner1 = 10;
 
 int test(){
   int ext3 = 1;
@@ -19,6 +20,7 @@ int main(){
   assert(10,ext3,"ext3");
   assert(10,*ext4,"*ext4");
   assert(2, test(), "test");
+  assert(10, inner1 , "inner1");
 
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;

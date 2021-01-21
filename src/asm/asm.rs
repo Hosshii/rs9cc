@@ -43,7 +43,11 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
         if gvar.dec.is_extern {
             continue;
         }
-        writeln!(ctx.asm, ".global {}", name)?;
+        if gvar.dec.is_static {
+            writeln!(ctx.asm, ".local {}", name)?;
+        } else {
+            writeln!(ctx.asm, ".global {}", name)?;
+        }
         writeln!(ctx.asm, "{}:", name)?;
         if gvar.init.len() == 0 {
             writeln!(ctx.asm, "    .zero {}", gvar.size)?;
