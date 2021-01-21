@@ -8,10 +8,10 @@ use super::{
 };
 use crate::base_types::{self, Member, TagTypeKind, TypeKind};
 
-use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
+use crate::token::{Block, KeyWord, Operator, TokenKind, TokenStream};
 use std::{cell::RefCell, rc::Rc};
 
-pub(crate) fn consume(iter: &mut TokenIter, op: Operator) -> bool {
+pub(crate) fn consume(iter: &mut TokenStream, op: Operator) -> bool {
     if let Some(x) = iter.peek() {
         if let TokenKind::Reserved(x) = x.kind {
             if x == op {
@@ -23,7 +23,7 @@ pub(crate) fn consume(iter: &mut TokenIter, op: Operator) -> bool {
     return false;
 }
 
-pub(crate) fn _consume_keyword(iter: &mut TokenIter, key: KeyWord) -> bool {
+pub(crate) fn _consume_keyword(iter: &mut TokenStream, key: KeyWord) -> bool {
     if let Some(x) = iter.peek() {
         if let TokenKind::KeyWord(x) = x.kind {
             if x == key {
@@ -35,7 +35,7 @@ pub(crate) fn _consume_keyword(iter: &mut TokenIter, key: KeyWord) -> bool {
     false
 }
 
-pub(crate) fn consume_semi(iter: &mut TokenIter) -> bool {
+pub(crate) fn consume_semi(iter: &mut TokenStream) -> bool {
     if let Some(x) = iter.peek() {
         if x.kind == TokenKind::SemiColon {
             iter.next();
@@ -45,7 +45,7 @@ pub(crate) fn consume_semi(iter: &mut TokenIter) -> bool {
     return false;
 }
 
-pub(crate) fn consume_colon(iter: &mut TokenIter) -> bool {
+pub(crate) fn consume_colon(iter: &mut TokenStream) -> bool {
     if let Some(x) = iter.peek() {
         if x.kind == TokenKind::Colon {
             iter.next();
@@ -55,7 +55,7 @@ pub(crate) fn consume_colon(iter: &mut TokenIter) -> bool {
     return false;
 }
 
-pub(crate) fn consume_question(iter: &mut TokenIter) -> bool {
+pub(crate) fn consume_question(iter: &mut TokenStream) -> bool {
     if let Some(x) = iter.peek() {
         if x.kind == TokenKind::Question {
             iter.next();
@@ -65,7 +65,7 @@ pub(crate) fn consume_question(iter: &mut TokenIter) -> bool {
     return false;
 }
 
-pub(crate) fn consume_ident(iter: &mut TokenIter) -> Option<Ident> {
+pub(crate) fn consume_ident(iter: &mut TokenStream) -> Option<Ident> {
     if let Some(x) = iter.peek() {
         if let TokenKind::Ident(x) = x.kind {
             iter.next();
@@ -75,7 +75,7 @@ pub(crate) fn consume_ident(iter: &mut TokenIter) -> Option<Ident> {
     return None;
 }
 
-pub(crate) fn consume_block(iter: &mut TokenIter, block: Block) -> bool {
+pub(crate) fn consume_block(iter: &mut TokenStream, block: Block) -> bool {
     if let Some(x) = iter.peek() {
         if let TokenKind::Block(x) = x.kind {
             if x == block {
@@ -87,7 +87,7 @@ pub(crate) fn consume_block(iter: &mut TokenIter, block: Block) -> bool {
     return false;
 }
 
-pub(crate) fn consume_comma(iter: &mut TokenIter) -> bool {
+pub(crate) fn consume_comma(iter: &mut TokenStream) -> bool {
     if let Some(x) = iter.peek() {
         if x.kind == TokenKind::Comma {
             iter.next();
@@ -97,7 +97,7 @@ pub(crate) fn consume_comma(iter: &mut TokenIter) -> bool {
     false
 }
 
-pub(crate) fn _consume_period(iter: &mut TokenIter) -> bool {
+pub(crate) fn _consume_period(iter: &mut TokenStream) -> bool {
     if let Some(x) = iter.peek() {
         if x.kind == TokenKind::Period {
             iter.next();
@@ -107,7 +107,7 @@ pub(crate) fn _consume_period(iter: &mut TokenIter) -> bool {
     false
 }
 
-pub(crate) fn consume_string(iter: &mut TokenIter) -> Option<String> {
+pub(crate) fn consume_string(iter: &mut TokenStream) -> Option<String> {
     if let Some(x) = iter.peek() {
         if let TokenKind::String(string) = x.kind {
             iter.next();
@@ -117,7 +117,7 @@ pub(crate) fn consume_string(iter: &mut TokenIter) -> Option<String> {
     None
 }
 
-pub(crate) fn consume_char(iter: &mut TokenIter) -> Option<char> {
+pub(crate) fn consume_char(iter: &mut TokenStream) -> Option<char> {
     if let Some(x) = iter.peek() {
         if let TokenKind::Char(c) = x.kind {
             iter.next();
@@ -128,7 +128,7 @@ pub(crate) fn consume_char(iter: &mut TokenIter) -> Option<char> {
 }
 
 pub(crate) fn consume_declarator(
-    iter: &mut TokenIter,
+    iter: &mut TokenStream,
     ctx: &mut Context,
     type_kind: Rc<RefCell<TypeKind>>,
     ident: &mut Ident,
@@ -144,7 +144,7 @@ pub(crate) fn consume_declarator(
     }
 }
 
-pub(crate) fn consume_type_kind(iter: &mut TokenIter) -> Option<base_types::TypeKind> {
+pub(crate) fn consume_type_kind(iter: &mut TokenStream) -> Option<base_types::TypeKind> {
     if let Some(x) = iter.peek() {
         if let TokenKind::TypeKind(bt) = x.kind {
             iter.next();
@@ -154,7 +154,7 @@ pub(crate) fn consume_type_kind(iter: &mut TokenIter) -> Option<base_types::Type
     None
 }
 
-pub(crate) fn _consume_token_kind(iter: &mut TokenIter, kind: TokenKind) -> Option<TokenKind> {
+pub(crate) fn _consume_token_kind(iter: &mut TokenStream, kind: TokenKind) -> Option<TokenKind> {
     if let Some(x) = iter.peek() {
         if x.kind == kind {
             iter.next();
@@ -164,7 +164,7 @@ pub(crate) fn _consume_token_kind(iter: &mut TokenIter, kind: TokenKind) -> Opti
     None
 }
 
-pub(crate) fn expect(iter: &mut TokenIter, op: Operator) -> Result<(), Error> {
+pub(crate) fn expect(iter: &mut TokenStream, op: Operator) -> Result<(), Error> {
     if let Some(x) = iter.peek() {
         if let TokenKind::Reserved(xx) = x.kind {
             if xx == op {
@@ -172,167 +172,170 @@ pub(crate) fn expect(iter: &mut TokenIter, op: Operator) -> Result<(), Error> {
                 return Ok(());
             } else {
                 return Err(Error::unexpected_token(
-                    iter.filepath,
-                    iter.s,
-                    x.clone(),
+                    iter.filepath.clone(),
+                    iter.input.clone(),
+                    &x,
                     TokenKind::Reserved(op),
                 ));
             }
         }
     }
     return Err(Error::eof(
-        iter.filepath,
-        iter.s,
+        iter.filepath.clone(),
+        iter.input.clone(),
         iter.pos,
         TokenKind::Reserved(op),
         None,
     ));
 }
 
-pub(crate) fn expect_num(iter: &mut TokenIter) -> Result<i64, Error> {
+pub(crate) fn expect_num(iter: &mut TokenStream) -> Result<i64, Error> {
     if let Some(x) = iter.peek() {
         if let TokenKind::Num(xx) = x.kind {
             iter.next();
             return Ok(xx);
         } else {
             return Err(Error::unexpected_token(
-                iter.filepath,
-                iter.s,
-                x.clone(),
+                iter.filepath.clone(),
+                iter.input.clone(),
+                &x,
                 TokenKind::Num(0),
             ));
         }
     }
     Err(Error::eof(
-        iter.filepath,
-        iter.s,
+        iter.filepath.clone(),
+        iter.input.clone(),
         iter.pos,
         TokenKind::Num(0),
         None,
     ))
 }
 
-pub(crate) fn expect_semi(iter: &mut TokenIter) -> Result<(), Error> {
+pub(crate) fn expect_semi(iter: &mut TokenStream) -> Result<(), Error> {
     if let Some(x) = iter.peek() {
         if x.kind == TokenKind::SemiColon {
             iter.next();
             return Ok(());
         } else {
             return Err(Error::unexpected_token(
-                iter.filepath,
-                iter.s,
-                x.clone(),
+                iter.filepath.clone(),
+                iter.input.clone(),
+                &x,
                 TokenKind::SemiColon,
             ));
         }
     }
     Err(Error::eof(
-        iter.filepath,
-        iter.s,
+        iter.filepath.clone(),
+        iter.input.clone(),
         iter.pos,
         TokenKind::SemiColon,
         None,
     ))
 }
 
-pub(crate) fn expect_colon(iter: &mut TokenIter) -> Result<(), Error> {
+pub(crate) fn expect_colon(iter: &mut TokenStream) -> Result<(), Error> {
     if let Some(x) = iter.peek() {
         if x.kind == TokenKind::Colon {
             iter.next();
             return Ok(());
         } else {
             return Err(Error::unexpected_token(
-                iter.filepath,
-                iter.s,
-                x.clone(),
+                iter.filepath.clone(),
+                iter.input.clone(),
+                &x,
                 TokenKind::Colon,
             ));
         }
     }
     Err(Error::eof(
-        iter.filepath,
-        iter.s,
+        iter.filepath.clone(),
+        iter.input.clone(),
         iter.pos,
         TokenKind::Colon,
         None,
     ))
 }
 
-pub(crate) fn expect_keyword(iter: &mut TokenIter, keyword: KeyWord) -> Result<(), Error> {
+pub(crate) fn expect_keyword(iter: &mut TokenStream, keyword: KeyWord) -> Result<(), Error> {
     if let Some(x) = iter.peek() {
         if x.kind == TokenKind::KeyWord(keyword) {
             iter.next();
             return Ok(());
         } else {
             return Err(Error::unexpected_token(
-                iter.filepath,
-                iter.s,
-                x.clone(),
+                iter.filepath.clone(),
+                iter.input.clone(),
+                &x,
                 TokenKind::SemiColon,
             ));
         }
     }
     Err(Error::eof(
-        iter.filepath,
-        iter.s,
+        iter.filepath.clone(),
+        iter.input.clone(),
         iter.pos,
         TokenKind::SemiColon,
         None,
     ))
 }
-pub(crate) fn expect_comma(iter: &mut TokenIter) -> Result<(), Error> {
+pub(crate) fn expect_comma(iter: &mut TokenStream) -> Result<(), Error> {
     expect_token_kind(iter, TokenKind::Comma)?;
     Ok(())
 }
 
 #[allow(dead_code)]
-pub(crate) fn expect_token_kind(iter: &mut TokenIter, kind: TokenKind) -> Result<TokenKind, Error> {
+pub(crate) fn expect_token_kind(
+    iter: &mut TokenStream,
+    kind: TokenKind,
+) -> Result<TokenKind, Error> {
     if let Some(x) = iter.peek() {
         if x.kind == kind {
             iter.next();
             return Ok(x.kind);
         } else {
             return Err(Error::unexpected_token(
-                iter.filepath,
-                iter.s,
-                x.clone(),
+                iter.filepath.clone(),
+                iter.input.clone(),
+                &x,
                 TokenKind::SemiColon,
             ));
         }
     }
     Err(Error::eof(
-        iter.filepath,
-        iter.s,
+        iter.filepath.clone(),
+        iter.input.clone(),
         iter.pos,
         TokenKind::SemiColon,
         None,
     ))
 }
 
-pub(crate) fn expect_ident(iter: &mut TokenIter) -> Result<Ident, Error> {
+pub(crate) fn expect_ident(iter: &mut TokenStream) -> Result<Ident, Error> {
     if let Some(x) = iter.peek() {
         if let TokenKind::Ident(id) = x.kind {
             iter.next();
             return Ok(Ident::new(id.name));
         } else {
             return Err(Error::unexpected_token(
-                iter.filepath,
-                iter.s,
-                x.clone(),
+                iter.filepath.clone(),
+                iter.input.clone(),
+                &x,
                 TokenKind::Ident(crate::token::Ident::new("")),
             ));
         }
     }
     Err(Error::eof(
-        iter.filepath,
-        iter.s,
+        iter.filepath.clone(),
+        iter.input.clone(),
         iter.pos,
         TokenKind::Ident(crate::token::Ident::new("")),
         None,
     ))
 }
 
-pub(crate) fn expect_block(iter: &mut TokenIter, block: Block) -> Result<(), Error> {
+pub(crate) fn expect_block(iter: &mut TokenStream, block: Block) -> Result<(), Error> {
     if let Some(x) = iter.peek() {
         if let TokenKind::Block(x) = x.kind {
             if x == block {
@@ -341,16 +344,16 @@ pub(crate) fn expect_block(iter: &mut TokenIter, block: Block) -> Result<(), Err
             }
         } else {
             return Err(Error::unexpected_token(
-                iter.filepath,
-                iter.s,
-                x.clone(),
+                iter.filepath.clone(),
+                iter.input.clone(),
+                &x,
                 TokenKind::Block(block),
             ));
         }
     }
     Err(Error::eof(
-        iter.filepath,
-        iter.s,
+        iter.filepath.clone(),
+        iter.input.clone(),
         iter.pos,
         TokenKind::Block(block),
         None,
@@ -359,7 +362,7 @@ pub(crate) fn expect_block(iter: &mut TokenIter, block: Block) -> Result<(), Err
 
 /// if global var is already exist, then return error
 pub(crate) fn check_g_var(
-    iter: &mut TokenIter,
+    iter: &mut TokenStream,
     g_var: &GvarMp,
     dec: Declaration,
     init: Vec<Initializer>,
@@ -367,8 +370,8 @@ pub(crate) fn check_g_var(
     match g_var.get(&dec.ident.name) {
         Some(_) => {
             return Err(Error::re_declare(
-                iter.filepath,
-                iter.s,
+                iter.filepath.clone().clone(),
+                iter.input.clone().clone(),
                 dec.ident,
                 iter.pos,
                 None,
@@ -382,15 +385,15 @@ pub(crate) fn check_g_var(
 }
 
 pub(crate) fn check_func_prototype(
-    iter: &TokenIter,
+    iter: &TokenStream,
     func_prototype_mp: &FuncPrototypeMp,
     func_prototype: FuncPrototype,
 ) -> Result<FuncPrototype, Error> {
     match func_prototype_mp.get(&func_prototype.ident.name) {
         Some(_) => {
             return Err(Error::re_declare(
-                iter.filepath,
-                iter.s,
+                iter.filepath.clone(),
+                iter.input.clone(),
                 func_prototype.ident,
                 iter.pos,
                 None,
@@ -415,7 +418,7 @@ pub(crate) fn make_string_node(
     )))
 }
 
-pub(crate) fn is_typename(iter: &mut TokenIter, ctx: &Context) -> bool {
+pub(crate) fn is_typename(iter: &mut TokenStream, ctx: &Context) -> bool {
     if let Some(x) = iter.peek() {
         match x.kind {
             TokenKind::TypeKind(_) => return true,
@@ -448,7 +451,7 @@ pub(crate) fn is_typedef_name(ident: Rc<Ident>, ctx: &Context) -> Option<Rc<Decl
     None
 }
 
-pub(crate) fn peek_end(iter: &mut TokenIter) -> bool {
+pub(crate) fn peek_end(iter: &mut TokenStream) -> bool {
     let pos = iter.pos;
     let end = if consume_block(iter, Block::RParen)
         || (consume_comma(iter) && consume_block(iter, Block::RParen))
@@ -461,7 +464,7 @@ pub(crate) fn peek_end(iter: &mut TokenIter) -> bool {
     end
 }
 
-pub(crate) fn expect_end(iter: &mut TokenIter) -> Result<(), Error> {
+pub(crate) fn expect_end(iter: &mut TokenStream) -> Result<(), Error> {
     if consume_comma(iter) && consume_block(iter, Block::RParen) {
         Ok(())
     } else {
@@ -470,7 +473,7 @@ pub(crate) fn expect_end(iter: &mut TokenIter) -> Result<(), Error> {
     }
 }
 
-pub(crate) fn consume_end(iter: &mut TokenIter) -> bool {
+pub(crate) fn consume_end(iter: &mut TokenStream) -> bool {
     let pos = iter.pos;
     match expect_end(iter) {
         Ok(_) => true,
@@ -546,7 +549,7 @@ pub(crate) fn emit_struct_padding(
     }
 }
 
-pub(crate) fn skip_excess_element2(iter: &mut TokenIter, ctx: &mut Context) -> Result<(), Error> {
+pub(crate) fn skip_excess_element2(iter: &mut TokenStream, ctx: &mut Context) -> Result<(), Error> {
     loop {
         if consume_block(iter, Block::LParen) {
             skip_excess_element2(iter, ctx)?;
@@ -560,8 +563,8 @@ pub(crate) fn skip_excess_element2(iter: &mut TokenIter, ctx: &mut Context) -> R
     }
 }
 
-pub(crate) fn skip_excess_elements(iter: &mut TokenIter, ctx: &mut Context) -> Result<(), Error> {
+pub(crate) fn skip_excess_elements(iter: &mut TokenStream, ctx: &mut Context) -> Result<(), Error> {
     expect_comma(iter)?;
-    Warn::excess_initializer(iter.filepath, iter.s, iter.pos);
+    Warn::excess_initializer(iter.filepath.clone(), iter.input.clone(), iter.pos);
     skip_excess_element2(iter, ctx)
 }

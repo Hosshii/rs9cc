@@ -839,9 +839,11 @@ mod tests {
         use crate::token;
         use std::cell::RefCell;
 
-        let input = "&*1;";
+        let input = Rc::new("&*1;".to_string());
         let mut ctx = Context::new();
-        let node = ast::stmt(&mut token::tokenize(input, ""), &mut ctx).unwrap();
+        let mut token_stream =
+            token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
+        let node = ast::stmt(&mut token_stream, &mut ctx).unwrap();
         assert_eq!(TypeKind::Int, node.get_type().unwrap());
 
         let input = "*(y + 1);";
@@ -853,7 +855,11 @@ mod tests {
             ),
             8,
         );
-        let node = ast::stmt(&mut token::tokenize(input, ""), &mut ctx).unwrap();
+        let node = ast::stmt(
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap(),
+            &mut ctx,
+        )
+        .unwrap();
         assert_eq!(TypeKind::Int, node.get_type().unwrap())
     }
 }

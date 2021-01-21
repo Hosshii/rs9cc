@@ -29,239 +29,227 @@ pub enum ErrorKind {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
 pub struct Error {
-    filepath: String,
+    filepath: Rc<String>,
     kind: ErrorKind,
     pos: TokenPos,
-    input: String,
+    input: Rc<String>,
     msg: Option<String>,
 }
 
 impl Error {
     pub fn unexpected_token(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
-        token: Token,
+        filepath: Rc<String>,
+        input: Rc<String>,
+        token: &Token,
         expected: TokenKind,
     ) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: UnexpectedToken {
                 expected,
-                actual: token.kind,
+                actual: token.kind.clone(),
             },
             pos: token.pos,
-            input: input.into(),
+            input,
             msg: None,
         }
     }
 
     pub fn eof(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
+        filepath: Rc<String>,
+        input: Rc<String>,
         pos: TokenPos,
         expected: TokenKind,
         msg: Option<String>,
     ) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: EOF(expected),
             pos,
-            input: input.into(),
+            input,
             msg,
         }
     }
 
     pub fn undefined_variable(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
+        filepath: Rc<String>,
+        input: Rc<String>,
         ident: Ident,
         pos: TokenPos,
         msg: Option<String>,
     ) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: UndefinedVariable(ident),
             pos,
-            input: input.into(),
+            input,
             msg,
         }
     }
 
     pub fn undefined_function(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
+        filepath: Rc<String>,
+        input: Rc<String>,
         ident: Ident,
         pos: TokenPos,
         msg: Option<String>,
     ) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: UndefinedFunction(ident),
             pos,
-            input: input.into(),
+            input,
             msg,
         }
     }
 
     pub fn undefined_member(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
+        filepath: Rc<String>,
+        input: Rc<String>,
         pos: TokenPos,
         ident: Ident,
         msg: Option<String>,
     ) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: UndefinedMember(ident),
             pos,
-            input: input.into(),
+            input,
             msg,
         }
     }
 
     pub fn undefined_tag(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
+        filepath: Rc<String>,
+        input: Rc<String>,
         pos: TokenPos,
         ident: Ident,
         msg: Option<String>,
     ) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: UndefinedTag(ident),
             pos,
-            input: input.into(),
+            input,
             msg,
         }
     }
 
     pub fn re_declare(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
+        filepath: Rc<String>,
+        input: Rc<String>,
         ident: Ident,
         pos: TokenPos,
         msg: Option<String>,
     ) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: ReDeclare(ident),
             pos,
-            input: input.into(),
+            input,
             msg,
         }
     }
 
     pub fn invalid_variable_dereference(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
+        filepath: Rc<String>,
+        input: Rc<String>,
         pos: TokenPos,
         lvar: Lvar,
         actual_deref_count: usize,
     ) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: InvalidVariableDereference(lvar, actual_deref_count),
             pos,
-            input: input.into(),
+            input,
             msg: None,
         }
     }
 
     pub fn invalid_value_dereference(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
+        filepath: Rc<String>,
+        input: Rc<String>,
         pos: TokenPos,
-        type_name: impl Into<String>,
+        type_name: String,
     ) -> Error {
         Error {
-            filepath: filepath.into(),
-            kind: InvalidValueDereference(type_name.into()),
+            filepath,
+            kind: InvalidValueDereference(type_name),
             pos,
-            input: input.into(),
+            input,
             msg: None,
         }
     }
 
     pub fn invalid_assignment(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
+        filepath: Rc<String>,
+        input: Rc<String>,
         pos: TokenPos,
         lhs_type: TypeKind,
         rhs_type: TypeKind,
     ) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: InvalidAssignment(lhs_type, rhs_type),
             pos,
-            input: input.into(),
+            input,
             msg: None,
         }
     }
 
     pub fn invalid_initialization(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
+        filepath: Rc<String>,
+        input: Rc<String>,
         pos: TokenPos,
         lhs: Rc<Lvar>,
-        rhs: impl Into<String>,
+        rhs: String,
     ) -> Error {
         Error {
-            filepath: filepath.into(),
-            kind: InvalidInitialization(lhs, rhs.into()),
+            filepath,
+            kind: InvalidInitialization(lhs, rhs),
             pos,
-            input: input.into(),
+            input,
             msg: None,
         }
     }
 
-    pub fn invalid_stmt_expr(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
-        pos: TokenPos,
-    ) -> Error {
+    pub fn invalid_stmt_expr(filepath: Rc<String>, input: Rc<String>, pos: TokenPos) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: InvalidStmtExpr,
             pos,
-            input: input.into(),
+            input,
             msg: None,
         }
     }
 
-    pub fn stray_case(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
-        pos: TokenPos,
-    ) -> Error {
+    pub fn stray_case(filepath: Rc<String>, input: Rc<String>, pos: TokenPos) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: StrayCase,
             pos,
-            input: input.into(),
+            input,
             msg: None,
         }
     }
 
-    pub fn todo(filepath: impl Into<String>, input: impl Into<String>, pos: TokenPos) -> Error {
+    pub fn todo(filepath: Rc<String>, input: Rc<String>, pos: TokenPos) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: Todo,
             pos,
-            input: input.into(),
+            input,
             msg: None,
         }
     }
 
-    pub fn unimplemented(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
-        pos: TokenPos,
-    ) -> Error {
+    pub fn unimplemented(filepath: Rc<String>, input: Rc<String>, pos: TokenPos) -> Error {
         Error {
-            filepath: filepath.into(),
+            filepath,
             kind: Unimplemented,
             pos,
-            input: input.into(),
+            input,
             msg: None,
         }
     }
@@ -285,7 +273,7 @@ impl fmt::Display for Error {
                 invalid_variable_dereference_err_format(&self, lvar, *actual_deref_count, f)
             }
             InvalidValueDereference(type_name) => {
-                invalid_value_dereference_err_format(&self, type_name, f)
+                invalid_value_dereference_err_format(&self, type_name.clone(), f)
             }
             InvalidAssignment(lhs_type, rhs_type) => {
                 invalid_assignment_err_format(&self, lhs_type, rhs_type, f)
@@ -410,13 +398,10 @@ actual: {}
 
 fn invalid_value_dereference_err_format(
     err: &Error,
-    type_name: impl Into<String>,
+    type_name: String,
     f: &mut fmt::Formatter,
 ) -> fmt::Result {
-    let msg = format!(
-        "cannot take the address of an rvalue of type {}",
-        type_name.into()
-    );
+    let msg = format!("cannot take the address of an rvalue of type {}", type_name);
     err_format(err, msg, f)
 }
 
@@ -453,24 +438,20 @@ pub enum WarnKind {
 }
 
 pub struct Warn {
-    filepath: String,
+    filepath: Rc<String>,
     kind: WarnKind,
     pos: TokenPos,
-    input: String,
+    input: Rc<String>,
     msg: Option<String>,
 }
 
 impl Warn {
-    pub fn excess_initializer(
-        filepath: impl Into<String>,
-        input: impl Into<String>,
-        pos: TokenPos,
-    ) {
+    pub fn excess_initializer(filepath: Rc<String>, input: Rc<String>, pos: TokenPos) {
         let warn = Warn {
-            filepath: filepath.into(),
+            filepath,
             kind: WarnKind::ExcessInitializer,
             pos,
-            input: input.into(),
+            input,
             msg: None,
         };
         eprintln!("{}", warn);

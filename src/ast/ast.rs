@@ -6,12 +6,12 @@ use super::{
     LocalContext, Lvar, Node, Program, Var,
 };
 use crate::base_types::{self, Enum, Member, Struct, TagTypeKind, TypeKind};
-use crate::token::{Block, KeyWord, Operator, TokenIter, TokenKind};
+use crate::token::{Block, KeyWord, Operator, TokenKind, TokenStream};
 use std::rc::Rc;
 use std::{cell::RefCell, cmp::min};
 
 // program         = (function | declaration ("=" initialize)? ";" | func-prototype )*
-pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
+pub fn program(iter: &mut TokenStream) -> Result<Program, Error> {
     let mut program = Program::new();
     let mut ctx = &mut program.ctx;
     while iter.peek() != None {
@@ -68,9 +68,9 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                         expect_semi(iter)?;
                     } else if x != &TokenKind::SemiColon {
                         return Err(Error::unexpected_token(
-                            iter.filepath,
-                            iter.s,
-                            next,
+                            iter.filepath.clone(),
+                            iter.input.clone(),
+                            &next,
                             TokenKind::SemiColon,
                         ));
                     }
@@ -85,8 +85,8 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
                         );
                         if let Some(_) = result {
                             return Err(Error::re_declare(
-                                iter.filepath,
-                                iter.s,
+                                iter.filepath.clone(),
+                                iter.input.clone(),
                                 dec.ident.clone(),
                                 iter.pos,
                                 None,
@@ -103,7 +103,7 @@ pub fn program(iter: &mut TokenIter) -> Result<Program, Error> {
 }
 
 pub fn gvar_initializer(
-    iter: &mut TokenIter,
+    iter: &mut TokenStream,
     ctx: &mut Context,
     initializers: &mut Vec<Initializer>,
     type_kind: Rc<RefCell<TypeKind>>,
@@ -226,7 +226,7 @@ pub fn gvar_initializer(
 //                 | "long" | "int" "long" | "long" "int"
 // static, typedef and extern can appear anywhere in type-specifier
 pub fn type_specifier(
-    iter: &mut TokenIter,
+    iter: &mut TokenStream,
     ctx: &mut Context,
 ) -> Result<(TypeKind, (bool, bool, bool)), Error> {
     let mut ty_vec = Vec::new();
@@ -273,8 +273,8 @@ pub fn type_specifier(
 
                 // else {
                 //     return Err(Error::undefined_tag(
-                //         iter.filepath,
-                //         iter.s,
+                //         iter.filepath.clone(),
+                //         iter.input.clone(),
                 //         iter.pos,
                 //         ident,
                 //         None,
@@ -298,9 +298,9 @@ pub fn type_specifier(
                 _ => {
                     iter.prev();
                     return Err(Error::unexpected_token(
-                        iter.filepath,
-                        iter.s,
-                        x.clone(),
+                        iter.filepath.clone(),
+                        iter.input.clone(),
+                        &x,
                         TokenKind::TypeKind(base_types::TypeKind::Int),
                     ));
                 }
@@ -309,8 +309,8 @@ pub fn type_specifier(
         }
     }
     Err(Error::eof(
-        iter.filepath,
-        iter.s,
+        iter.filepath.clone(),
+        iter.input.clone(),
         iter.pos,
         TokenKind::TypeKind(base_types::TypeKind::Int),
         None,
@@ -319,7 +319,7 @@ pub fn type_specifier(
 
 // declarator      = "*"* ("(" declarator ")" | ident) type-suffix
 pub fn declarator(
-    iter: &mut TokenIter,
+    iter: &mut TokenStream,
     ctx: &mut Context,
     mut type_kind: Rc<RefCell<TypeKind>>,
     ident: &mut Ident,
@@ -345,7 +345,7 @@ pub fn declarator(
 
 // abstract-declarator     = "*"* ("(" declarator ")")? type-suffix
 pub fn abstract_declarator(
-    iter: &mut TokenIter,
+    iter: &mut TokenStream,
     ctx: &mut Context,
     mut type_kind: Rc<RefCell<TypeKind>>,
 ) -> Result<Rc<RefCell<TypeKind>>, Error> {
@@ -369,7 +369,7 @@ pub fn abstract_declarator(
 
 // type-suffix     = ("[" const-expr? "]" type-suffix)?
 pub fn type_suffix(
-    iter: &mut TokenIter,
+    iter: &mut TokenStream,
     ctx: &mut Context,
     type_kind: Rc<RefCell<TypeKind>>,
 ) -> Result<Rc<RefCell<TypeKind>>, Error> {
@@ -391,7 +391,10 @@ pub fn type_suffix(
 }
 
 // type-name               = type-specifier abstract-declarator type-suffix
-pub fn type_name(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<TypeKind>>, Error> {
+pub fn type_name(
+    iter: &mut TokenStream,
+    ctx: &mut Context,
+) -> Result<Rc<RefCell<TypeKind>>, Error> {
     let (type_kind, _) = type_specifier(iter, ctx)?;
     let type_kind = Rc::new(RefCell::new(type_kind));
     let type_kind = abstract_declarator(iter, ctx, type_kind)?;
@@ -399,7 +402,7 @@ pub fn type_name(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<T
 }
 
 // struct-dec      = "struct" ident? ("{" declaration ";" "}")?
-pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<Struct>>, Error> {
+pub fn struct_dec(iter: &mut TokenStream, ctx: &mut Context) -> Result<Rc<RefCell<Struct>>, Error> {
     expect_keyword(iter, KeyWord::Struct)?;
     let ident = consume_ident(iter);
 
@@ -410,7 +413,11 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<
                     return Ok(_struct.clone());
                 } else {
                     dbg!("not a struct tag");
-                    return Err(Error::todo(iter.filepath, iter.s, iter.pos));
+                    return Err(Error::todo(
+                        iter.filepath.clone(),
+                        iter.input.clone(),
+                        iter.pos,
+                    ));
                 }
             } else {
                 let ident = Rc::new(ident.clone());
@@ -441,7 +448,11 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<
                 _struct.clone()
             } else {
                 dbg!("not a struct tag");
-                return Err(Error::todo(iter.filepath, iter.s, iter.pos));
+                return Err(Error::todo(
+                    iter.filepath.clone(),
+                    iter.input.clone(),
+                    iter.pos,
+                ));
             }
         } else {
             let mut _struct = Struct::new(Rc::new(ident.clone()), Rc::new(Vec::new()));
@@ -484,10 +495,9 @@ pub fn struct_dec(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<RefCell<
 //                         | enum ident
 // enum-list               = enum-elem ("," enum-elem)* ","?
 // enum-elem               = ident ("=" const-expr)?
-pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum>, Error> {
+pub fn enum_specifier(iter: &mut TokenStream, ctx: &mut Context) -> Result<Rc<Enum>, Error> {
     expect_keyword(iter, KeyWord::Enum)?;
     let tag = consume_ident(iter);
-    let prev_pos = iter.prev_pos; // for error
     if !consume_block(iter, Block::LParen) {
         match &tag {
             Some(x) => {
@@ -498,8 +508,8 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
                 } else {
                     iter.prev();
                     return Err(Error::undefined_tag(
-                        iter.filepath,
-                        iter.s,
+                        iter.filepath.clone(),
+                        iter.input.clone(),
                         iter.pos,
                         x.clone(),
                         None,
@@ -508,17 +518,21 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
             }
             None => {
                 dbg!("incomplete enum dec");
-                return Err(Error::todo(iter.filepath, iter.s, iter.pos));
+                return Err(Error::todo(
+                    iter.filepath.clone().clone(),
+                    iter.input.clone().clone(),
+                    iter.pos,
+                ));
             }
         }
     }
 
     if let Some(t) = &tag {
         if let Some(_) = ctx.s.find_cur_tag(Rc::new(t.clone())) {
-            iter.pos = prev_pos;
+            iter.prev();
             return Err(Error::re_declare(
-                iter.filepath,
-                iter.s,
+                iter.filepath.clone().clone(),
+                iter.input.clone().clone(),
                 t.clone(),
                 iter.pos,
                 None,
@@ -570,7 +584,7 @@ pub fn enum_specifier(iter: &mut TokenIter, ctx: &mut Context) -> Result<Rc<Enum
 
 // declaration     = type-specifier declarator type-suffix
 //                 | type-specifier
-pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration, Error> {
+pub(crate) fn declaration(iter: &mut TokenStream, ctx: &mut Context) -> Result<Declaration, Error> {
     let (type_kind, (is_typedef, is_static, is_extern)) = type_specifier(iter, ctx)?;
     let type_kind = Rc::new(RefCell::new(type_kind));
     let mut ident = Ident::new_anonymous();
@@ -595,8 +609,8 @@ pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Dec
         _ => {
             iter.prev();
             return Err(Error::re_declare(
-                iter.filepath,
-                iter.s,
+                iter.filepath.clone().clone(),
+                iter.input.clone().clone(),
                 dec.ident.clone(),
                 iter.pos,
                 None,
@@ -611,8 +625,8 @@ pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Dec
         );
         if let Some(_) = result {
             return Err(Error::re_declare(
-                iter.filepath,
-                iter.s,
+                iter.filepath.clone().clone(),
+                iter.input.clone().clone(),
                 dec.ident.clone(),
                 iter.pos,
                 None,
@@ -639,7 +653,7 @@ pub(crate) fn declaration(iter: &mut TokenIter, ctx: &mut Context) -> Result<Dec
 
 // function    =  type-specifier declarator "(" params? ")" "{" stmt* "}"
 pub fn function(
-    iter: &mut TokenIter,
+    iter: &mut TokenStream,
     func_prototype: Rc<FuncPrototype>,
     ctx: &mut Context,
 ) -> Result<Function, Error> {
@@ -673,7 +687,10 @@ pub fn function(
 }
 
 // params      = declaration ("," declaration)* ("," "...")? | "void"
-pub fn params(iter: &mut TokenIter, ctx: &mut Context) -> Result<(Vec<Declaration>, bool), Error> {
+pub fn params(
+    iter: &mut TokenStream,
+    ctx: &mut Context,
+) -> Result<(Vec<Declaration>, bool), Error> {
     let pos = iter.pos;
     if consume_type_kind(iter) == Some(TypeKind::Void) && consume(iter, Operator::RParen) {
         return Ok((Vec::new(), false));
@@ -692,7 +709,7 @@ pub fn params(iter: &mut TokenIter, ctx: &mut Context) -> Result<(Vec<Declaratio
     Ok((params, false))
 }
 
-pub fn read_param(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration, Error> {
+pub fn read_param(iter: &mut TokenStream, ctx: &mut Context) -> Result<Declaration, Error> {
     let mut dec = declaration(iter, ctx)?;
     if let TypeKind::Array(_, base, _) = &dec.type_kind {
         dec.type_kind = TypeKind::ptr_to(base.clone());
@@ -701,7 +718,7 @@ pub fn read_param(iter: &mut TokenIter, ctx: &mut Context) -> Result<Declaration
 }
 
 pub fn lvar_init_zero(
-    iter: &mut TokenIter,
+    iter: &mut TokenStream,
     ctx: &mut Context,
     lvar: Rc<RefCell<Lvar>>,
     type_kind: Rc<RefCell<TypeKind>>,
@@ -734,7 +751,7 @@ pub fn lvar_init_zero(
 // lvar-initializer = assign
 //                  | "{" lvar-initializer ("," lvar-initializer)* ","? "}"
 fn lvar_initializer(
-    iter: &mut TokenIter,
+    iter: &mut TokenStream,
     ctx: &mut Context,
     lvar: Rc<RefCell<Lvar>>,
     type_kind: Rc<RefCell<TypeKind>>,
@@ -888,7 +905,7 @@ fn lvar_initializer(
 //             | "switch" "("expr")" stmt
 //             | "case" const-expr ":" stmt
 //             | "default" ":" stmt
-pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn stmt(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     if let Some(x) = iter.peek() {
         match x.kind {
             TokenKind::KeyWord(key) => {
@@ -982,8 +999,9 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                         let sw = std::mem::replace(&mut ctx.cur_switch, Some(vec![]));
                         let then = Some(Box::new(stmt(iter, ctx)?));
 
-                        let cases = std::mem::replace(&mut ctx.cur_switch, sw)
-                            .ok_or(Error::todo(iter.filepath, iter.s, iter.pos))?;
+                        let cases = std::mem::replace(&mut ctx.cur_switch, sw).ok_or(
+                            Error::todo(iter.filepath.clone(), iter.input.clone(), iter.pos),
+                        )?;
                         let mut node = Node::new_leaf(NodeKind::Switch(cases));
                         node.cond = cond;
                         node.then = then;
@@ -1000,7 +1018,13 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                                 ctx.cur_switch = Some(cur_case);
                                 return Ok(node);
                             }
-                            None => return Err(Error::stray_case(iter.filepath, iter.s, iter.pos)),
+                            None => {
+                                return Err(Error::stray_case(
+                                    iter.filepath.clone(),
+                                    iter.input.clone(),
+                                    iter.pos,
+                                ))
+                            }
                         }
                     }
                     KeyWord::Default => {
@@ -1013,7 +1037,13 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                                 ctx.cur_switch = Some(cur_case);
                                 return Ok(node);
                             }
-                            None => return Err(Error::stray_case(iter.filepath, iter.s, iter.pos)),
+                            None => {
+                                return Err(Error::stray_case(
+                                    iter.filepath.clone(),
+                                    iter.input.clone(),
+                                    iter.pos,
+                                ))
+                            }
                         }
                     }
 
@@ -1035,9 +1065,9 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 }
                 _ => {
                     return Err(Error::unexpected_token(
-                        iter.filepath,
-                        iter.s,
-                        x.clone(),
+                        iter.filepath.clone(),
+                        iter.input.clone(),
+                        &x,
                         TokenKind::Block(Block::LParen),
                     ));
                 }
@@ -1117,12 +1147,12 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
     Ok(node)
 }
 
-pub fn read_expr_stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn read_expr_stmt(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     Ok(Node::new_unary(NodeKind::ExprStmt, expr(iter, ctx)?))
 }
 
 // expr        = assign ("," assign)*
-pub fn expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn expr(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = assign(iter, ctx)?;
     while consume_comma(iter) {
         node = Node::new_expr_stmt(node);
@@ -1269,13 +1299,13 @@ fn eval2(node: &mut Node, var: &mut Option<Gvar>) -> Result<i64, Error> {
     }
 }
 
-pub fn const_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<i64, Error> {
+pub fn const_expr(iter: &mut TokenStream, ctx: &mut Context) -> Result<i64, Error> {
     eval(&mut conditional(iter, ctx)?)
 }
 
 // assign                  = conditional (assign-op assign)?
 // assign-op               = "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>="
-pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn assign(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = conditional(iter, ctx)?;
     if consume(iter, Operator::Assign) {
         let rhs = assign(iter, ctx)?;
@@ -1291,8 +1321,8 @@ pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         // 配列とポインタの比較が中途半端
         // if lhs_type != rhs_type && !TypeKind::partial_comp(&lhs_type, &rhs_type) {
         //     return Err(Error::invalid_assignment(
-        //         iter.filepath,
-        //         iter.s,
+        //         iter.filepath.clone(),
+        //         iter.input.clone(),
         //         iter.pos,
         //         lhs_type,
         //         rhs_type,
@@ -1322,7 +1352,7 @@ pub fn assign(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // conditional             = logor ("?" expr ":" conditional)?
-pub fn conditional(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn conditional(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let node = log_or(iter, ctx)?;
     if !consume_question(iter) {
         return Ok(node);
@@ -1336,7 +1366,7 @@ pub fn conditional(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Erro
 }
 
 // logor                   = logand ("||" logand)*
-pub fn log_or(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn log_or(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = log_and(iter, ctx)?;
     while consume(iter, Operator::LogOr) {
         node = Node::new(NodeKind::LogOr, node, log_and(iter, ctx)?);
@@ -1345,7 +1375,7 @@ pub fn log_or(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // logand                  = bitor ("&&" bitor)*
-pub fn log_and(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn log_and(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = bit_or(iter, ctx)?;
     while consume(iter, Operator::LogAnd) {
         node = Node::new(NodeKind::LogAnd, node, bit_or(iter, ctx)?);
@@ -1354,7 +1384,7 @@ pub fn log_and(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // bitor                   = bitxor ("|" bitxor)*
-pub fn bit_or(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn bit_or(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = bit_xor(iter, ctx)?;
     while consume(iter, Operator::BitOr) {
         node = Node::new(NodeKind::BitOr, node, bit_xor(iter, ctx)?);
@@ -1363,7 +1393,7 @@ pub fn bit_or(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // bitxor                  = bitand ("^" bitand)*
-pub fn bit_xor(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn bit_xor(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = bit_and(iter, ctx)?;
     while consume(iter, Operator::BitXor) {
         node = Node::new(NodeKind::BitXor, node, bit_and(iter, ctx)?);
@@ -1372,7 +1402,7 @@ pub fn bit_xor(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // bitand                  = equality ("&" equality)*
-pub fn bit_and(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn bit_and(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = equality(iter, ctx)?;
     while consume(iter, Operator::Ampersand) {
         node = Node::new(NodeKind::BitAnd, node, equality(iter, ctx)?);
@@ -1381,7 +1411,7 @@ pub fn bit_and(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // equality    = relational ("==" relational | "!=" relational)*
-pub fn equality(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn equality(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = relational(iter, ctx)?;
     loop {
         if consume(iter, Operator::Equal) {
@@ -1395,7 +1425,7 @@ pub fn equality(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> 
 }
 
 // relational              = shift ("<" shift | "<=" | ">" shift | ">=" shift)*
-pub fn relational(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn relational(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = shift(iter, ctx)?;
     loop {
         if consume(iter, Operator::Lesser) {
@@ -1415,7 +1445,7 @@ pub fn relational(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error
 }
 
 // shift                   = add ("<<" add | ">>" add)*
-pub fn shift(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn shift(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = add(iter, ctx)?;
     loop {
         if consume(iter, Operator::LShift) {
@@ -1429,7 +1459,7 @@ pub fn shift(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // add         = mul ("+" mul | "-" mul)*
-pub fn add(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn add(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = mul(iter, ctx)?;
     loop {
         if consume(iter, Operator::Plus) {
@@ -1443,7 +1473,7 @@ pub fn add(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // mul         = cast ("*" cast | "/" cast)*
-pub fn mul(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn mul(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = cast(iter, ctx)?;
     loop {
         if consume(iter, Operator::Mul) {
@@ -1457,7 +1487,7 @@ pub fn mul(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // cast                    = "(" type-name ")" cast | unary
-pub fn cast(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn cast(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::LParen) {
         if let Some(x) = iter.peek() {
             if let TokenKind::TypeKind(_) = x.kind {
@@ -1480,7 +1510,7 @@ pub fn cast(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 // unary       = ("+" | "-" | "*" | "&" | "!")? cast
 //             | ("++" | "--") unary
 //             | postfix
-pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn unary(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::Plus) {
         return cast(iter, ctx);
     } else if consume(iter, Operator::Minus) {
@@ -1503,7 +1533,7 @@ pub fn unary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // postfix     = primary ("[" expr "]" | "." ident | "->" ident | "++" | "--")*
-pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn postfix(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut pri = primary(iter, ctx)?;
     loop {
         if consume(iter, Operator::LArr) {
@@ -1541,8 +1571,8 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                             TypeKind::Struct(_struct) => {
                                 let member = _struct.borrow().find_field(&member_name).ok_or(
                                     Error::undefined_member(
-                                        iter.filepath,
-                                        iter.s,
+                                        iter.filepath.clone(),
+                                        iter.input.clone(),
                                         iter.pos,
                                         member_name.clone(),
                                         None,
@@ -1553,12 +1583,20 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                             }
                             _ => {
                                 dbg!("not a struct");
-                                return Err(Error::todo(iter.filepath, iter.s, iter.pos));
+                                return Err(Error::todo(
+                                    iter.filepath.clone(),
+                                    iter.input.clone(),
+                                    iter.pos,
+                                ));
                             }
                         },
                         Err(_) => {
                             dbg!();
-                            return Err(Error::todo(iter.filepath, iter.s, iter.pos));
+                            return Err(Error::todo(
+                                iter.filepath.clone(),
+                                iter.input.clone(),
+                                iter.pos,
+                            ));
                         }
                     }
                 }
@@ -1571,7 +1609,7 @@ pub fn postfix(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // stmt-expr       = "(" "{" stmt stmt* "}" ")"
-pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn stmt_expr(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     // expect(iter, Operator::LParen)?;
     // expect_block(iter, Block::LParen)?;
     let sc = ctx.s.enter();
@@ -1582,7 +1620,11 @@ pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error>
     expect(iter, Operator::RParen)?;
 
     if nodes.last().unwrap().kind != NodeKind::ExprStmt {
-        return Err(Error::invalid_stmt_expr(iter.filepath, iter.s, iter.pos));
+        return Err(Error::invalid_stmt_expr(
+            iter.filepath.clone(),
+            iter.input.clone(),
+            iter.pos,
+        ));
     }
     *(nodes.last_mut().unwrap()) = std::mem::replace(
         nodes.last_mut().unwrap().lhs.as_mut().unwrap(),
@@ -1600,7 +1642,7 @@ pub fn stmt_expr(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error>
 //             | "(" "{" stmt-expr-tail
 //             | sizeof unary
 //             | sizeof "(" type-name ")"
-pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
+pub fn primary(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     // "(" expr ")"
     if consume(iter, Operator::LParen) {
         if consume_block(iter, Block::LParen) {
@@ -1616,7 +1658,13 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         if consume(iter, Operator::LParen) {
             let func_prototype = ctx.g.func_prototype_mp.get(&ident.name).ok_or_else(|| {
                 iter.prev();
-                Error::undefined_function(iter.filepath, iter.s, ident, iter.pos, None)
+                Error::undefined_function(
+                    iter.filepath.clone(),
+                    iter.input.clone(),
+                    ident,
+                    iter.pos,
+                    None,
+                )
             })?;
             return Ok(Node::new_leaf(NodeKind::Func(
                 func_prototype.clone(),
@@ -1633,8 +1681,8 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
         } else {
             iter.prev();
             return Err(Error::undefined_variable(
-                iter.filepath,
-                iter.s,
+                iter.filepath.clone(),
+                iter.input.clone(),
                 ident,
                 iter.pos,
                 None,
@@ -1680,7 +1728,11 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
             Ok(x) => return Ok(Node::new_num(x.size() as i64)),
             Err(e) => {
                 dbg!("{}", e);
-                return Err(Error::todo(iter.filepath, iter.s, iter.pos));
+                return Err(Error::todo(
+                    iter.filepath.clone(),
+                    iter.input.clone(),
+                    iter.pos,
+                ));
             }
         }
     }
@@ -1690,7 +1742,7 @@ pub fn primary(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
 }
 
 // func-args   = "(" (assign ("," assign)*)? ")"
-fn func_args(iter: &mut TokenIter, ctx: &mut Context) -> Result<Vec<Node>, Error> {
+fn func_args(iter: &mut TokenStream, ctx: &mut Context) -> Result<Vec<Node>, Error> {
     if consume(iter, Operator::RParen) {
         return Ok(vec![]);
     }
@@ -1740,7 +1792,11 @@ mod tests {
         for (s, expected) in &tests {
             assert_eq!(
                 expected,
-                &expr(&mut token::tokenize(s, ""), &mut Context::new()).unwrap()
+                &expr(
+                    &mut token::tokenize(Rc::new(s.to_string()), Rc::new("".to_string())).unwrap(),
+                    &mut Context::new()
+                )
+                .unwrap()
             )
         }
     }
@@ -1755,7 +1811,8 @@ mod tests {
         )];
 
         for (s, expected) in &tests {
-            let mut iter = token::tokenize(s, "");
+            let mut iter =
+                token::tokenize(Rc::new(s.to_string()), Rc::new("".to_string())).unwrap();
             let mut actual = Vec::new();
 
             let ctx = &mut Context::new();
@@ -1815,7 +1872,8 @@ mod tests {
         ];
 
         let input = "1 +1 +hoge -1 -hoge *1 &1 *hoge &hoge *&hoge ";
-        let iter = &mut token::tokenize(input, "");
+        let iter =
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
         for i in expected {
             let ctx = &mut Context::new();
             ctx.l.lvar = Some(Rc::new(RefCell::new(make_int_lvar("hoge", 8))));
@@ -1834,7 +1892,8 @@ mod tests {
         ];
 
         let input = "sizeof 1 sizeof (hoge) sizeof (hoge) sizeof(*hoge)";
-        let iter = &mut token::tokenize(input, "");
+        let iter =
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
         for i in expected {
             let ctx = &mut Context::new();
             ctx.l.lvar = Some(Rc::new(RefCell::new(i.1.clone())));
@@ -1921,7 +1980,12 @@ mod tests {
         for (input, expected) in &tests {
             assert_eq!(
                 *expected,
-                declaration(&mut token::tokenize(input, ""), &mut Context::new()).unwrap()
+                declaration(
+                    &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string()))
+                        .unwrap(),
+                    &mut Context::new()
+                )
+                .unwrap()
             );
         }
     }
@@ -1940,7 +2004,11 @@ mod tests {
             members,
         )));
         let input = "struct hoge {int first; int second;}";
-        let actual = struct_dec(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
+        let actual = struct_dec(
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap(),
+            &mut Context::new(),
+        )
+        .unwrap();
         assert_eq!(expected, actual);
         assert_eq!(8, actual.borrow().get_size());
 
@@ -1955,7 +2023,11 @@ mod tests {
             members,
         )));
         let input = "struct hoge {int first; int second; char third; int four;}";
-        let actual = struct_dec(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
+        let actual = struct_dec(
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap(),
+            &mut Context::new(),
+        )
+        .unwrap();
         assert_eq!(expected, actual);
         assert_eq!(16, actual.borrow().get_size());
 
@@ -1969,7 +2041,11 @@ mod tests {
             members,
         )));
         let input = "struct hoge {int first; int *second; int four;}";
-        let actual = struct_dec(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
+        let actual = struct_dec(
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap(),
+            &mut Context::new(),
+        )
+        .unwrap();
         assert_eq!(expected, actual);
         assert_eq!(24, actual.borrow().get_size());
     }
@@ -1986,7 +2062,11 @@ mod tests {
         let expected = make_if_node(cond, then);
 
         let input = "if ( 10 ==20 ) return 15;";
-        let actual = stmt(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
+        let actual = stmt(
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap(),
+            &mut Context::new(),
+        )
+        .unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -2003,7 +2083,11 @@ mod tests {
         let expected = make_if_else_node(cond, then, els);
 
         let input = "if ( 10 ==20 ) return 15; else return 10+30;";
-        let actual = stmt(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
+        let actual = stmt(
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap(),
+            &mut Context::new(),
+        )
+        .unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -2017,7 +2101,11 @@ mod tests {
         let expected = make_while_node(cond, then);
 
         let input = "while (32 >= 20 ) return 10;";
-        let actual = stmt(&mut token::tokenize(input, ""), &mut Context::new()).unwrap();
+        let actual = stmt(
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap(),
+            &mut Context::new(),
+        )
+        .unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -2075,7 +2163,11 @@ mod tests {
             Ident::new("i"),
             Rc::new(Var::L(Rc::new(RefCell::new(make_int_lvar("i", 8))))),
         );
-        let actual = stmt(&mut token::tokenize(input, ""), ctx).unwrap();
+        let actual = stmt(
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap(),
+            ctx,
+        )
+        .unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -2091,7 +2183,8 @@ mod tests {
             Node::new_unary(NodeKind::ExprStmt, make_assign_node("hoge", 4, 4)),
         ];
         let expected = vec![Node::new_none(NodeKind::Block(expected))];
-        let mut iter = token::tokenize(input, "");
+        let mut iter =
+            token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
         let mut actual = Vec::new();
         while iter.peek() != None {
             actual.push(stmt(&mut iter, &mut Context::new()).unwrap());
@@ -2122,7 +2215,8 @@ mod tests {
         let mut ctx = Context::new();
         ctx.g = g_ctx;
 
-        let mut iter = token::tokenize(input, "");
+        let mut iter =
+            token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
         let actual = stmt(&mut iter, &mut ctx).unwrap();
         assert_eq!(expected, actual);
 
@@ -2151,7 +2245,8 @@ mod tests {
         let mut ctx = Context::new();
         ctx.g = g_ctx;
 
-        let mut iter = token::tokenize(input, "");
+        let mut iter =
+            token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
         let actual = stmt(&mut iter, &mut ctx).unwrap();
 
         assert_eq!(expected, actual);
@@ -2177,7 +2272,8 @@ mod tests {
             vec![],
             false,
         ));
-        let iter = &mut token::tokenize(input, "");
+        let iter =
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
         let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
@@ -2220,7 +2316,8 @@ mod tests {
         );
 
         let input = "{int foo;foo = 1; int bar;bar = 2; return foo+bar;}";
-        let iter = &mut token::tokenize(input, "");
+        let iter =
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
         let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
@@ -2233,7 +2330,8 @@ mod tests {
         let expected = vec![make_int_dec("hoge")];
 
         let input = "int hoge)";
-        let iter = &mut token::tokenize(input, "");
+        let iter =
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
         let actual = params(iter, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual.0);
@@ -2244,7 +2342,8 @@ mod tests {
             make_int_dec("hoge"),
         ];
         let input = "int foo,int bar,int hoge)";
-        let iter = &mut token::tokenize(input, "");
+        let iter =
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
         let actual = params(iter, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual.0);
@@ -2270,7 +2369,8 @@ mod tests {
             false,
         ));
         let input = "{return 0;}";
-        let iter = &mut token::tokenize(input, "");
+        let iter =
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
         let actual = function(iter, expected_func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
@@ -2298,7 +2398,8 @@ mod tests {
             false,
         ));
         let input = "{return 0;}";
-        let iter = &mut token::tokenize(input, "");
+        let iter =
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
         let actual = function(iter, expected_func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
@@ -2344,7 +2445,8 @@ mod tests {
             expected_param,
             false,
         ));
-        let iter = &mut token::tokenize(input, "");
+        let iter =
+            &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
         let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
 
         assert_eq!(expected, actual);
@@ -2409,7 +2511,8 @@ mod tests {
         ];
 
         for (input, expected, g) in &tests {
-            let iter = &mut token::tokenize(input, "");
+            let iter =
+                &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
             let mut ctx = Context::new();
             ctx.g = g.clone();
             assert_eq!(expected, &primary(iter, &mut ctx).unwrap());
@@ -2447,12 +2550,12 @@ mod tests {
             ),
         ];
 
-        for (sp, ipt, expected) in &tests {
+        for (sp, input, expected) in &tests {
             let mut ident = Ident::new_anonymous();
             assert_eq!(
                 expected,
                 &*declarator(
-                    &mut tokenize(ipt, ""),
+                    &mut tokenize(Rc::new(input.to_string()), Rc::new(String::new())).unwrap(),
                     &mut Context::new(),
                     Rc::new(RefCell::new(sp.clone())),
                     &mut ident

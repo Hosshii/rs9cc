@@ -1,6 +1,7 @@
-use super::error::{Error, ErrorKind};
+use super::error::Error;
 use crate::base_types::TypeKind;
 use std::ops::{Add, AddAssign};
+use std::rc::Rc;
 use std::str::FromStr;
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
@@ -374,31 +375,27 @@ impl FromStr for Comment {
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Token {
+    pub input: Rc<String>,
+    pub filepath: Rc<String>,
     pub kind: TokenKind,
     pub pos: TokenPos,
     pub prev_pos: TokenPos,
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, pos: TokenPos, prev_pos: TokenPos) -> Self {
+    pub fn new(
+        kind: TokenKind,
+        pos: TokenPos,
+        prev_pos: TokenPos,
+        input: Rc<String>,
+        filepath: Rc<String>,
+    ) -> Self {
         Self {
+            input,
+            filepath,
             kind,
             pos,
             prev_pos,
-        }
-    }
-
-    pub fn new_error(
-        &self,
-        input: impl Into<String>,
-        s: impl Into<String>,
-        msg: impl Into<String>,
-    ) -> Error {
-        Error {
-            input: input.into(),
-            kind: ErrorKind::Invalid(s.into()),
-            pos: self.pos,
-            msg: Some(msg.into()),
         }
     }
 }
@@ -442,34 +439,191 @@ impl AddAssign for TokenPos {
     }
 }
 
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]
+pub struct TokenStream {
+    pub input: Rc<String>,
+    pub filepath: Rc<String>,
+    pub pos: TokenPos,
+    pub idx: usize,
+    pub tokens: Vec<Token>,
+}
+
+impl TokenStream {
+    pub fn new(input: Rc<String>, filepath: Rc<String>, tokens: Vec<Token>) -> Self {
+        Self {
+            input,
+            filepath,
+            pos: TokenPos::new(0, 0),
+            idx: 0,
+            tokens,
+        }
+    }
+
+    pub fn next(&mut self) -> Option<Token> {
+        let result = self.tokens.get(self.pos.tk);
+
+        match result {
+            Some(v) => {
+                self.pos = v.pos;
+                self.pos.tk += 1;
+                Some(v.clone())
+            }
+            None => None,
+        }
+    }
+
+    pub fn peek(&mut self) -> Option<Token> {
+        self.tokens.get(self.pos.tk).and_then(|v| Some(v.clone()))
+    }
+
+    pub fn prev(&mut self) -> Option<Token> {
+        if self.pos.tk as isize - 1 >= 0 {
+            let mut pos = self.pos;
+            let result = self.tokens.get(self.pos.tk - 1).and_then(|v| {
+                pos = v.pos;
+                Some(v.clone())
+            });
+            self.pos = pos;
+            self.pos.tk -= 1;
+            result
+        } else {
+            None
+        }
+    }
+}
+
 /// token iterator
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy, Debug)]
-pub struct TokenIter<'a> {
-    pub s: &'a str,
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Debug)]
+pub struct TokenIter {
+    pub input: Rc<String>,
     pub pos: TokenPos,
     pub prev_pos: TokenPos,
-    pub filepath: &'a str,
+    pub filepath: Rc<String>,
 }
 
-pub fn tokenize<'a>(s: &'a str, filepath: &'a str) -> TokenIter<'a> {
-    TokenIter {
-        s,
-        pos: TokenPos { tk: 0, bytes: 0 },
-        prev_pos: TokenPos { tk: 0, bytes: 0 },
-        filepath,
+pub fn tokenize(input: Rc<String>, filepath: Rc<String>) -> Result<TokenStream, Error> {
+    let mut vec = Vec::new();
+    let mut token_iter = TokenIter::new(input.clone(), filepath.clone());
+    while let Some(x) = token_iter.next()? {
+        vec.push(x);
     }
+
+    Ok(TokenStream::new(input, filepath, vec))
 }
 
-impl<'a> TokenIter<'a> {
-    /// std::iter::Peekable.peek()に似てるけど、posを元に戻す
-    pub fn peek(&mut self) -> Option<Token> {
-        let cur_pos = self.pos;
-        let prev_pos = self.prev_pos;
-        let result = self.next();
-        self.pos = cur_pos;
-        self.prev_pos = prev_pos;
-        result
+impl TokenIter {
+    pub fn new(input: Rc<String>, filepath: Rc<String>) -> TokenIter {
+        TokenIter {
+            input,
+            pos: TokenPos { tk: 0, bytes: 0 },
+            prev_pos: TokenPos { tk: 0, bytes: 0 },
+            filepath,
+        }
     }
+
+    pub fn next(&mut self) -> Result<Option<Token>, Error> {
+        match calc_space_len(self.cur_str()) {
+            Ok(sp) => {
+                self.pos.bytes += sp;
+            }
+            Err(e) => return Err(self.error_at(&e)),
+        }
+        let s = self.cur_str();
+        if s.is_empty() {
+            return Ok(None);
+        }
+
+        if let Some((tk, pos)) = self.is_op(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+
+        if let Some((tk, pos)) = self.is_keyword(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+
+        if let Some((tk, pos)) = self.is_num(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+
+        if let Some((tk, pos)) = self.is_semi(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+
+        if let Some((tk, pos)) = self.is_colon(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+
+        if let Some((tk, pos)) = self.is_block_paren(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+
+        if let Some((tk, pos)) = self.is_comma(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+
+        if let Some((tk, pos)) = self.is_period(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+
+        if let Some((tk, pos)) = self.is_question(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+
+        if let Some((tk, pos)) = self.is_string(s)? {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+
+        if let Some((tk, pos)) = self.is_char(s)? {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+
+        if let Some((tk, pos)) = self.is_base_type(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+
+        // これ最後の方がいい
+        // 最後にしないと予約後が変数として扱われちゃう
+        if let Some((tk, pos)) = self.is_ident(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            return Ok(Some(tk));
+        }
+        Err(self.error_at("トークナイズできません"))
+    }
+
+    // /// std::iter::Peekable.peek()に似てるけど、posを元に戻す
+    // pub fn peek(&mut self) -> Option<Token> {
+    //     let cur_pos = self.pos;
+    //     let prev_pos = self.prev_pos;
+    //     let result = self.next();
+    //     self.pos = cur_pos;
+    //     self.prev_pos = prev_pos;
+    //     result
+    // }
 
     pub fn back(&mut self, tk: usize, bytes: usize) {
         self.pos.tk -= tk;
@@ -480,11 +634,21 @@ impl<'a> TokenIter<'a> {
         self.pos = self.prev_pos;
     }
 
+    fn new_token(&self, kind: TokenKind) -> Token {
+        Token::new(
+            kind,
+            self.pos,
+            self.prev_pos,
+            self.input.clone(),
+            self.filepath.clone(),
+        )
+    }
+
     fn is_op(&self, s: &str) -> Option<(Token, TokenPos)> {
         use self::TokenKind::*;
         if let Ok(op) = Operator::from_starts(s) {
             return Some((
-                Token::new(Reserved(op), self.pos, self.prev_pos),
+                self.new_token(Reserved(op)),
                 TokenPos::new_bytes(op.as_str().len()),
             ));
         }
@@ -496,10 +660,7 @@ impl<'a> TokenIter<'a> {
             let len = keyword.as_str().len();
             if !is_alnum(s.chars().nth(len).unwrap_or_else(|| ' ')) {
                 let kind = TokenKind::KeyWord(keyword);
-                return Some((
-                    Token::new(kind, self.pos, self.prev_pos),
-                    TokenPos::new_bytes(len),
-                ));
+                return Some((self.new_token(kind), TokenPos::new_bytes(len)));
             }
         }
         None
@@ -510,11 +671,7 @@ impl<'a> TokenIter<'a> {
         let (digit, _, bytes) = split_digit(s);
         if !digit.is_empty() {
             return Some((
-                Token::new(
-                    Num(i64::from_str_radix(digit, 10).unwrap()),
-                    self.pos,
-                    self.prev_pos,
-                ),
+                self.new_token(Num(i64::from_str_radix(digit, 10).unwrap())),
                 TokenPos::new_bytes(bytes),
             ));
         }
@@ -525,10 +682,7 @@ impl<'a> TokenIter<'a> {
         use self::TokenKind::*;
         let ss = s.chars().nth(0).unwrap();
         if ss.to_string() == SemiColon.as_string() {
-            return Some((
-                Token::new(SemiColon, self.pos, self.prev_pos),
-                TokenPos::new_bytes(1),
-            ));
+            return Some((self.new_token(SemiColon), TokenPos::new_bytes(1)));
         }
         None
     }
@@ -537,10 +691,7 @@ impl<'a> TokenIter<'a> {
         use self::TokenKind::*;
         let ss = s.chars().nth(0).unwrap();
         if ss.to_string() == Colon.as_string() {
-            return Some((
-                Token::new(Colon, self.pos, self.prev_pos),
-                TokenPos::new_bytes(1),
-            ));
+            return Some((self.new_token(Colon), TokenPos::new_bytes(1)));
         }
         None
     }
@@ -549,10 +700,7 @@ impl<'a> TokenIter<'a> {
         use self::TokenKind::*;
         let ss = s.chars().nth(0).unwrap();
         if ss.to_string() == Question.as_string() {
-            return Some((
-                Token::new(Question, self.pos, self.prev_pos),
-                TokenPos::new_bytes(1),
-            ));
+            return Some((self.new_token(Question), TokenPos::new_bytes(1)));
         }
         None
     }
@@ -561,7 +709,7 @@ impl<'a> TokenIter<'a> {
         let (ident, _, first_non_num_idx) = split_ident(s);
         if !ident.is_empty() {
             return Some((
-                Token::new(TokenKind::Ident(Ident::new(ident)), self.pos, self.prev_pos),
+                self.new_token(TokenKind::Ident(Ident::new(ident))),
                 TokenPos::new_bytes(first_non_num_idx),
             ));
         }
@@ -571,10 +719,7 @@ impl<'a> TokenIter<'a> {
     fn is_block_paren(&self, s: &str) -> Option<(Token, TokenPos)> {
         let ss = s.chars().nth(0).unwrap();
         if let Ok(x) = Block::from_str(&ss.to_string()) {
-            return Some((
-                Token::new(TokenKind::Block(x), self.pos, self.prev_pos),
-                TokenPos::new(1, 1),
-            ));
+            return Some((self.new_token(TokenKind::Block(x)), TokenPos::new(1, 1)));
         }
         None
     }
@@ -583,10 +728,7 @@ impl<'a> TokenIter<'a> {
         use self::TokenKind::*;
         let ss = s.chars().nth(0).unwrap();
         if ss.to_string() == Comma.as_string() {
-            return Some((
-                Token::new(Comma, self.pos, self.prev_pos),
-                TokenPos::new_bytes(1),
-            ));
+            return Some((self.new_token(Comma), TokenPos::new_bytes(1)));
         }
         None
     }
@@ -595,15 +737,12 @@ impl<'a> TokenIter<'a> {
         use self::TokenKind::*;
         let ss = s.chars().nth(0).unwrap();
         if ss.to_string() == Period.as_string() {
-            return Some((
-                Token::new(Period, self.pos, self.prev_pos),
-                TokenPos::new_bytes(1),
-            ));
+            return Some((self.new_token(Period), TokenPos::new_bytes(1)));
         }
         None
     }
 
-    fn is_string(&self, s: &str) -> Option<(Token, TokenPos)> {
+    fn is_string(&self, s: &str) -> Result<Option<(Token, TokenPos)>, Error> {
         use TokenKind::DoubleQuote;
         let mut chars = s.chars();
         if let Some(x) = chars.next() {
@@ -622,28 +761,28 @@ impl<'a> TokenIter<'a> {
                                 len += 1;
                                 result.push(get_escape_chars(cc));
                             } else {
-                                self.error_at("reach EOF")
+                                return Err(self.error_at("reach EOF"));
                             }
                         } else {
                             result.push(c);
                         }
                     } else {
-                        self.error_at("cannot find end of \"");
+                        return Err(self.error_at("cannot find end of \""));
                     }
                 }
                 let mut result = result.into_iter().collect::<String>();
                 result += "\0";
 
-                return Some((
-                    Token::new(TokenKind::String(result), self.pos, self.prev_pos),
+                return Ok(Some((
+                    self.new_token(TokenKind::String(result)),
                     TokenPos::new_bytes(len),
-                ));
+                )));
             }
         }
-        None
+        Ok(None)
     }
 
-    fn is_char(&self, s: &str) -> Option<(Token, TokenPos)> {
+    fn is_char(&self, s: &str) -> Result<Option<(Token, TokenPos)>, Error> {
         use TokenKind::SingleQuote;
         let mut chars = s.chars();
         if chars
@@ -659,28 +798,28 @@ impl<'a> TokenIter<'a> {
                         result = get_escape_chars(cc);
                         len += 2;
                     } else {
-                        self.error_at("reach EOF")
+                        return Err(self.error_at("reach EOF"));
                     }
                 } else {
                     result = c;
                     len += 1;
                 }
             } else {
-                self.error_at("reach EOF")
+                return Err(self.error_at("reach EOF"));
             }
 
             if chars.next() != Some('\'') {
-                self.error_at("char length should be 1")
+                return Err(self.error_at("char length should be 1"));
             } else {
                 len += 1;
             }
 
-            return Some((
-                Token::new(TokenKind::Char(result), self.pos, self.prev_pos),
+            return Ok(Some((
+                self.new_token(TokenKind::Char(result)),
                 TokenPos::new_bytes(len),
-            ));
+            )));
         }
-        None
+        Ok(None)
     }
 
     fn is_base_type(&self, s: &str) -> Option<(Token, TokenPos)> {
@@ -689,7 +828,7 @@ impl<'a> TokenIter<'a> {
             // specify ' ' in unwrap_of_else because !is_alnum(' ') is true at anytime
             if !is_alnum(s.chars().nth(len).unwrap_or_else(|| ' ')) {
                 return Some((
-                    Token::new(TokenKind::TypeKind(base_type), self.pos, self.prev_pos),
+                    self.new_token(TokenKind::TypeKind(base_type)),
                     TokenPos::new_bytes(len),
                 ));
             }
@@ -697,134 +836,20 @@ impl<'a> TokenIter<'a> {
         None
     }
 
-    fn error_at(&self, msg: &str) -> ! {
-        let mut line_num = 1;
-        let mut bytes = 0;
-        let mut err_input = String::new();
-        for line in self.s.lines() {
-            let len = line.as_bytes().len();
-            if bytes + len >= self.pos.bytes {
-                err_input = line.to_string();
-                break;
-            }
-            line_num += 1;
-            bytes += len + 1;
-        }
-
-        let info = format!("{}: {}", self.filepath, line_num);
-        let err_input = format!("{} {}", info, err_input);
-        eprintln!("{}", err_input);
-        eprintln!(
-            "{number:>width$} {err_msg}",
-            number = '^',
-            width = self.pos.bytes + 1 + info.len() - bytes,
-            err_msg = msg,
-        );
-        panic!()
+    fn error_at(&self, msg: impl Into<String>) -> Error {
+        Error::invalid(
+            self.filepath.clone(),
+            self.input.clone(),
+            self.pos,
+            Some(msg.into()),
+        )
     }
 
     /// ## warn
     /// you cannot change self.bytes_pos after using this method
     fn cur_str(&self) -> &str {
         let a = self.pos.bytes;
-        &self.s[a..]
-    }
-}
-
-impl<'a> Iterator for TokenIter<'a> {
-    type Item = Token;
-    fn next(&mut self) -> Option<Self::Item> {
-        match calc_space_len(self.cur_str()) {
-            Ok(sp) => {
-                self.pos.bytes += sp;
-            }
-            Err(e) => self.error_at(&e),
-        }
-        let s = self.cur_str();
-        if s.is_empty() {
-            return None;
-        }
-
-        if let Some((tk, pos)) = self.is_op(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-
-        if let Some((tk, pos)) = self.is_keyword(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-
-        if let Some((tk, pos)) = self.is_num(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-
-        if let Some((tk, pos)) = self.is_semi(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-
-        if let Some((tk, pos)) = self.is_colon(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-
-        if let Some((tk, pos)) = self.is_block_paren(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-
-        if let Some((tk, pos)) = self.is_comma(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-
-        if let Some((tk, pos)) = self.is_period(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-
-        if let Some((tk, pos)) = self.is_question(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-
-        if let Some((tk, pos)) = self.is_string(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-
-        if let Some((tk, pos)) = self.is_char(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-
-        if let Some((tk, pos)) = self.is_base_type(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-
-        // これ最後の方がいい
-        // 最後にしないと予約後が変数として扱われちゃう
-        if let Some((tk, pos)) = self.is_ident(s) {
-            self.prev_pos = self.pos;
-            self.pos += pos;
-            return Some(tk);
-        }
-        self.error_at("トークナイズできません")
+        &self.input[a..]
     }
 }
 
@@ -942,7 +967,7 @@ mod tests {
             Ampersand, Sizeof, LArr, RArr, Arrow, PlusPlus, APlus, AMinus, AMul, ADiv, Not, BitNot,
             BitOr, BitXor, LogOr, LogAnd, RShift, LShift, ALShift, ARShift, ThreeDots,
         ];
-        let mut iter = tokenize(input, "");
+        let mut iter = tokenize(Rc::new(input.to_string()), Rc::new(String::new())).unwrap();
         for i in expected {
             assert_eq!(Reserved(i), iter.next().unwrap().kind);
         }
@@ -959,7 +984,7 @@ mod tests {
             Num(20),
             SemiColon,
         ];
-        let mut iter = tokenize(input, "");
+        let mut iter = tokenize(Rc::new(input.to_string()), Rc::new(String::new())).unwrap();
         for i in expected {
             assert_eq!(i, iter.next().unwrap().kind);
         }
@@ -999,7 +1024,7 @@ mod tests {
             KeyWord(Extern),
             KeyWord(Do),
         ];
-        let mut iter = tokenize(input, "");
+        let mut iter = tokenize(Rc::new(input.to_string()), Rc::new(String::new())).unwrap();
         for i in expected {
             assert_eq!(i, iter.next().unwrap().kind);
         }
@@ -1014,7 +1039,7 @@ mod tests {
             TokenKind::Char('\n'),
             TokenKind::Char('\''),
         ];
-        let mut iter = tokenize(input, "");
+        let mut iter = tokenize(Rc::new(input.to_string()), Rc::new(String::new())).unwrap();
         for i in &expected {
             assert_eq!(i, &iter.next().unwrap().kind);
         }
@@ -1033,7 +1058,7 @@ mod tests {
         ; //
         "###;
         let expected = vec![TokenKind::SemiColon, TokenKind::SemiColon];
-        let mut iter = tokenize(input, "");
+        let mut iter = tokenize(Rc::new(input.to_string()), Rc::new(String::new())).unwrap();
         for i in expected {
             assert_eq!(i, iter.next().unwrap().kind);
         }
@@ -1056,7 +1081,7 @@ mod tests {
             TokenKind::TypeKind(TypeKind::Void),
             TokenKind::TypeKind(TypeKind::_Bool),
         ];
-        let mut iter = tokenize(input, "");
+        let mut iter = tokenize(Rc::new(input.to_string()), Rc::new(String::new())).unwrap();
         for i in expected {
             assert_eq!(i, iter.next().unwrap().kind);
         }
