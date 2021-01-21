@@ -15,7 +15,7 @@ jobs:
       - name: Update rustup
         run: rustup self update
       - name: Build
-        run: cargo build --release
+        run: cargo build
       - name: run shell script tests
         run: RS9CC_ON_WORKFLOW=1 ./bin/test.sh sh
       - name: run C script tests

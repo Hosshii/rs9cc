@@ -34,16 +34,15 @@ int add_all(int n, ...) {
 EOF
 
 test() {
-    cd bin
-    make
-    echo "test.c"
-    ./test.exe
-
-    echo " "
-    echo "extern.c"
-    ./extern.exe
-    make clean
-    cd ..
+    cd bin &&
+        make &&
+        echo "test.c" &&
+        ./test.exe &&
+        echo " " &&
+        echo "extern.c" &&
+        ./extern.exe &&
+        make clean &&
+        cd ..
 }
 
 assert() {
