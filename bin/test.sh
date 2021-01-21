@@ -51,7 +51,7 @@ assert() {
 
     local bin="./target/debug/rs9cc"
     if [ -n "$RS9CC_ON_WORKFLOW" ]; then
-        bin="./target/release/rs9cc"
+        bin="./target/debug/rs9cc"
     fi
     echo "$input" >test.c
     $bin "test.c" >tmp.s
