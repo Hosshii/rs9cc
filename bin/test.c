@@ -36,6 +36,7 @@ int label_test(){label_test: return 1;}
 void void_fn(){}
 void voidfn(void){}
 static int static_fn(){}
+void return_only(){return;}
 
 int g_1;
 int g_2;
@@ -676,6 +677,11 @@ int main() {
 
   assert(3, g14, "g14");
   assert(3, *g15, "*g15");
+
+  // #69
+  printf("\n\n#69\n");
+  assert( 7, ({int i = 0; int j =0; do{j++;}while(i++ < 6);  j;}),"({int i = 0; int j =0; do{j++;}while(i++ < 6);  j;})");
+  assert( 4, ({int i = 0; int j =0; int k = 0; do{if (++j > 3)break; continue; k++;}while(1);  j;}),"({int i = 0; int j =0; int k = 0; do{if (++j > 3)break; continue; k++;}while(1);  j;})");
 
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;

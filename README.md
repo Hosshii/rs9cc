@@ -34,6 +34,7 @@ stmt                    = expr ";"
                         | "return" expr? ";"
                         | "if" "(" expr ")" stmt
                         | "while" "(" expr ")" stmt
+                        | "do" stmt "while" "(" expr ")" ";"
                         | "for" "(" stmt? ";" expr? ";" expr? ")" stmt
                         | "{" stmt* "}"
                         | declaration ("=" lvar-initializer)? ";"

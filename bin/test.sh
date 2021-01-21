@@ -762,6 +762,12 @@ return_only() {
     assert 1 'int printf(char *p);void ret_none(){printf("hello\n");return ;} int main(){ret_none(); return 1;}'
 }
 
+# 69
+do_while() {
+    assert 7 'int main(){int i = 0; int j =0; do{j++;}while(i++ < 6); return j;}'
+    assert 4 'int main(){int i = 0; int j =0; int k = 0; do{if (++j > 3)break; continue; k++;}while(1); return j;}'
+}
+
 build() {
     cargo build
 }
@@ -851,6 +857,7 @@ if [ $# -eq 0 ]; then
     gvar_addend
     global_typedef
     return_only
+    do_while
 fi
 
 while [ $# -ne 0 ]; do
@@ -923,6 +930,7 @@ while [ $# -ne 0 ]; do
     "66") gvar_addend ;;
     "67") global_typedef ;;
     "68") return_only ;;
+    "69") do_while ;;
     esac
     shift
 done

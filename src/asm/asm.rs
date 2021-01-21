@@ -298,6 +298,36 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             ctx.continue_label = continue_num;
             return Ok(());
         }
+        NodeKind::Do => {
+            #[cfg(debug_assertions)]
+            writeln!(ctx.asm, "# NodeKind::Do")?;
+            let jlb_num = ctx.jump_label;
+            let break_num = ctx.break_label;
+            let continue_num = ctx.continue_label;
+            ctx.jump_label += 1;
+            ctx.break_label = jlb_num;
+            ctx.continue_label = jlb_num;
+            writeln!(ctx.asm, ".L.continue.{}:", jlb_num)?;
+            if let Some(then) = &node.then {
+                gen(then, ctx)?;
+            } else {
+                return Err(Error::not_found());
+            }
+            if let Some(cond) = &node.cond {
+                gen(cond, ctx)?;
+            } else {
+                return Err(Error::not_found());
+            }
+            writeln!(ctx.asm, "    pop rax")?;
+            writeln!(ctx.asm, "    cmp rax, 0")?;
+            writeln!(ctx.asm, "    je  .L.break.{}", jlb_num)?;
+
+            writeln!(ctx.asm, "    jmp  .L.continue.{}", jlb_num)?;
+            writeln!(ctx.asm, ".L.break.{}:", jlb_num)?;
+            ctx.break_label = break_num;
+            ctx.continue_label = continue_num;
+            return Ok(());
+        }
         NodeKind::For => {
             #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::For")?;

@@ -869,6 +869,7 @@ fn lvar_initializer(
 //             | "return" expr? ";"
 //             | "if" "(" expr ")" stmt
 //             | "while" "(" expr ")" stmt
+//             | "do" stmt "while" "(" expr ")" ";"
 //             | "for" "(" stmt? ";" expr? ";" expr? ")" stmt
 //             | "{" stmt* "}"
 //             | declaration ("=" initialize)? ";"
@@ -913,6 +914,17 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                         let mut node = Node::new_cond(NodeKind::While, expr(iter, ctx)?);
                         expect(iter, Operator::RParen)?;
                         node.then = Some(Box::new(stmt(iter, ctx)?));
+                        return Ok(node);
+                    }
+                    KeyWord::Do => {
+                        iter.next();
+                        let mut node = Node::new_leaf(NodeKind::Do);
+                        node.then = Some(Box::new(stmt(iter, ctx)?));
+                        expect_keyword(iter, KeyWord::While)?;
+                        expect(iter, Operator::LParen)?;
+                        node.cond = Some(Box::new(expr(iter, ctx)?));
+                        expect(iter, Operator::RParen)?;
+                        expect_semi(iter)?;
                         return Ok(node);
                     }
                     KeyWord::For => {
