@@ -220,10 +220,8 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             writeln!(ctx.asm, "# NodeKind::Return")?;
             if let Some(lhs) = &node.lhs {
                 gen(&lhs, ctx)?;
-            } else {
-                return Err(Error::not_found());
+                writeln!(ctx.asm, "    pop rax")?;
             }
-            writeln!(ctx.asm, "    pop rax")?;
             writeln!(ctx.asm, "    mov rsp, rbp")?;
             writeln!(ctx.asm, "    pop rbp")?;
             writeln!(ctx.asm, "    ret")?;

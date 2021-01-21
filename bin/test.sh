@@ -757,6 +757,11 @@ global_typedef() {
     assert 1 'typedef struct node_t{struct node_t *next; int val;}node; int main(){node a ; a.val = 1; node b; b.next = &a; node c;c.next = &b; return c.next->next->val;}'
 }
 
+# 68
+return_only() {
+    assert 1 'int printf(char *p);void ret_none(){printf("hello\n");return ;} int main(){ret_none(); return 1;}'
+}
+
 build() {
     cargo build
 }
@@ -845,6 +850,7 @@ if [ $# -eq 0 ]; then
     gvar_string
     gvar_addend
     global_typedef
+    return_only
 fi
 
 while [ $# -ne 0 ]; do
@@ -916,6 +922,7 @@ while [ $# -ne 0 ]; do
     "65") gvar_string ;;
     "66") gvar_addend ;;
     "67") global_typedef ;;
+    "68") return_only ;;
     esac
     shift
 done

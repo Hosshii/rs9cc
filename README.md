@@ -31,7 +31,7 @@ func-prototype          = type-specifier declarator "(" params? ")"
 function                = func-prototype "{" stmt* "}"
 params                  = declaration ("," declaration)* | "void" 
 stmt                    = expr ";"
-                        | "return" expr ";"
+                        | "return" expr? ";"
                         | "if" "(" expr ")" stmt
                         | "while" "(" expr ")" stmt
                         | "for" "(" stmt? ";" expr? ";" expr? ")" stmt

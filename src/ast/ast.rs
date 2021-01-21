@@ -866,7 +866,7 @@ fn lvar_initializer(
 }
 
 // stmt        = expr ";"
-//             | "return" expr ";"
+//             | "return" expr? ";"
 //             | "if" "(" expr ")" stmt
 //             | "while" "(" expr ")" stmt
 //             | "for" "(" stmt? ";" expr? ";" expr? ")" stmt
@@ -886,6 +886,9 @@ pub fn stmt(iter: &mut TokenIter, ctx: &mut Context) -> Result<Node, Error> {
                 match key {
                     KeyWord::Return => {
                         iter.next();
+                        if consume_semi(iter) {
+                            return Ok(Node::new_leaf(NodeKind::Return));
+                        }
                         let node = Node::new_unary(NodeKind::Return, expr(iter, ctx)?);
                         expect_semi(iter)?;
                         return Ok(node);
