@@ -111,7 +111,7 @@ pub(crate) fn consume_string(iter: &mut TokenStream) -> Option<String> {
     if let Some(x) = iter.peek() {
         if let TokenKind::String(string) = x.kind {
             iter.next();
-            return Some(string);
+            return Some(string + "\0");
         }
     }
     None

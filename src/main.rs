@@ -2,20 +2,14 @@ extern crate rs9cc;
 
 use rs9cc::asm::code_gen;
 use rs9cc::ast::program;
-use rs9cc::token::tokenize;
+use rs9cc::token;
 use std::env;
-use std::fs;
 use std::rc::Rc;
 
 fn main() {
     let filepath = env::args().nth(1).unwrap();
-    let mut content = fs::read_to_string(&filepath).expect(&format!("{} is not exist", filepath));
-    if content.len() == 0 || content.chars().last().unwrap() != '\n' {
-        content += "\n";
-    }
-
     // token生成
-    let mut token_stream = match tokenize(Rc::new(content), Rc::new(filepath)) {
+    let mut token_stream = match token::tokenize_file(Rc::new(filepath)) {
         Ok(tokens) => tokens,
         Err(err) => {
             eprintln!("{}", err);

@@ -1,6 +1,7 @@
 use super::error::Error;
 use crate::base_types::TypeKind;
 use crate::preprocessor;
+use std::fs;
 use std::ops::{Add, AddAssign};
 use std::rc::Rc;
 use std::str::FromStr;
@@ -23,6 +24,7 @@ pub enum TokenKind {
     Question,
     String(String),
     Char(char),
+    HashMark,
     EOF,
 }
 
@@ -46,6 +48,7 @@ impl TokenKind {
             Question => "?".to_string(),
             String(s) => s.clone(),
             Char(c) => c.to_string(),
+            HashMark => "#".to_string(),
             EOF => "EOF".to_string(),
         }
     }
@@ -521,6 +524,16 @@ pub fn tokenize(input: Rc<String>, filepath: Rc<String>) -> Result<TokenStream, 
     Ok(TokenStream::new(input, filepath, vec))
 }
 
+pub fn tokenize_file(filepath: Rc<String>) -> Result<TokenStream, Error> {
+    let mut content =
+        fs::read_to_string(filepath.as_ref()).expect(&format!("{} is not exist", filepath));
+    if content.len() == 0 || content.chars().last().unwrap() != '\n' {
+        content += "\n";
+    }
+    let input = Rc::new(content);
+    tokenize(input, filepath)
+}
+
 impl TokenIter {
     pub fn new(input: Rc<String>, filepath: Rc<String>) -> TokenIter {
         TokenIter {
@@ -603,6 +616,13 @@ impl TokenIter {
         }
 
         if let Some((mut tk, pos)) = self.is_question(s) {
+            self.prev_pos = self.pos;
+            self.pos += pos;
+            tk.is_bol = is_bol;
+            return Ok(Some(tk));
+        }
+
+        if let Some((mut tk, pos)) = self.is_hashmark(s) {
             self.prev_pos = self.pos;
             self.pos += pos;
             tk.is_bol = is_bol;
@@ -732,6 +752,15 @@ impl TokenIter {
         None
     }
 
+    fn is_hashmark(&self, s: &str) -> Option<(Token, TokenPos)> {
+        use self::TokenKind::*;
+        let ss = s.chars().nth(0).unwrap();
+        if ss.to_string() == HashMark.as_string() {
+            return Some((self.new_token(HashMark), TokenPos::new_bytes(1)));
+        }
+        None
+    }
+
     fn is_ident(&self, s: &str) -> Option<(Token, TokenPos)> {
         let (ident, _, first_non_num_idx) = split_ident(s);
         if !ident.is_empty() {
@@ -797,8 +826,7 @@ impl TokenIter {
                         return Err(self.error_at("cannot find end of \""));
                     }
                 }
-                let mut result = result.into_iter().collect::<String>();
-                result += "\0";
+                let result = result.into_iter().collect::<String>();
 
                 return Ok(Some((
                     self.new_token(TokenKind::String(result)),
@@ -904,6 +932,9 @@ fn split_ident(s: &str) -> (&str, &str, usize) {
             || s[i..].starts_with(Comment::MultiStart.as_str())
             || s[i..].starts_with(&TokenKind::Period.as_string())
             || s[i..].starts_with(&TokenKind::Question.as_string())
+            || s[i..].starts_with(&TokenKind::HashMark.as_string())
+            || s[i..].starts_with(&TokenKind::DoubleQuote.as_string())
+            || s[i..].starts_with(&TokenKind::SingleQuote.as_string())
             || c.is_ascii_whitespace()
         {
             break;
@@ -1023,8 +1054,7 @@ mod tests {
         }
         assert_eq!(None, iter.next());
 
-        let input = "
-            return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static break continue goto : switch case default ? extern do";
+        let input = "return; returnx return1 return 1 for while if else force whilet ifelse elseif  struct . typedef enum static break continue goto : switch case default ? extern do #";
 
         let expected = vec![
             KeyWord(Return),
@@ -1056,6 +1086,7 @@ mod tests {
             TokenKind::Question,
             KeyWord(Extern),
             KeyWord(Do),
+            TokenKind::HashMark,
         ];
         let mut iter = tokenize(Rc::new(input.to_string()), Rc::new(String::new())).unwrap();
         for i in expected {
@@ -1065,9 +1096,9 @@ mod tests {
 
         let input = r###""hello" "hello\n" "hello\"" 'a' '\n' '\''"###;
         let expected = [
-            TokenKind::String("hello\u{0}".to_string()),
-            TokenKind::String("hello\n\u{0}".to_string()),
-            TokenKind::String("hello\"\u{0}".to_string()),
+            TokenKind::String("hello".to_string()),
+            TokenKind::String("hello\n".to_string()),
+            TokenKind::String("hello\"".to_string()),
             TokenKind::Char('a'),
             TokenKind::Char('\n'),
             TokenKind::Char('\''),
