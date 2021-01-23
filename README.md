@@ -4,6 +4,57 @@ mini C compiler written in Rust. This is my hobby project. I use [compilerbook](
 
 **Note**: This project is work in progress.
 
+
+## build 
+```
+$ cargo build
+```
+
+## test
+### unit test
+```
+$ cargo test
+```
+
+### integrated test
+docker is required
+```
+$ ./bin/runner.sh test
+```
+
+on linux, you can use following command instead.
+```
+$ RS9CC_ON_WORKFLOW=1 ./bin/test.sh
+```
+
+## implemented
+- Four arithmetic operations (`+`, `-`, `*`, `/`)
+- unray(`+`, `-`)
+- comparison(`>`, `>=`, `<`, `<=`, `==`, `!=`)
+- local variable
+- return statement
+- control statement(`if`, `else`, `for`, `while`)
+- block statement(`{...}`)
+- function call
+- function definition
+- array
+- global variable
+- pointer and String literal
+- comment
+- struct, enum
+- bit op (!,~,|,&,^)
+- goto,switch,continue,break
+- extern
+- lvar,gvar initializers
+etc
+
+## todo
+- variadic
+- float
+
+ # Reference
+ - [低レイヤを知りたい人のためのCコンパイラ作成入門](https://www.sigbus.info/compilerbook)
+
 ## EBNF
 ```
 program                 = (function | declaration ("=" gvar-initializer)? ";" | func-prototype )*
@@ -77,47 +128,3 @@ primary                 = num
                         | "sizeof "(" type-name ")"
 func-args               = "(" (assign ("," assign)*)? ")"
 ```
-
-## build 
-```
-$ cargo build
-```
-
-## test
-### unit test
-```
-$ cargo test
-```
-
-### integrated test
-docker is required
-```
-$ ./bin/runner.sh test
-```
-
-on linux, you can use following command instead.
-```
-$ RS9CC_ON_WORKFLOW=1 ./bin/test.sh
-```
-
-## implemented
-- Four arithmetic operations (`+`, `-`, `*`, `/`)
-- unray(`+`, `-`)
-- comparison(`>`, `>=`, `<`, `<=`, `==`, `!=`)
-- local variable
-- return statement
-- control statement(`if`, `else`, `for`, `while`)
-- block statement(`{...}`)
-- function call
-- function definition
-- array
-- global variable
-- pointer and String literal
-
-
-## todo
-- integer
-- etc...
-
- # Reference
- - [低レイヤを知りたい人のためのCコンパイラ作成入門](https://www.sigbus.info/compilerbook)
