@@ -234,6 +234,13 @@ pub fn type_specifier(
     let mut is_static = false;
     let mut is_extern = false;
     let mut ty = None;
+    if !is_typename(iter, ctx) {
+        return Err(Error::todo(
+            iter.filepath.clone(),
+            iter.input.clone(),
+            iter.pos,
+        ));
+    }
     while let Some(x) = iter.peek() {
         if let TokenKind::TypeKind(ref type_kind) = x.kind {
             iter.next();
@@ -1488,18 +1495,16 @@ pub fn mul(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
 // cast                    = "(" type-name ")" cast | unary
 pub fn cast(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     if consume(iter, Operator::LParen) {
-        if let Some(x) = iter.peek() {
-            if let TokenKind::TypeKind(_) = x.kind {
-                let ty = type_name(iter, ctx)?;
-                expect(iter, Operator::RParen)?;
-                return Ok(Node::new_unary(
-                    NodeKind::Cast(ty.replace(TypeKind::Int)),
-                    cast(iter, ctx)?,
-                ));
-            }
-            // `(`をconsumeした分を戻す
-            iter.prev();
+        if is_typename(iter, ctx) {
+            let ty = type_name(iter, ctx)?;
+            expect(iter, Operator::RParen)?;
+            return Ok(Node::new_unary(
+                NodeKind::Cast(ty.replace(TypeKind::Int)),
+                cast(iter, ctx)?,
+            ));
         }
+        // `(`をconsumeした分を戻す
+        iter.prev();
     }
 
     unary(iter, ctx)
