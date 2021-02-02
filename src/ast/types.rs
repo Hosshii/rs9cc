@@ -454,7 +454,11 @@ impl Context {
     pub fn push_front(&mut self, dec: Declaration, offset: u64) {
         self.l.push_front(dec.clone(), offset);
         let lvar = self.l.find_lvar(dec.ident.name.clone()).unwrap();
-        self.s.insert_v(dec.ident, Rc::new(Var::L(lvar)));
+        self.push_scope(dec.ident, Rc::new(Var::L(lvar)));
+    }
+
+    pub fn push_scope(&mut self, ident: Ident, var: Rc<Var>) {
+        self.s.insert_v(ident, var);
     }
 
     pub fn insert_g(&mut self, gvar: Rc<Gvar>) {

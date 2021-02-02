@@ -92,7 +92,13 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
         writeln!(ctx.asm, "    sub rsp, {}", function.get_all_var_size())?;
 
         // 引数をローカル変数としてスタックに載せる
-        let mut offset = 0;
+        let mut offset = function
+            .all_vars
+            .as_ref()
+            .map(|v| v.borrow().offset)
+            .unwrap_or(0)
+            - function.get_param_size();
+
         for i in 0..function.def.param_num {
             let type_kind = &function.def.params[i].type_kind;
             offset += type_kind.size();

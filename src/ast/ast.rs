@@ -667,19 +667,31 @@ pub fn function(
 
     ctx.l = LocalContext::new();
     for fn_param in func_prototype.params.clone() {
-        let l = ctx
-            .l
-            .lvar
-            .as_ref()
-            .map(|lvar| lvar.borrow().offset)
-            .unwrap_or(0);
-        ctx.push_front(fn_param, l)
+        let tmp_lvar = Var::L(Rc::new(RefCell::new(Lvar::new_leaf(fn_param.clone(), 0))));
+        ctx.push_scope(fn_param.ident, Rc::new(tmp_lvar));
     }
 
     let mut stmt_vec = Vec::new();
     loop {
         if consume_block(iter, Block::RParen) {
             let is_static = func_prototype.is_static;
+            for fn_param in func_prototype.params.clone() {
+                let l = ctx
+                    .l
+                    .lvar
+                    .as_ref()
+                    .map(|lvar| lvar.borrow().offset)
+                    .unwrap_or(0);
+                // ctx.push_front の代わりに自分で更新する
+                ctx.l.push_front(fn_param.clone(), l);
+                let offset = l + fn_param.type_kind.size();
+                let offset = base_types::align_to(offset, fn_param.type_kind.align());
+                ctx.s
+                    .find_upper_lvar(fn_param.ident.clone())
+                    .unwrap()
+                    .borrow_mut()
+                    .offset = offset;
+            }
             return Ok(Function::new(
                 func_prototype,
                 ctx.l.lvar.clone(),
