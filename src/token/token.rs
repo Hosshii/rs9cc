@@ -545,7 +545,7 @@ impl TokenIter {
     }
 
     pub fn next(&mut self) -> Result<Option<Token>, Error> {
-        let mut is_bol = false;
+        let is_bol;
         match calc_space_len(self.cur_str()) {
             Ok((sp, _is_bol)) => {
                 self.pos.bytes += sp;
