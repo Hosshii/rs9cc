@@ -57,7 +57,8 @@ pub fn program(iter: &mut TokenStream) -> Result<Program, Error> {
                         continue;
                     }
                     let sc = ctx.s.enter();
-                    let func = function(iter, checked_func_prototype, &mut ctx)?;
+                    let func = function(iter, checked_func_prototype, &mut ctx, is_variadic)?;
+
                     ctx.s.leave(sc);
                     program.functions.push(func);
                 }
@@ -662,6 +663,7 @@ pub fn function(
     iter: &mut TokenStream,
     func_prototype: Rc<FuncPrototype>,
     ctx: &mut Context,
+    is_variadic: bool,
 ) -> Result<Function, Error> {
     expect_block(iter, Block::LParen)?;
 
@@ -670,6 +672,21 @@ pub fn function(
         let tmp_lvar = Var::L(Rc::new(RefCell::new(Lvar::new_leaf(fn_param.clone(), 0))));
         ctx.push_scope(fn_param.ident, Rc::new(tmp_lvar));
     }
+    let lvar = if is_variadic {
+        let l = ctx
+            .l
+            .lvar
+            .as_ref()
+            .map(|lvar| lvar.borrow().offset)
+            .unwrap_or(0);
+        let ident = Ident::new("__va_area__");
+        let type_kind = TypeKind::array_of(136, Rc::new(RefCell::new(TypeKind::Char)), true);
+        let dec = Declaration::new(type_kind, ident.clone());
+        ctx.push_front(dec, l);
+        ctx.s.find_cur_lvar(ident).map(|v| v.borrow().clone())
+    } else {
+        None
+    };
 
     let mut stmt_vec = Vec::new();
     loop {
@@ -698,6 +715,7 @@ pub fn function(
                 ctx.l.lvar_count.clone(),
                 stmt_vec,
                 is_static,
+                lvar,
             ));
         }
         stmt_vec.push(stmt(iter, ctx)?);
@@ -2277,7 +2295,14 @@ mod tests {
             false,
         ));
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(1))];
-        let expected = Function::new(expected_func_prototype, None, 0, expected_nodes, false);
+        let expected = Function::new(
+            expected_func_prototype,
+            None,
+            0,
+            expected_nodes,
+            false,
+            None,
+        );
 
         let input = "{return 1;}";
         let func_prototype = Rc::new(FuncPrototype::new(
@@ -2288,7 +2313,7 @@ mod tests {
         ));
         let iter =
             &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
-        let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
+        let actual = function(iter, func_prototype, &mut Context::new(), false).unwrap();
 
         assert_eq!(expected, actual);
 
@@ -2327,12 +2352,13 @@ mod tests {
             2,
             expected_nodes,
             false,
+            None,
         );
 
         let input = "{int foo;foo = 1; int bar;bar = 2; return foo+bar;}";
         let iter =
             &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
-        let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
+        let actual = function(iter, func_prototype, &mut Context::new(), false).unwrap();
 
         assert_eq!(expected, actual);
     }
@@ -2374,7 +2400,14 @@ mod tests {
             false,
         ));
         let expected_nodes = vec![Node::new_unary(NodeKind::Return, Node::new_num(0))];
-        let expected = Function::new(expected_func_prototype, None, 0, expected_nodes, false);
+        let expected = Function::new(
+            expected_func_prototype,
+            None,
+            0,
+            expected_nodes,
+            false,
+            None,
+        );
 
         let expected_func_prototype = Rc::new(FuncPrototype::new(
             TypeKind::Int,
@@ -2385,7 +2418,7 @@ mod tests {
         let input = "{return 0;}";
         let iter =
             &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
-        let actual = function(iter, expected_func_prototype, &mut Context::new()).unwrap();
+        let actual = function(iter, expected_func_prototype, &mut Context::new(), false).unwrap();
 
         assert_eq!(expected, actual);
 
@@ -2403,6 +2436,7 @@ mod tests {
             1,
             expected_nodes,
             false,
+            None,
         );
 
         let expected_func_prototype = Rc::new(FuncPrototype::new(
@@ -2414,7 +2448,7 @@ mod tests {
         let input = "{return 0;}";
         let iter =
             &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
-        let actual = function(iter, expected_func_prototype, &mut Context::new()).unwrap();
+        let actual = function(iter, expected_func_prototype, &mut Context::new(), false).unwrap();
 
         assert_eq!(expected, actual);
 
@@ -2450,6 +2484,7 @@ mod tests {
             4,
             expected_nodes,
             false,
+            None,
         );
 
         let input = "{return 0;}";
@@ -2461,7 +2496,7 @@ mod tests {
         ));
         let iter =
             &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap();
-        let actual = function(iter, func_prototype, &mut Context::new()).unwrap();
+        let actual = function(iter, func_prototype, &mut Context::new(), false).unwrap();
 
         assert_eq!(expected, actual);
     }

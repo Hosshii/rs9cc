@@ -91,6 +91,51 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
         writeln!(ctx.asm, "    mov rbp, rsp")?;
         writeln!(ctx.asm, "    sub rsp, {}", function.get_all_var_size())?;
 
+        // save arg registers if variadic
+        if let Some(_) = function.va_area {
+            let gp = function.def.param_num; //  `...`より前にある引数の数を入れる。
+                                             // def.param_numは
+
+            // let off = function
+            //     .all_vars
+            //     .as_ref()
+            //     .map(|v| v.borrow().offset)
+            //     .unwrap_or(0)
+            //     - function.get_param_size();
+            let off = 136;
+            // va_elem
+            // gp_offset
+            writeln!(ctx.asm, "    mov dword ptr [rbp-{}], {}", off, gp * 8)?;
+            // fp_offset
+            writeln!(ctx.asm, "    mov dword ptr [rbp-{}], 0", off - 4)?;
+            // overflow_area
+            writeln!(ctx.asm, "    mov qword ptr [rbp-{}], 48", off - 8)?;
+            // reg_save_area
+            writeln!(ctx.asm, "    mov qword ptr [rbp-{}], rbp", off - 16)?;
+            writeln!(
+                ctx.asm,
+                "    sub qword ptr [rbp-{}], {}",
+                off - 16,
+                off - 24
+            )?;
+
+            // __reg_save_area__
+            writeln!(ctx.asm, "    mov qword ptr [rbp-{}], rdi", off - 24)?;
+            writeln!(ctx.asm, "    mov qword ptr [rbp-{}], rsi", off - 32)?;
+            writeln!(ctx.asm, "    mov qword ptr [rbp-{}], rdx", off - 40)?;
+            writeln!(ctx.asm, "    mov qword ptr [rbp-{}], rcx", off - 48)?;
+            writeln!(ctx.asm, "    mov qword ptr [rbp-{}], r8", off - 56)?;
+            writeln!(ctx.asm, "    mov qword ptr [rbp-{}], r9", off - 64)?;
+            writeln!(ctx.asm, "    movsd xmm0, [rbp-{}]", off - 72)?;
+            writeln!(ctx.asm, "    movsd xmm1, [rbp-{}]", off - 80)?;
+            writeln!(ctx.asm, "    movsd xmm2, [rbp-{}]", off - 88)?;
+            writeln!(ctx.asm, "    movsd xmm3, [rbp-{}]", off - 96)?;
+            writeln!(ctx.asm, "    movsd xmm4, [rbp-{}]", off - 104)?;
+            writeln!(ctx.asm, "    movsd xmm5, [rbp-{}]", off - 112)?;
+            writeln!(ctx.asm, "    movsd xmm6, [rbp-{}]", off - 120)?;
+            writeln!(ctx.asm, "    movsd xmm7, [rbp-{}]", off - 128)?;
+        }
+
         // 引数をローカル変数としてスタックに載せる
         let mut offset = function
             .all_vars
@@ -906,6 +951,7 @@ fn store(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 writeln!(ctx.asm, "  setne dil")?;
                 writeln!(ctx.asm, "  movzb rdi, dil")?;
             }
+
             x => word = gen_store_asm(x.size()).unwrap_or(word),
         }
     }

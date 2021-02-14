@@ -694,6 +694,7 @@ pub struct Function {
     pub all_var_num: usize,
     pub nodes: Vec<Node>,
     pub is_static: bool,
+    pub va_area: Option<Lvar>,
 }
 
 impl From<Function> for FuncPrototype {
@@ -715,6 +716,7 @@ impl Function {
         all_var_num: usize,
         nodes: Vec<Node>,
         is_static: bool,
+        va_area: Option<Lvar>,
     ) -> Self {
         Self {
             def,
@@ -722,6 +724,7 @@ impl Function {
             all_var_num,
             nodes,
             is_static,
+            va_area: va_area,
         }
     }
 

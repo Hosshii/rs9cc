@@ -34,15 +34,18 @@ int add_all(int n, ...) {
 EOF
 
 test() {
-    cd bin &&
+    cp -r bin ~/test && cd ~/test &&
         make &&
         echo "test.c" &&
         ./test.exe &&
         echo " " &&
         echo "extern.c" &&
         ./extern.exe &&
+        echo " " &&
+        echo "variadic.c" &&
+        ./variadic.exe &&
         make clean &&
-        cd ..
+        cd -
 }
 
 assert() {
@@ -457,6 +460,7 @@ cast() {
     assert 1 'int main(){ return (long)1;}'
     assert 0 'int main(){ return (long)&*(int *)0;}'
     assert 5 'int main(){ int x=5; long y=(long)&x; return *(int*)y;}'
+    assert 2 'int main(){int x; int *y = &x; char *z; char aa = 2; z = &aa; *y = *(int *)z; return x;}'
 }
 
 # 38
