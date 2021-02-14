@@ -1,6 +1,8 @@
 CC = cc
 SRCS=$(wildcard *.c)
-RS9CC=../target/debug/rs9cc
+MAKEFILE_DIR:=$(dir $(abspath $(lastword $(MAKEFILE_LIST))))
+PARENT_DIR := $(shell dirname ${MAKEFILE_DIR})
+RS9CC=$(PARENT_DIR)/target/debug/rs9cc
 
 all: test.exe extern.exe variadic.exe
 

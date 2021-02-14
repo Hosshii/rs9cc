@@ -33,43 +33,6 @@ int add_all(int n, ...) {
 }
 EOF
 
-test() {
-    cp -r bin ~/test && cd ~/test &&
-        make &&
-        echo "test.c" &&
-        ./test.exe &&
-        echo " " &&
-        echo "extern.c" &&
-        ./extern.exe &&
-        echo " " &&
-        echo "variadic.c" &&
-        ./variadic.exe &&
-        make clean &&
-        cd -
-}
-
-assert() {
-    expected="$1"
-    input="$2"
-
-    local bin="./target/debug/rs9cc"
-    if [ -n "$RS9CC_ON_WORKFLOW" ]; then
-        bin="./target/debug/rs9cc"
-    fi
-    echo "$input" >test.c
-    $bin "test.c" >tmp.s
-    cc -no-pie -o tmp tmp.s tmp2.o
-    ./tmp
-    actual="$?"
-
-    if [ "$actual" = "$expected" ]; then
-        echo "$input => $actual"
-    else
-        echo "$input => $expected expected, but got $actual"
-        exit 1
-    fi
-}
-
 # 1
 four_op() {
     assert 0 ' int main ( ) {return 0;}'
@@ -788,13 +751,42 @@ read_variadic_fn() {
     assert 3 'int printf(char *p,...);int main(){int i = 10; return printf("%d\n", i);}'
 }
 
-build() {
-    cargo build
+test() {
+    cd /rs9cc/bin &&
+        make &&
+        echo "test.c" &&
+        ./test.exe &&
+        echo " " &&
+        echo "extern.c" &&
+        ./extern.exe &&
+        echo " " &&
+        echo "variadic.c" &&
+        ./variadic.exe &&
+        make clean &&
+        cd -
 }
 
-if [ -z "$RS9CC_ON_WORKFLOW" ]; then
-    build
-fi
+assert() {
+    expected="$1"
+    input="$2"
+
+    local bin="./target/debug/rs9cc"
+    if [ -n "$RS9CC_ON_WORKFLOW" ]; then
+        bin="./target/debug/rs9cc"
+    fi
+    echo "$input" >test.c
+    $bin "test.c" >tmp.s
+    cc -no-pie -o tmp tmp.s tmp2.o
+    ./tmp
+    actual="$?"
+
+    if [ "$actual" = "$expected" ]; then
+        echo "$input => $actual"
+    else
+        echo "$input => $expected expected, but got $actual"
+        exit 1
+    fi
+}
 
 if [ $# -eq 0 ]; then
     test

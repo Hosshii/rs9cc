@@ -12,20 +12,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Update rustup
-        run: rustup self update
-      - name: Build
-        run: cargo build
-      - name: run shell script tests
-        run: RS9CC_ON_WORKFLOW=1 ./bin/test.sh sh
-      - name: run C script tests
-        run: RS9CC_ON_WORKFLOW=1 ./bin/test.sh
+      - name: run asm test
+        run: ./runner.sh test
   cargo_test:
     name: Run cargo test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Update rustup
-        run: rustup self update
-      - name: run tests
-        run: cargo test
+      - name: run C test
+        run: ./runner.sh test_sh
