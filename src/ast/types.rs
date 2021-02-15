@@ -205,6 +205,9 @@ impl Ident {
     pub fn is_anonymous(&self) -> bool {
         self.name == IDENT_ANONYMOUS
     }
+    pub fn get_typedef_ident(self) -> Ident {
+        Ident::new(format!(".L.typedef.{}", self.name))
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Debug)]

@@ -83,8 +83,8 @@ pub fn program(iter: &mut TokenStream) -> Result<Program, Error> {
                     dec.is_static = is_static;
                     dec.is_extern = is_extern;
                     if is_typedef {
-                        let result = ctx.s.insert_t(
-                            Rc::new(dec.ident.clone()),
+                        let _result = ctx.s.insert_t(
+                            Rc::new(dec.ident.clone().get_typedef_ident()),
                             TagTypeKind::Typedef(Rc::new(dec.clone())),
                         );
                         // if let Some(_) = result {
@@ -630,7 +630,7 @@ pub(crate) fn declaration(iter: &mut TokenStream, ctx: &mut Context) -> Result<D
 
     if is_typedef {
         let result = ctx.s.insert_t(
-            Rc::new(dec.ident.clone()),
+            Rc::new(dec.ident.clone().get_typedef_ident()),
             TagTypeKind::Typedef(Rc::new(dec.clone())),
         );
         if let Some(_) = result {

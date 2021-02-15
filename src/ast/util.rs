@@ -443,7 +443,10 @@ pub(crate) fn is_typename(iter: &mut TokenStream, ctx: &Context) -> bool {
 }
 
 pub(crate) fn is_typedef_name(ident: Rc<Ident>, ctx: &Context) -> Option<Rc<Declaration>> {
-    if let Some(tag) = ctx.s.find_upper_tag(ident) {
+    if let Some(tag) = ctx
+        .s
+        .find_upper_tag(Rc::new(ident.as_ref().clone().get_typedef_ident()))
+    {
         if let TagTypeKind::Typedef(dec) = tag.as_ref() {
             return Some(dec.clone());
         }
