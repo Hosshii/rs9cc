@@ -13,13 +13,11 @@ typedef __va_elem va_list[1];
 int add_all(int n, ...);
 int sprintf(char *buf, char *fmt, ...);
 int vsprintf(char *buf, char *fmt, va_list ap);
-void *memcpy(void *buf1,void *buf2,int n);
 
 
 char *fmt(char *buf, char *fmt, ...) {
   va_list ap;
-
-  memcpy(ap, __va_area__,24);
+  *ap = (__va_elem)__va_area__;
 
   vsprintf(buf, fmt, ap);
 }

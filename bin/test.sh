@@ -758,12 +758,14 @@ copy_struct() {
 
 test() {
     cd /rs9cc/bin &&
-        make &&
+        make test.exe &&
         echo "test.c" &&
         ./test.exe &&
+        make extern.exe &&
         echo " " &&
         echo "extern.c" &&
         ./extern.exe &&
+        make variadic.exe &&
         echo " " &&
         echo "variadic.c" &&
         ./variadic.exe &&

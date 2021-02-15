@@ -354,6 +354,7 @@ impl Node {
                 }
             }
             Member(_, member) => Ok(member.get_type().as_ref().clone()), // todo他のところもrcにしていく
+            Cast(type_kind) => Ok(type_kind.clone()),
             _ => Err("err"),
         }
     }
