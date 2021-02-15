@@ -5,8 +5,11 @@ use super::{
     Context, Declaration, Designator, FuncPrototype, Function, Gvar, Ident, Initializer,
     LocalContext, Lvar, Node, Program, Var,
 };
-use crate::base_types::{self, Enum, Member, Struct, TagTypeKind, TypeKind};
 use crate::token::{Block, KeyWord, Operator, TokenKind, TokenStream};
+use crate::{
+    base_types::{self, Enum, Member, Struct, TagTypeKind, TypeKind},
+    token::tokenize,
+};
 use std::rc::Rc;
 use std::{cell::RefCell, cmp::min};
 
@@ -1178,6 +1181,24 @@ pub fn stmt(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
         return Ok(node);
     }
 
+    if let Some(token) = iter.next() {
+        if let TokenKind::Ident(x) = token.kind {
+            if x.name == "va_start" && consume(iter, Operator::LParen) {
+                func_args(iter, ctx)?;
+                expect_semi(iter)?;
+                let ipt = "*ap = (__va_elem)__va_area__;";
+                let _stmt = stmt(
+                    &mut tokenize(Rc::new(ipt.to_string()), iter.filepath.clone()).map_err(
+                        |_| Error::todo(iter.filepath.clone(), iter.input.clone(), iter.pos),
+                    )?,
+                    ctx,
+                )?;
+                return Ok(_stmt);
+            }
+        } else {
+        }
+    }
+    iter.prev();
     let node = read_expr_stmt(iter, ctx)?;
     expect_semi(iter)?;
     Ok(node)

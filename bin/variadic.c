@@ -17,7 +17,8 @@ int vsprintf(char *buf, char *fmt, va_list ap);
 
 char *fmt(char *buf, char *fmt, ...) {
   va_list ap;
-  *ap = (__va_elem)__va_area__;
+  // *ap = (__va_elem)__va_area__;
+  va_start(ap);
 
   vsprintf(buf, fmt, ap);
 }
