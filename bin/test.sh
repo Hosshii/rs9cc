@@ -751,6 +751,11 @@ read_variadic_fn() {
     assert 3 'int printf(char *p,...);int main(){int i = 10; return printf("%d\n", i);}'
 }
 
+# 71
+copy_struct() {
+    assert 6 'int main(){struct a{int a; int b; int c;} c={1,2,3}; struct a d; d = c; return d.a+d.b+d.c;}'
+}
+
 test() {
     cd /rs9cc/bin &&
         make &&
@@ -871,6 +876,7 @@ if [ $# -eq 0 ]; then
     return_only
     do_while
     read_variadic_fn
+    copy_struct
 fi
 
 while [ $# -ne 0 ]; do
@@ -945,6 +951,7 @@ while [ $# -ne 0 ]; do
     "68") return_only ;;
     "69") do_while ;;
     "70") read_variadic_fn ;;
+    "71") copy_struct ;;
     esac
     shift
 done

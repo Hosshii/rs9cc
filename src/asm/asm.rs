@@ -193,8 +193,9 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Lvar, Gvar")?;
             gen_val(node, ctx)?;
-            if let Ok(TypeKind::Array(_, _, _)) = node.get_type() {
-                return Ok(());
+            match node.get_type() {
+                Ok(TypeKind::Array(_, _, _)) | Ok(TypeKind::Struct(_)) => return Ok(()),
+                _ => (),
             }
             load(node, ctx)?;
             return Ok(());
@@ -854,6 +855,10 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     #[cfg(debug_assertions)]
     writeln!(ctx.asm, "# gen val")?;
+    if !is_left_value(node) {
+        return Err(Error::not_lvar());
+    }
+
     match &node.kind {
         NodeKind::Lvar(x) => {
             #[cfg(debug_assertions)]
@@ -893,7 +898,15 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             }
             // gen_val(node, ctx: &mut Context)
         }
-        _ => Err(Error::not_lvar()),
+        _ => unreachable!(),
+    }
+}
+
+fn is_left_value(node: &Node) -> bool {
+    use NodeKind::*;
+    match node.kind {
+        Lvar(_) | Gvar(_) | Deref | Member(_, _) => true,
+        _ => false,
     }
 }
 
@@ -935,7 +948,7 @@ fn gen_load_asm(size: u64, signed: bool) -> Option<&'static str> {
 
 /// mov [rax], rdi
 /// もし`node`の要素が`array`だったら、`array`の要素のサイズに合わせてstoreする
-fn store(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+fn _store(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     let mut word = "mov [rax], rdi";
     #[cfg(debug_assertions)]
     writeln!(ctx.asm, "# store")?;
@@ -958,6 +971,30 @@ fn store(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     writeln!(ctx.asm, "    {}", word)?;
     writeln!(ctx.asm, "    push rdi")?;
     Ok(())
+}
+
+/// 右辺の値が左辺値だった場合
+/// ex: a = b;
+fn store(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    writeln!(ctx.asm, "# store left value")?;
+    if let Some(rhs) = &node.rhs {
+        if let Ok(t) = rhs.get_type() {
+            match t {
+                TypeKind::Struct(_struct) => {
+                    writeln!(ctx.asm, "    pop rdi")?;
+                    writeln!(ctx.asm, "    pop rax")?;
+                    for i in 0.._struct.borrow().get_size() {
+                        writeln!(ctx.asm, "    mov r8b, [rdi+{}]", i)?;
+                        writeln!(ctx.asm, "    mov [rax+{}], r8b", i)?;
+                    }
+                    writeln!(ctx.asm, "    push rax")?;
+                    return Ok(());
+                }
+                _ => {}
+            }
+        }
+    }
+    _store(node, ctx)
 }
 
 fn gen_store_asm(size: u64) -> Option<&'static str> {
