@@ -802,8 +802,6 @@ assert() {
 if [ $# -eq 0 ]; then
     test
     __my_code=$?
-    echo ""
-    echo "exit code: $__my_code"
     exit $__my_code
 fi
 

@@ -1,4 +1,4 @@
-int printf(char *p);
+int printf(char *p,...);
 int exit(int status);
 #
     #
@@ -14,6 +14,7 @@ int assert(int expected, int actual, char *msg) {
     printf(msg);
     printf("\n\n");
     printf("-----  INPUT  END  -----\n");
+    printf("\nexpected: %d, actual %d\n",expected,actual);
     exit(actual);
   }
 }
