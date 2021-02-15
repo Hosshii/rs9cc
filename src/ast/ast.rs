@@ -52,11 +52,16 @@ pub fn program(iter: &mut TokenStream) -> Result<Program, Error> {
                         fn_params,
                         is_static,
                     );
-                    let checked_func_prototype = Rc::new(check_func_prototype(
-                        iter,
-                        &ctx.g.func_prototype_mp,
-                        func_prototype,
-                    )?);
+                    // int test();
+                    // int test(){}
+                    // を認めるためにチェックを止める
+
+                    // let checked_func_prototype = Rc::new(check_func_prototype(
+                    //     iter,
+                    //     &ctx.g.func_prototype_mp,
+                    //     func_prototype,
+                    // )?);
+                    let checked_func_prototype = Rc::new(func_prototype);
                     ctx.g.func_prototype_mp.insert(
                         checked_func_prototype.ident.name.clone(),
                         checked_func_prototype.clone(),
