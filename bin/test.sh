@@ -756,6 +756,10 @@ copy_struct() {
     assert 6 'int main(){struct a{int a; int b; int c;} c={1,2,3}; struct a d; d = c; return d.a+d.b+d.c;}'
 }
 
+anonymous_struct() {
+    assert 3 'int main(){struct a{int a;}; struct b{int b;}; struct a a = {1}; struct b b ={2}; return a.a + b.b;}'
+}
+
 test() {
     cd /rs9cc/bin &&
         make test.exe &&
@@ -879,6 +883,7 @@ if [ $# -eq 0 ]; then
     do_while
     read_variadic_fn
     copy_struct
+    anonymous_struct
 fi
 
 while [ $# -ne 0 ]; do
@@ -954,6 +959,7 @@ while [ $# -ne 0 ]; do
     "69") do_while ;;
     "70") read_variadic_fn ;;
     "71") copy_struct ;;
+    "72") anonymous_struct ;;
     esac
     shift
 done

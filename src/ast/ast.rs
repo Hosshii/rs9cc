@@ -543,15 +543,17 @@ pub fn enum_specifier(iter: &mut TokenStream, ctx: &mut Context) -> Result<Rc<En
     }
 
     if let Some(t) = &tag {
-        if let Some(_) = ctx.s.find_cur_tag(Rc::new(t.clone())) {
-            iter.prev();
-            return Err(Error::re_declare(
-                iter.filepath.clone().clone(),
-                iter.input.clone().clone(),
-                t.clone(),
-                iter.pos,
-                None,
-            ));
+        if t != &Ident::new_anonymous() {
+            if let Some(_) = ctx.s.find_cur_tag(Rc::new(t.clone())) {
+                iter.prev();
+                return Err(Error::re_declare(
+                    iter.filepath.clone().clone(),
+                    iter.input.clone().clone(),
+                    t.clone(),
+                    iter.pos,
+                    None,
+                ));
+            }
         }
     }
 
@@ -622,14 +624,16 @@ pub(crate) fn declaration(iter: &mut TokenStream, ctx: &mut Context) -> Result<D
     ) {
         (None, None) => (),
         _ => {
-            iter.prev();
-            return Err(Error::re_declare(
-                iter.filepath.clone().clone(),
-                iter.input.clone().clone(),
-                dec.ident.clone(),
-                iter.pos,
-                None,
-            ));
+            if dec.ident != Ident::new_anonymous() {
+                iter.prev();
+                return Err(Error::re_declare(
+                    iter.filepath.clone().clone(),
+                    iter.input.clone().clone(),
+                    dec.ident.clone(),
+                    iter.pos,
+                    None,
+                ));
+            }
         }
     }
 

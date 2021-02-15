@@ -367,6 +367,10 @@ pub(crate) fn check_g_var(
     dec: Declaration,
     init: Vec<Initializer>,
 ) -> Result<Gvar, Error> {
+    if dec.ident == Ident::new_anonymous() {
+        let size = dec.type_kind.size();
+        return Ok(Gvar::new(dec, size, init));
+    }
     match g_var.get(&dec.ident.name) {
         Some(_) => {
             return Err(Error::re_declare(
@@ -389,6 +393,9 @@ pub(crate) fn check_func_prototype(
     func_prototype_mp: &FuncPrototypeMp,
     func_prototype: FuncPrototype,
 ) -> Result<FuncPrototype, Error> {
+    if func_prototype.ident == Ident::new_anonymous() {
+        return Ok(func_prototype);
+    }
     match func_prototype_mp.get(&func_prototype.ident.name) {
         Some(_) => {
             return Err(Error::re_declare(

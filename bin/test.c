@@ -683,6 +683,17 @@ int main() {
   assert( 7, ({int i = 0; int j =0; do{j++;}while(i++ < 6);  j;}),"({int i = 0; int j =0; do{j++;}while(i++ < 6);  j;})");
   assert( 4, ({int i = 0; int j =0; int k = 0; do{if (++j > 3)break; continue; k++;}while(1);  j;}),"({int i = 0; int j =0; int k = 0; do{if (++j > 3)break; continue; k++;}while(1);  j;})");
 
+  // #70
+  printf("\n\n#70\n");
+
+  // #71
+  printf("\n\n#71\n");
+  assert( 6,({struct a{int a; int b; int c;} c={1,2,3}; struct a d; d = c;  d.a+d.b+d.c;}), "({struct a{int a; int b; int c;} c={1,2,3}; struct a d; d = c;  d.a+d.b+d.c;})");
+
+  // #72
+  printf("\n\n#72\n");
+  assert( 3,({struct a{int a;}; struct b{int b;}; struct a a = {1}; struct b b ={2}; a.a + b.b;}), "({struct a{int a;}; struct b{int b;}; struct a a = {1}; struct b b ={2}; a.a + b.b;})");
+
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;
 }
