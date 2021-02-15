@@ -1062,11 +1062,13 @@ pub fn stmt(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
                     }
                     KeyWord::Case => {
                         iter.next();
-                        match ctx.cur_switch.take() {
-                            Some(mut cur_case) => {
+                        match ctx.cur_switch {
+                            Some(_) => {
                                 let val = const_expr(iter, ctx)?;
                                 expect_colon(iter)?;
                                 let node = Node::new_unary(NodeKind::Case(val), stmt(iter, ctx)?);
+
+                                let mut cur_case = ctx.cur_switch.take().unwrap();
                                 cur_case.push(node.clone());
                                 ctx.cur_switch = Some(cur_case);
                                 return Ok(node);

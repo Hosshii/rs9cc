@@ -500,7 +500,19 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         NodeKind::Case(_) | NodeKind::DefaultCase => {
             writeln!(ctx.asm, ".L.case.{}:", ctx.case_label.0)?;
             ctx.case_label.0 += 1;
-            let case_lable = ctx.case_label;
+            let mut case_lable = ctx.case_label;
+            let mut node = node;
+            loop {
+                match node.lhs.as_ref().unwrap().kind {
+                    NodeKind::Case(_) | NodeKind::DefaultCase => {
+                        writeln!(ctx.asm, ".L.case.{}:", ctx.case_label.0)?;
+                        ctx.case_label.0 += 1;
+                        case_lable = ctx.case_label;
+                        node = node.lhs.as_ref().unwrap();
+                    }
+                    _ => break,
+                }
+            }
             gen(node.lhs.as_ref().unwrap(), ctx)?;
             ctx.case_label = case_lable;
             return Ok(());
