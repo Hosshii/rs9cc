@@ -87,15 +87,15 @@ pub fn program(iter: &mut TokenStream) -> Result<Program, Error> {
                             Rc::new(dec.ident.clone()),
                             TagTypeKind::Typedef(Rc::new(dec.clone())),
                         );
-                        if let Some(_) = result {
-                            return Err(Error::re_declare(
-                                iter.filepath.clone(),
-                                iter.input.clone(),
-                                dec.ident.clone(),
-                                iter.pos,
-                                None,
-                            ));
-                        }
+                        // if let Some(_) = result {
+                        //     return Err(Error::re_declare(
+                        //         iter.filepath.clone(),
+                        //         iter.input.clone(),
+                        //         dec.ident.clone(),
+                        //         iter.pos,
+                        //         None,
+                        //     ));
+                        // }
                         continue;
                     }
                     ctx.insert_g(Rc::new(check_g_var(iter, &ctx.g.gvar_mp, dec, init)?));
@@ -634,13 +634,13 @@ pub(crate) fn declaration(iter: &mut TokenStream, ctx: &mut Context) -> Result<D
             TagTypeKind::Typedef(Rc::new(dec.clone())),
         );
         if let Some(_) = result {
-            return Err(Error::re_declare(
-                iter.filepath.clone().clone(),
-                iter.input.clone().clone(),
-                dec.ident.clone(),
-                iter.pos,
-                None,
-            ));
+            // return Err(Error::re_declare(
+            //     iter.filepath.clone().clone(),
+            //     iter.input.clone().clone(),
+            //     dec.ident.clone(),
+            //     iter.pos,
+            //     None,
+            // ));
         }
     }
 
