@@ -100,7 +100,7 @@ lvar-initializer        = assign
                         | "{" lvar-initializer ("," lvar-initializer)* ","? "}"
 expr                    = assign ("," assign)*
 assign                  = conditional (assign-op assign)?
-assign-op               = "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>="
+assign-op               = "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>=" | "&=" | "|=" | "^="
 conditional             = logor ("?" expr ":" conditional)?
 logor                   = logand ("||" logand)*
 logand                  = bitor ("&&" bitor)*

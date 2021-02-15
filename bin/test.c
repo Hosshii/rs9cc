@@ -694,6 +694,12 @@ int main() {
   printf("\n\n#72\n");
   assert( 3,({struct a{int a;}; struct b{int b;}; struct a a = {1}; struct b b ={2}; a.a + b.b;}), "({struct a{int a;}; struct b{int b;}; struct a a = {1}; struct b b ={2}; a.a + b.b;})");
 
+  // #73
+  printf("\n\n#73\n");
+  assert(2, ({ int i=6; i&=3; i; }), "int i=6; i&=3; i;");
+  assert(7, ({ int i=6; i|=3; i; }), "int i=6; i|=3; i;");
+  assert(10, ({ int i=15; i^=5; i; }), "int 15; i^=5; i;");
+
   printf("\n\n-----  ALL  TEST  PASSED  -----\n");
   return 0;
 }

@@ -63,6 +63,9 @@ pub enum Operator {
     ADiv,
     ALShift,
     ARShift,
+    ABitAnd,
+    ABitOr,
+    ABitXor,
     Equal,
     Neq,
     Lesser,
@@ -105,6 +108,9 @@ impl Operator {
             ADiv => "/=",
             ALShift => "<<=",
             ARShift => ">>=",
+            ABitAnd => "&=",
+            ABitOr => "|=",
+            ABitXor => "^=",
             Equal => "==",
             Neq => "!=",
             Lesser => "<",
@@ -168,6 +174,9 @@ impl FromStr for Operator {
             x if x == ADiv.as_str() => Ok(ADiv),
             x if x == ALShift.as_str() => Ok(ALShift),
             x if x == ARShift.as_str() => Ok(ARShift),
+            x if x == ABitAnd.as_str() => Ok(ABitAnd),
+            x if x == ABitOr.as_str() => Ok(ABitOr),
+            x if x == ABitXor.as_str() => Ok(ABitXor),
             x if x == Plus.as_str() => Ok(Plus),
             x if x == Minus.as_str() => Ok(Minus),
             x if x == Mul.as_str() => Ok(Mul),
@@ -1025,11 +1034,12 @@ mod tests {
         use self::Operator::*;
         use self::TokenKind::{KeyWord, Num, Reserved, SemiColon};
         let input =
-            "== != = < <= > >= + - * / ( ) & sizeof [ ] -> ++ += -= *= /= ! ~ |  ^ || && >> << <<= >>= ...";
+            "== != = < <= > >= + - * / ( ) & sizeof [ ] -> ++ += -= *= /= ! ~ |  ^ || && >> << <<= >>= ... &= |= ^=";
         let expected = vec![
             Equal, Neq, Assign, Lesser, Leq, Greater, Geq, Plus, Minus, Mul, Div, LParen, RParen,
             Ampersand, Sizeof, LArr, RArr, Arrow, PlusPlus, APlus, AMinus, AMul, ADiv, Not, BitNot,
-            BitOr, BitXor, LogOr, LogAnd, RShift, LShift, ALShift, ARShift, ThreeDots,
+            BitOr, BitXor, LogOr, LogAnd, RShift, LShift, ALShift, ARShift, ThreeDots, ABitAnd,
+            ABitOr, ABitXor,
         ];
         let mut iter = tokenize(Rc::new(input.to_string()), Rc::new(String::new())).unwrap();
         for i in expected {
@@ -1195,6 +1205,9 @@ mod tests {
             ("<<=", Ok(ALShift)),
             (">>=", Ok(ARShift)),
             ("...", Ok(ThreeDots)),
+            ("&=", Ok(ABitAnd)),
+            ("|=", Ok(ABitOr)),
+            ("^=", Ok(ABitXor)),
             ("foo", Err(())),
         ];
         for &(s, ref expected) in &tests {

@@ -1377,7 +1377,7 @@ pub fn const_expr(iter: &mut TokenStream, ctx: &mut Context) -> Result<i64, Erro
 }
 
 // assign                  = conditional (assign-op assign)?
-// assign-op               = "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>="
+// assign-op               = "=" | "+=" | "-=" | "*=" | "/=" | "<<=" | ">>=" | "&=" | "|=" | "^="
 pub fn assign(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let mut node = conditional(iter, ctx)?;
     if consume(iter, Operator::Assign) {
@@ -1420,6 +1420,15 @@ pub fn assign(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> 
     } else if consume(iter, Operator::ARShift) {
         let rhs = assign(iter, ctx)?;
         node = Node::new(NodeKind::ARShift, node, rhs);
+    } else if consume(iter, Operator::ABitAnd) {
+        let rhs = assign(iter, ctx)?;
+        node = Node::new(NodeKind::ABitAnd, node, rhs);
+    } else if consume(iter, Operator::ABitOr) {
+        let rhs = assign(iter, ctx)?;
+        node = Node::new(NodeKind::ABitOr, node, rhs);
+    } else if consume(iter, Operator::ABitXor) {
+        let rhs = assign(iter, ctx)?;
+        node = Node::new(NodeKind::ABitXor, node, rhs);
     }
     return Ok(node);
 }

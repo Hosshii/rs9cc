@@ -761,6 +761,12 @@ anonymous_struct() {
     assert 3 'int main(){struct a{int a;}; struct b{int b;}; struct a a = {1}; struct b b ={2}; return a.a + b.b;}'
 }
 
+bitassign() {
+    assert 2 "int main(){int i=6; i&=3; return i;}"
+    assert 7 "int main(){int i=6; i|=3; return i;}"
+    assert 10 "int main(){int i = 15; i^=5; return i;}"
+}
+
 test() {
     cd /rs9cc/bin &&
         make test.exe &&
@@ -883,6 +889,7 @@ if [ $# -eq 0 ]; then
     read_variadic_fn
     copy_struct
     anonymous_struct
+    bitassign
 fi
 
 while [ $# -ne 0 ]; do
@@ -959,6 +966,7 @@ while [ $# -ne 0 ]; do
     "70") read_variadic_fn ;;
     "71") copy_struct ;;
     "72") anonymous_struct ;;
+    "73") bitassign ;;
     esac
     shift
 done

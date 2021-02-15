@@ -232,7 +232,10 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         | NodeKind::AMul
         | NodeKind::ADiv
         | NodeKind::ALShift
-        | NodeKind::ARShift => {
+        | NodeKind::ARShift
+        | NodeKind::ABitAnd
+        | NodeKind::ABitOr
+        | NodeKind::ABitXor => {
             let lhs = node.lhs.as_ref().expect("lhs not found");
             let rhs = node.rhs.as_ref().expect("rhs not found");
             gen_val(lhs, ctx)?;
@@ -264,6 +267,15 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 NodeKind::ARShift => {
                     writeln!(ctx.asm, "    mov cl, dil")?;
                     writeln!(ctx.asm, "    sar rax, cl")?;
+                }
+                NodeKind::ABitAnd => {
+                    writeln!(ctx.asm, "    and rax, rdi")?;
+                }
+                NodeKind::ABitOr => {
+                    writeln!(ctx.asm, "    or rax, rdi")?;
+                }
+                NodeKind::ABitXor => {
+                    writeln!(ctx.asm, "    xor rax, rdi")?;
                 }
                 _ => unreachable!(),
             }
