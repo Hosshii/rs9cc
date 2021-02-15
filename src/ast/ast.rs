@@ -27,7 +27,12 @@ pub fn program(iter: &mut TokenStream) -> Result<Program, Error> {
         let (type_kind, (is_typedef, is_static, is_extern)) = type_specifier(iter, ctx)?;
         let type_kind = Rc::new(RefCell::new(type_kind.clone()));
         let mut ident = Ident::new_anonymous();
-        let type_kind = declarator(iter, ctx, type_kind, &mut ident)?;
+        let type_kind =
+            if let Some(type_kind) = consume_declarator(iter, ctx, type_kind.clone(), &mut ident) {
+                type_kind
+            } else {
+                type_kind
+            };
 
         if let Some(next) = iter.next() {
             match &next.kind {
