@@ -108,6 +108,9 @@ pub fn program(iter: &mut TokenStream) -> Result<Program, Error> {
                         // }
                         continue;
                     }
+                    if dec.ident.is_anonymous() {
+                        continue;
+                    }
                     ctx.insert_g(Rc::new(check_g_var(iter, &ctx.g.gvar_mp, dec, init)?));
                 }
             }
@@ -203,7 +206,7 @@ pub fn gvar_initializer(
                 skip_excess_elements(iter, ctx)?;
             }
             if members.len() > i {
-                let size = type_kind.borrow().size() - members[i].offset;
+                let size = _struct.borrow().get_size() - members[i].offset;
                 new_init_zero(initializers, size);
             }
             return Ok(());
@@ -548,16 +551,16 @@ pub fn enum_specifier(iter: &mut TokenStream, ctx: &mut Context) -> Result<Rc<En
     }
 
     if let Some(t) = &tag {
-        if t != &Ident::new_anonymous() {
+        if !t.is_anonymous() {
             if let Some(_) = ctx.s.find_cur_tag(Rc::new(t.clone())) {
-                iter.prev();
-                return Err(Error::re_declare(
-                    iter.filepath.clone().clone(),
-                    iter.input.clone().clone(),
-                    t.clone(),
-                    iter.pos,
-                    None,
-                ));
+                // iter.prev();
+                // return Err(Error::re_declare(
+                //     iter.filepath.clone().clone(),
+                //     iter.input.clone().clone(),
+                //     t.clone(),
+                //     iter.pos,
+                //     None,
+                // ));
             }
         }
     }
@@ -621,15 +624,15 @@ pub(crate) fn declaration(iter: &mut TokenStream, ctx: &mut Context) -> Result<D
     ) {
         (None, None) => (),
         _ => {
-            if dec.ident != Ident::new_anonymous() {
-                iter.prev();
-                return Err(Error::re_declare(
-                    iter.filepath.clone().clone(),
-                    iter.input.clone().clone(),
-                    dec.ident.clone(),
-                    iter.pos,
-                    None,
-                ));
+            if !dec.ident.is_anonymous() {
+                // iter.prev();
+                // return Err(Error::re_declare(
+                //     iter.filepath.clone().clone(),
+                //     iter.input.clone().clone(),
+                //     dec.ident.clone(),
+                //     iter.pos,
+                //     None,
+                // ));
             }
         }
     }

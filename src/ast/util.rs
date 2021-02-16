@@ -362,8 +362,8 @@ pub(crate) fn expect_block(iter: &mut TokenStream, block: Block) -> Result<(), E
 
 /// if global var is already exist, then return error
 pub(crate) fn check_g_var(
-    iter: &mut TokenStream,
-    g_var: &GvarMp,
+    _iter: &mut TokenStream,
+    _g_var: &GvarMp,
     dec: Declaration,
     init: Vec<Initializer>,
 ) -> Result<Gvar, Error> {
@@ -371,21 +371,23 @@ pub(crate) fn check_g_var(
         let size = dec.type_kind.size();
         return Ok(Gvar::new(dec, size, init));
     }
-    match g_var.get(&dec.ident.name) {
-        Some(_) => {
-            return Err(Error::re_declare(
-                iter.filepath.clone().clone(),
-                iter.input.clone().clone(),
-                dec.ident,
-                iter.pos,
-                None,
-            ))
-        }
-        None => {
-            let size = dec.type_kind.size();
-            return Ok(Gvar::new(dec, size, init));
-        }
-    }
+    let size = dec.type_kind.size();
+    return Ok(Gvar::new(dec, size, init));
+    // match g_var.get(&dec.ident.name) {
+    //     Some(_) => {
+    //         return Err(Error::re_declare(
+    //             iter.filepath.clone().clone(),
+    //             iter.input.clone().clone(),
+    //             dec.ident,
+    //             iter.pos,
+    //             None,
+    //         ))
+    //     }
+    //     None => {
+    //         let size = dec.type_kind.size();
+    //         return Ok(Gvar::new(dec, size, init));
+    //     }
+    // }
 }
 
 #[allow(unused)]
