@@ -192,6 +192,11 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
         NodeKind::Lvar(_) | NodeKind::Gvar(_) => {
             #[cfg(debug_assertions)]
             writeln!(ctx.asm, "# NodeKind::Lvar, Gvar")?;
+            if let Some(init) = &node.init {
+                for i in init {
+                    gen(i, ctx)?
+                }
+            }
             gen_val(node, ctx)?;
             match node.get_type() {
                 Ok(TypeKind::Array(_, _, _)) | Ok(TypeKind::Struct(_)) => return Ok(()),
@@ -881,6 +886,17 @@ fn gen_val(node: &Node, ctx: &mut Context) -> Result<(), Error> {
     writeln!(ctx.asm, "# gen val")?;
     if !is_left_value(node) {
         return Err(Error::not_lvar());
+    }
+
+    match &node.kind {
+        NodeKind::Lvar(_) | NodeKind::Gvar(_) => {
+            if let Some(init) = &node.init {
+                for i in init {
+                    gen(i, ctx)?
+                }
+            }
+        }
+        _ => (),
     }
 
     match &node.kind {

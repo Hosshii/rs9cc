@@ -388,6 +388,7 @@ pub(crate) fn check_g_var(
     }
 }
 
+#[allow(unused)]
 pub(crate) fn check_func_prototype(
     iter: &TokenStream,
     func_prototype_mp: &FuncPrototypeMp,

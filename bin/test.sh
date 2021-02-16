@@ -767,6 +767,14 @@ bitassign() {
     assert 10 "int main(){int i = 15; i^=5; return i;}"
 }
 
+compound_literal() {
+    assert 1 'int main(){return  (int){1}; }'
+    assert 2 'int main(){ return ((int[3]){0,1,2})[2]; }'
+    assert 2 'int main(){ return ((int[]){0,1,2})[2]; }'
+    assert 3 'int main(){ return ((struct {char a; int b;}){98, 3}).b; }'
+    assert 3 'int main(){ return ({ int x=3; (int){x}; }); }'
+}
+
 test() {
     cd /rs9cc/bin &&
         make test.exe &&
@@ -890,6 +898,7 @@ if [ $# -eq 0 ]; then
     copy_struct
     anonymous_struct
     bitassign
+    compound_literal
 fi
 
 while [ $# -ne 0 ]; do
@@ -967,6 +976,7 @@ while [ $# -ne 0 ]; do
     "71") copy_struct ;;
     "72") anonymous_struct ;;
     "73") bitassign ;;
+    "74") compound_literal ;;
     esac
     shift
 done

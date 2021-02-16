@@ -13,6 +13,7 @@ typedef __va_elem va_list[1];
 int add_all(int n, ...);
 int sprintf(char *buf, char *fmt, ...);
 int vsprintf(char *buf, char *fmt, va_list ap);
+void va_start();
 
 
 char *fmt(char *buf, char *fmt, ...) {

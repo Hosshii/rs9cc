@@ -116,7 +116,9 @@ cast                    = "(" type-name ")" cast | unary
 unary                   = ("+" | "-" | "*" | "&" | "!" | "~")? cast
                         | ("++" | "--") unary
                         | postfix
-postfix                 | primary ("[" expr "]" | "." ident | "->" ident)*
+postfix                 = compound-literal
+                        | primary ("[" expr "]" | "." ident | "->" ident | "++" | "--")*
+compound-literal        = "(" type-name ")" "{" (gvar-initializer | lvar-initializer) "}"
 stmt-expr               = "(" "{" stmt stmt* "}" ")"
 primary                 = num 
                         | ident (func-args)? 

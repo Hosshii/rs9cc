@@ -506,6 +506,15 @@ impl TokenStream {
             None
         }
     }
+
+    pub fn save(&self) -> (usize, TokenPos) {
+        (self.idx, self.pos)
+    }
+
+    pub fn restore(&mut self, data: (usize, TokenPos)) {
+        self.idx = data.0;
+        self.pos = data.1;
+    }
 }
 
 /// token iterator

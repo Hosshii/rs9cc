@@ -569,16 +569,8 @@ pub fn enum_specifier(iter: &mut TokenStream, ctx: &mut Context) -> Result<Rc<En
         if consume(iter, Operator::Assign) {
             count = const_expr(iter, ctx)?;
         }
-        let l = ctx
-            .l
-            .lvar
-            .as_ref()
-            .map(|lvar| lvar.borrow().offset)
-            .unwrap_or(0);
-        ctx.push_front(
-            Declaration::new_const(TypeKind::Int, ident.clone(), count),
-            l,
-        );
+
+        ctx.push_front(Declaration::new_const(TypeKind::Int, ident.clone(), count));
         enum_list.push(Rc::new((ident, count)));
         count += 1;
         consume_comma(iter);
@@ -690,16 +682,10 @@ pub fn function(
         ctx.push_scope(fn_param.ident, Rc::new(tmp_lvar));
     }
     let lvar = if is_variadic {
-        let l = ctx
-            .l
-            .lvar
-            .as_ref()
-            .map(|lvar| lvar.borrow().offset)
-            .unwrap_or(0);
         let ident = Ident::new("__va_area__");
         let type_kind = TypeKind::array_of(136, Rc::new(RefCell::new(TypeKind::Char)), true);
         let dec = Declaration::new(type_kind, ident.clone());
-        ctx.push_front(dec, l);
+        ctx.push_front(dec);
         ctx.s.find_cur_lvar(ident).map(|v| v.borrow().clone())
     } else {
         None
@@ -834,7 +820,7 @@ fn lvar_initializer(
                     init.push(node);
                 }
                 return Ok((
-                    Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), init),
+                    Node::new_expr_stmt(Node::new_init(NodeKind::Lvar(lvar), init)),
                     type_kind.clone(),
                 ));
             }
@@ -872,7 +858,7 @@ fn lvar_initializer(
                 *size = init.len() as u64;
             }
             return Ok((
-                Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), init),
+                Node::new_expr_stmt(Node::new_init(NodeKind::Lvar(lvar), init)),
                 type_kind.clone(),
             ));
         }
@@ -926,7 +912,7 @@ fn lvar_initializer(
             }
 
             return Ok((
-                Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), init),
+                Node::new_expr_stmt(Node::new_init(NodeKind::Lvar(lvar), init)),
                 type_kind.clone(),
             ));
         }
@@ -938,7 +924,7 @@ fn lvar_initializer(
         expect_block(iter, Block::RParen)?;
     }
     Ok((
-        Node::new_init(NodeKind::Declaration(lvar.borrow().dec.clone()), vec![init]),
+        Node::new_expr_stmt(Node::new_init(NodeKind::Lvar(lvar), vec![init])),
         type_kind,
     ))
 }
@@ -1132,12 +1118,12 @@ pub fn stmt(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     }
 
     {
-        let cur = iter.clone();
+        let i_data = iter.save();
         if let Some(ident) = consume_ident(iter) {
             if consume_colon(iter) {
                 return Ok(Node::new_unary(NodeKind::Label(ident), stmt(iter, ctx)?));
             } else {
-                *iter = cur;
+                iter.restore(i_data);
             }
         }
     }
@@ -1162,27 +1148,13 @@ pub fn stmt(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
                 let gvar = Rc::new(Gvar::new(dec.clone(), size, vec![]));
                 ctx.s.insert_v(dec.ident.clone(), Rc::new(Var::G(gvar)));
             } else {
-                ctx.push_front(
-                    dec.clone(),
-                    ctx.l
-                        .lvar
-                        .as_ref()
-                        .map(|lvar| lvar.borrow().offset)
-                        .unwrap_or(0),
-                );
+                ctx.push_front(dec.clone());
             }
             return Ok(Node::new_leaf(NodeKind::Declaration(dec)));
         }
         expect(iter, Operator::Assign)?;
 
-        ctx.push_front(
-            dec.clone(),
-            ctx.l
-                .lvar
-                .as_ref()
-                .map(|lvar| lvar.borrow().offset)
-                .unwrap_or(0),
-        );
+        ctx.push_front(dec.clone());
         let lvar = ctx.s.find_cur_lvar(dec.ident.clone()).unwrap();
         let (node, type_kind) = lvar_initializer(
             iter,
@@ -1570,19 +1542,23 @@ pub fn mul(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
 
 // cast                    = "(" type-name ")" cast | unary
 pub fn cast(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
+    let i_data = iter.save();
+    let cur_ctx = ctx.clone();
     if consume(iter, Operator::LParen) {
         if is_typename(iter, ctx) {
             let ty = type_name(iter, ctx)?;
             expect(iter, Operator::RParen)?;
-            return Ok(Node::new_unary(
-                NodeKind::Cast(ty.replace(TypeKind::Int)),
-                cast(iter, ctx)?,
-            ));
+            if !consume_block(iter, Block::LParen) {
+                return Ok(Node::new_unary(
+                    NodeKind::Cast(ty.replace(TypeKind::Int)),
+                    cast(iter, ctx)?,
+                ));
+            }
         }
         // `(`をconsumeした分を戻す
-        iter.prev();
     }
-
+    iter.restore(i_data);
+    *ctx = cur_ctx;
     unary(iter, ctx)
 }
 
@@ -1611,8 +1587,13 @@ pub fn unary(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     return postfix(iter, ctx);
 }
 
-// postfix     = primary ("[" expr "]" | "." ident | "->" ident | "++" | "--")*
+// postfix     = compound-literal
+//             | primary ("[" expr "]" | "." ident | "->" ident | "++" | "--")*
 pub fn postfix(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
+    let node = compound_literal(iter, ctx)?;
+    if let Some(node) = node {
+        return Ok(node);
+    }
     let mut pri = primary(iter, ctx)?;
     loop {
         if consume(iter, Operator::LArr) {
@@ -1685,6 +1666,49 @@ pub fn postfix(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error>
 
         return Ok(pri);
     }
+}
+// compound-literal        = "(" type-name ")" "{" (gvar-initializer | lvar-initializer) "}"
+pub fn compound_literal(iter: &mut TokenStream, ctx: &mut Context) -> Result<Option<Node>, Error> {
+    let i_data = iter.save();
+    let cur_ctx = ctx.clone();
+
+    if !consume(iter, Operator::LParen) || !is_typename(iter, ctx) {
+        iter.restore(i_data);
+        *ctx = cur_ctx;
+        return Ok(None);
+    }
+
+    let type_kind = type_name(iter, ctx)?;
+    expect(iter, Operator::RParen)?;
+    if !consume_block(iter, Block::LParen) {
+        iter.restore(i_data);
+        *ctx = cur_ctx;
+        return Ok(None);
+    }
+    iter.prev();
+    if ctx.s.get_depth() == 0 {
+        let mut dec = Declaration::new(type_kind.borrow().clone(), Ident::new(ctx.make_label()));
+        dec.is_static = true;
+        let mut init = Vec::new();
+        gvar_initializer(iter, ctx, &mut init, type_kind.clone())?;
+        let gvar = Rc::new(Gvar::new(dec, type_kind.borrow().size(), init));
+        ctx.insert_g(gvar.clone());
+
+        return Ok(Some(Node::new_gvar(gvar)));
+    }
+
+    let dec = Declaration::new(type_kind.borrow().clone(), Ident::new_anonymous());
+    ctx.push_front(dec);
+
+    let lvar = ctx.l.lvar.as_ref().unwrap().clone();
+    let (node, type_kind) = lvar_initializer(iter, ctx, lvar.clone(), type_kind, &mut None)?;
+
+    lvar.borrow_mut().dec.type_kind = type_kind.borrow().clone();
+    lvar.borrow_mut().offset += type_kind.borrow().size();
+
+    let node = *node.lhs.unwrap();
+
+    Ok(Some(node))
 }
 
 // stmt-expr       = "(" "{" stmt stmt* "}" ")"

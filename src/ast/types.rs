@@ -364,6 +364,7 @@ impl Node {
             }
             Member(_, member) => Ok(member.get_type().as_ref().clone()), // todo他のところもrcにしていく
             Cast(type_kind) => Ok(type_kind.clone()),
+            Declaration(dec) => Ok(dec.type_kind.clone()),
             _ => Err("err"),
         }
     }
@@ -461,10 +462,19 @@ impl Context {
         }
     }
 
-    pub fn push_front(&mut self, dec: Declaration, offset: u64) {
+    pub fn push_front(&mut self, dec: Declaration) {
+        let offset = self.get_offset();
         self.l.push_front(dec.clone(), offset);
         let lvar = self.l.find_lvar(dec.ident.name.clone()).unwrap();
         self.push_scope(dec.ident, Rc::new(Var::L(lvar)));
+    }
+
+    pub fn get_offset(&self) -> u64 {
+        self.l
+            .lvar
+            .as_ref()
+            .map(|lvar| lvar.borrow().offset)
+            .unwrap_or(0)
     }
 
     pub fn push_scope(&mut self, ident: Ident, var: Rc<Var>) {
@@ -578,6 +588,10 @@ impl Scope {
             t: HashMap::new(),
             depth: 0,
         }
+    }
+
+    pub fn get_depth(&self) -> usize {
+        self.depth
     }
 
     pub fn enter(&mut self) -> Self {
@@ -865,13 +879,10 @@ mod tests {
 
         let input = "*(y + 1);";
         let mut ctx = Context::new();
-        ctx.push_front(
-            Declaration::new(
-                TypeKind::Ptr(Rc::new(RefCell::new(TypeKind::Int))),
-                Ident::new("y"),
-            ),
-            8,
-        );
+        ctx.push_front(Declaration::new(
+            TypeKind::Ptr(Rc::new(RefCell::new(TypeKind::Int))),
+            Ident::new("y"),
+        ));
         let node = ast::stmt(
             &mut token::tokenize(Rc::new(input.to_string()), Rc::new("".to_string())).unwrap(),
             &mut ctx,
