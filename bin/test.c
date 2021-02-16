@@ -12,6 +12,9 @@ int add6(int a, int b, int c, int d, int e, int f) {
 int myfunc(){int a; int b;a = 1; b =2; return a+b;}
 int two_arity(int x, int y){int z = 10; return x + y + z;}
 int six_arity(int a, int b, int c, int d, int e ,int f){return a + b + c + d + e + f;}
+int multi_type_fn(int a, long b){return a;}
+int multi_type_fn2(int a, long b){return b;}
+int multi_type_fn3(char a, long b, short c, int d){return a-b+c*d;}
 int fib(int n){
   if (n < 2) {
     return n;
@@ -186,6 +189,9 @@ int main() {
   assert( 15,two_arity(2,3), "two_arity(2,3)");
   assert( 21,({six_arity(1,2,3,4,5,6);}), "({six_arity(1,2,3,4,5,6);})");
   assert(55, fib(10), "fib(10)");
+  assert(1,({multi_type_fn(1,2);}),"({multi_type_fn(1,2)})");
+  assert(2, multi_type_fn2(1,2),"multi_type_fn2(1,2)");
+  assert(11,multi_type_fn3(1,2,3,4),"multi_type_fn3(1,2,3,4)");
 
   // #16
   printf("\n\n#16\n");

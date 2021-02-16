@@ -155,6 +155,9 @@ six_arity_func_def() {
     assert 11 'int myfunc(int x) {return x +1;}int main(){return myfunc(10);}'
     assert 15 'int myfunc(int x,int y,int z){int foo; foo=10;return x*2+y+z+foo;} int main(){int foo; foo = 1;return foo+myfunc(foo,foo,foo);}'
     assert 55 'int fib(int n){if (n == 0) {return 0;} else if (n == 1) {return 1;}else {return fib(n-1)+fib(n-2);}} int main(){return fib(10);}'
+    assert 1 'int test(int a, long b){return a;} int main(){return test(1,2);}'
+    assert 2 'int test(int a, long b){return b;} int main(){return test(1,2);}'
+    assert 11 'int test(char a, long b, short c, int d){return a-b+c*d;} int main(){return test(1,2,3,4);}'
 }
 
 # 16

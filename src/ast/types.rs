@@ -768,6 +768,7 @@ impl Function {
         let mut result = 0;
         for dec in &self.def.params {
             result += dec.type_kind.size();
+            result = base_types::align_to(result, dec.type_kind.align());
         }
         result
     }
