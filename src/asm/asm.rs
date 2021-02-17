@@ -197,12 +197,14 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                     gen(i, ctx)?
                 }
             }
-            gen_val(node, ctx)?;
+            let mut node = node.clone();
+            node.init.take();
+            gen_val(&node, ctx)?;
             match node.get_type() {
                 Ok(TypeKind::Array(_, _, _)) | Ok(TypeKind::Struct(_)) => return Ok(()),
                 _ => (),
             }
-            load(node, ctx)?;
+            load(&node, ctx)?;
             return Ok(());
         }
         NodeKind::Member(_, member) => {
