@@ -1546,7 +1546,6 @@ pub fn mul(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
 // cast                    = "(" type-name ")" cast | unary
 pub fn cast(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     let i_data = iter.save();
-    let cur_ctx = ctx.clone();
     if consume(iter, Operator::LParen) {
         if is_typename(iter, ctx) {
             let ty = type_name(iter, ctx)?;
@@ -1561,7 +1560,6 @@ pub fn cast(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
         // `(`をconsumeした分を戻す
     }
     iter.restore(i_data);
-    *ctx = cur_ctx;
     unary(iter, ctx)
 }
 
@@ -1673,11 +1671,9 @@ pub fn postfix(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error>
 // compound-literal        = "(" type-name ")" "{" (gvar-initializer | lvar-initializer) "}"
 pub fn compound_literal(iter: &mut TokenStream, ctx: &mut Context) -> Result<Option<Node>, Error> {
     let i_data = iter.save();
-    let cur_ctx = ctx.clone();
 
     if !consume(iter, Operator::LParen) || !is_typename(iter, ctx) {
         iter.restore(i_data);
-        *ctx = cur_ctx;
         return Ok(None);
     }
 
@@ -1685,7 +1681,6 @@ pub fn compound_literal(iter: &mut TokenStream, ctx: &mut Context) -> Result<Opt
     expect(iter, Operator::RParen)?;
     if !consume_block(iter, Block::LParen) {
         iter.restore(i_data);
-        *ctx = cur_ctx;
         return Ok(None);
     }
     iter.prev();

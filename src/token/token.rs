@@ -488,7 +488,7 @@ impl TokenStream {
         }
     }
 
-    pub fn peek(&mut self) -> Option<Token> {
+    pub fn peek(&self) -> Option<Token> {
         self.tokens.get(self.idx).and_then(|v| Some(v.clone()))
     }
 

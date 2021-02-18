@@ -133,14 +133,13 @@ pub(crate) fn consume_declarator(
     type_kind: Rc<RefCell<TypeKind>>,
     ident: &mut Ident,
 ) -> Option<Rc<RefCell<TypeKind>>> {
-    match crate::ast::ast::declarator(
-        &mut iter.clone(),
-        &mut ctx.clone(),
-        type_kind.clone(),
-        &mut ident.clone(),
-    ) {
-        Ok(_) => Some(crate::ast::ast::declarator(iter, ctx, type_kind, ident).unwrap()),
-        Err(_) => None,
+    let i_data = iter.save();
+    match crate::ast::ast::declarator(iter, ctx, type_kind, ident) {
+        Ok(type_kind) => Some(type_kind),
+        Err(_) => {
+            iter.restore(i_data);
+            None
+        }
     }
 }
 
@@ -428,7 +427,7 @@ pub(crate) fn make_string_node(
     )))
 }
 
-pub(crate) fn is_typename(iter: &mut TokenStream, ctx: &Context) -> bool {
+pub(crate) fn is_typename(iter: &TokenStream, ctx: &Context) -> bool {
     if let Some(x) = iter.peek() {
         match x.kind {
             TokenKind::TypeKind(_) => return true,
