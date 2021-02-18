@@ -1003,8 +1003,9 @@ fn _store(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             }
             TypeKind::_Bool => {
                 writeln!(ctx.asm, "    cmp rdi, 0")?;
-                writeln!(ctx.asm, "  setne dil")?;
-                writeln!(ctx.asm, "  movzb rdi, dil")?;
+                writeln!(ctx.asm, "    setne dil")?;
+                writeln!(ctx.asm, "    movzb rdi, dil")?;
+                word = gen_store_asm(TypeKind::_Bool.size()).unwrap_or(word)
             }
 
             x => word = gen_store_asm(x.size()).unwrap_or(word),
