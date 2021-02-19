@@ -2,7 +2,7 @@
 
 mini C compiler written in Rust. This is my hobby project. I use [compilerbook](https://www.sigbus.info/compilerbook) as a reference for this project.
 
-**Note**: This project is work in progress.
+now this compiler can compile [chibicc(historical/old branch)](https://github.com/rui314/chibicc/tree/historical/old) by using [self.sh](https://github.com/rui314/chibicc/blob/historical/old/self.sh)(you have to add some func definition in the self.sh to compile)
 
 
 ## build 
@@ -18,14 +18,17 @@ $ cargo test
 
 ### integrated test
 docker is required
+
+c script test
 ```
-$ ./bin/runner.sh test
+$ ./runner.sh test
+```
+shell script test
+```
+$ ./runner.sh test_sh
 ```
 
-on linux, you can use following command instead.
-```
-$ RS9CC_ON_WORKFLOW=1 ./bin/test.sh
-```
+
 
 ## implemented
 - Four arithmetic operations (`+`, `-`, `*`, `/`)
@@ -46,11 +49,11 @@ $ RS9CC_ON_WORKFLOW=1 ./bin/test.sh
 - goto,switch,continue,break
 - extern
 - lvar,gvar initializers
+- va_start
+- static local variable
+- static function, global variable
 etc
 
-## todo
-- variadic
-- float
 
  # Reference
  - [低レイヤを知りたい人のためのCコンパイラ作成入門](https://www.sigbus.info/compilerbook)
