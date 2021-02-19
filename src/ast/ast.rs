@@ -1134,19 +1134,35 @@ pub fn stmt(iter: &mut TokenStream, ctx: &mut Context) -> Result<Node, Error> {
     if is_typename(iter, ctx) {
         let mut dec = declaration(iter, ctx)?;
 
+        // static local var
+        if dec.is_static {
+            if dec.ident.is_anonymous() || dec.is_typedef {
+                return Ok(Node::new_leaf(NodeKind::Null));
+            }
+            let size = dec.type_kind.size();
+            let mut label = ctx.make_label();
+            std::mem::swap(&mut dec.ident.name, &mut label);
+
+            let mut init = Vec::new();
+            let type_kind = Rc::new(RefCell::new(dec.type_kind));
+            if consume(iter, Operator::Assign) {
+                gvar_initializer(iter, ctx, &mut init, type_kind.clone())?;
+            }
+            dec.type_kind = type_kind.borrow().clone();
+
+            let gvar = Rc::new(Gvar::new(dec.clone(), size, init));
+            ctx.g.gvar_mp.insert(dec.ident.name.clone(), gvar.clone());
+            ctx.s.insert_v(Ident::new(label), Rc::new(Var::G(gvar)));
+            expect_semi(iter)?;
+            return Ok(Node::new_leaf(NodeKind::Declaration(dec)));
+        }
+
         // todo re declaration err handling
         if consume_semi(iter) {
             if dec.ident.is_anonymous() || dec.is_typedef {
                 return Ok(Node::new_leaf(NodeKind::Null));
             }
-            if dec.is_static {
-                let size = dec.type_kind.size();
-                let mut label = ctx.make_label();
-                std::mem::swap(&mut dec.ident.name, &mut label);
-                let gvar = Rc::new(Gvar::new(dec.clone(), size, vec![]));
-                ctx.g.gvar_mp.insert(dec.ident.name.clone(), gvar.clone());
-                ctx.s.insert_v(Ident::new(label), Rc::new(Var::G(gvar)));
-            } else if dec.is_extern {
+            if dec.is_extern {
                 let size = dec.type_kind.size();
                 let gvar = Rc::new(Gvar::new(dec.clone(), size, vec![]));
                 ctx.s.insert_v(dec.ident.clone(), Rc::new(Var::G(gvar)));

@@ -34,6 +34,7 @@ short sub_short(short a, short b){return a-b;}
 long sub_long(long a, long b){return a-b;}
 char char_fn() { return 257; }
 int count(){static int cnt; cnt = cnt+1; return cnt;}
+int count2(){static int cnt=2; cnt = cnt+1; return cnt;}
 int arr_param(int x[]) {return x[0];}
 int label_test(){label_test: return 1;}
 void void_fn(){}
@@ -452,6 +453,10 @@ int main() {
   assert(1, count(), "count()");
   assert(2, count(), "count()");
   assert(3, count(), "count()");
+
+  assert(3, count2(), "count()");
+  assert(4, count2(), "count()");
+  assert(5, count2(), "count()");
   
   // #40
   printf("\n\n#40\n");

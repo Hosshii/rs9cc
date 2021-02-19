@@ -448,6 +448,8 @@ enum() {
 static() {
     assert 1 'int count(){static int cnt; cnt = cnt+1; return cnt;} int main(){return count(); }'
     assert 3 'int count(){static int cnt; cnt = cnt+1; return cnt;} int main(){count();count();return count(); }'
+    assert 2 'int count(){static int cnt=1; cnt = cnt+1; return cnt;} int main(){return count(); }'
+    assert 5 'int count(){static int cnt=2; cnt = cnt+1; return cnt;} int main(){count();count();return count(); }'
 }
 
 # 40
