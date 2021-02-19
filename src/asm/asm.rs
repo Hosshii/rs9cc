@@ -166,9 +166,9 @@ pub fn code_gen(program: Program) -> Result<String, Error> {
         for node in function.nodes {
             gen(&node, &mut ctx)?;
         }
-        writeln!(ctx.asm, "    pop rax")?;
         // エピローグ
         // 最後の式の結果がRAXに残っているのでそれが返り値になる
+        writeln!(ctx.asm, ".L.return.{}:", ctx.func_name)?;
         writeln!(ctx.asm, "    mov rsp, rbp")?;
         writeln!(ctx.asm, "    pop rbp")?;
         writeln!(ctx.asm, "    ret")?;
@@ -297,9 +297,7 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
                 gen(&lhs, ctx)?;
                 writeln!(ctx.asm, "    pop rax")?;
             }
-            writeln!(ctx.asm, "    mov rsp, rbp")?;
-            writeln!(ctx.asm, "    pop rbp")?;
-            writeln!(ctx.asm, "    ret")?;
+            writeln!(ctx.asm, "    jmp .L.return.{}", ctx.func_name)?;
             return Ok(());
         }
         NodeKind::If => {
@@ -560,49 +558,22 @@ pub fn gen(node: &Node, ctx: &mut Context) -> Result<(), Error> {
             for i in (0..args.len()).rev() {
                 writeln!(ctx.asm, "    pop {}", ARGREG8[i])?;
             }
-            // 8の倍数じゃなかったら8の倍数にする
-            writeln!(ctx.asm, "    mov rax, rsp")?;
-            writeln!(ctx.asm, "    and rax, 7")?;
-            writeln!(ctx.asm, "    jnz .LcallFour{}", jlb_num)?;
-            writeln!(ctx.asm, "    sub rsp, 4")?;
-            {
-                // 16の倍数にしてcall
-                writeln!(ctx.asm, "    mov rax, rsp")?;
-                writeln!(ctx.asm, "    and rax, 15")?;
-                writeln!(ctx.asm, "    jnz .LcallF{}", jlb_num)?;
-                writeln!(ctx.asm, "    mov rax, 0")?;
-                writeln!(ctx.asm, "    call {}", func_prototype.ident.name)?;
-                writeln!(ctx.asm, "    add rsp, 4")?;
-                writeln!(ctx.asm, "    jmp .LendF{}", jlb_num)?;
-                writeln!(ctx.asm, ".LcallF{}:", jlb_num)?;
-                writeln!(ctx.asm, "    sub rsp, 8")?;
-                writeln!(ctx.asm, "    mov rax, 0")?;
-                writeln!(ctx.asm, "    call {}", func_prototype.ident.name)?;
-                writeln!(ctx.asm, "    add rsp, 12")?;
-                writeln!(ctx.asm, ".LendF{}:", jlb_num)?;
-                writeln!(ctx.asm, "    push rax")?;
-            }
-            writeln!(ctx.asm, "    jmp .Lend{}", jlb_num)?;
 
-            writeln!(ctx.asm, ".LcallFour{}:", jlb_num)?;
+            // 16の倍数にしてcall
+            writeln!(ctx.asm, "    mov rax, rsp")?;
+            writeln!(ctx.asm, "    and rax, 15")?;
+            writeln!(ctx.asm, "    jnz .L.call.{}", jlb_num)?;
             writeln!(ctx.asm, "    mov rax, 0")?;
-            {
-                // 16の倍数にしてcall
-                writeln!(ctx.asm, "    mov rax, rsp")?;
-                writeln!(ctx.asm, "    and rax, 15")?;
-                writeln!(ctx.asm, "    jnz .LcallFH{}", jlb_num)?;
-                writeln!(ctx.asm, "    mov rax, 0")?;
-                writeln!(ctx.asm, "    call {}", func_prototype.ident.name)?;
-                writeln!(ctx.asm, "    jmp .LendFH{}", jlb_num)?;
-                writeln!(ctx.asm, ".LcallFH{}:", jlb_num)?;
-                writeln!(ctx.asm, "    sub rsp, 8")?;
-                writeln!(ctx.asm, "    mov rax, 0")?;
-                writeln!(ctx.asm, "    call {}", func_prototype.ident.name)?;
-                writeln!(ctx.asm, "    add rsp, 8")?;
-                writeln!(ctx.asm, ".LendFH{}:", jlb_num)?;
-                writeln!(ctx.asm, "    push rax")?;
-            }
-            writeln!(ctx.asm, ".Lend{}:", jlb_num)?;
+            writeln!(ctx.asm, "    call {}", func_prototype.ident.name)?;
+            writeln!(ctx.asm, "    jmp .L.end.{}", jlb_num)?;
+            writeln!(ctx.asm, ".L.call.{}:", jlb_num)?;
+            writeln!(ctx.asm, "    sub rsp, 8")?;
+            writeln!(ctx.asm, "    mov rax, 0")?;
+            writeln!(ctx.asm, "    call {}", func_prototype.ident.name)?;
+            writeln!(ctx.asm, "    add rsp, 8")?;
+            writeln!(ctx.asm, ".L.end.{}:", jlb_num)?;
+            writeln!(ctx.asm, "    push rax")?;
+
             if func_prototype.as_ref().type_kind != TypeKind::Void {
                 cast(&func_prototype.type_kind, ctx)?;
             }
@@ -991,26 +962,29 @@ fn gen_load_asm(size: u64, signed: bool) -> Option<&'static str> {
 /// mov [rax], rdi
 /// もし`node`の要素が`array`だったら、`array`の要素のサイズに合わせてstoreする
 fn _store(node: &Node, ctx: &mut Context) -> Result<(), Error> {
-    let mut word = "mov [rax], rdi";
     #[cfg(debug_assertions)]
     writeln!(ctx.asm, "# store")?;
     writeln!(ctx.asm, "    pop rdi")?;
     writeln!(ctx.asm, "    pop rax")?;
-    if let Ok(type_kind) = node.get_type() {
+
+    let word = if let Ok(type_kind) = node.get_type() {
         match type_kind {
             TypeKind::Array(_, b_type, _) => {
-                word = gen_store_asm(TypeKind::Ptr(b_type).size()).unwrap_or(word)
+                gen_store_asm(TypeKind::Ptr(b_type).size()).ok_or(Error::unknown_size())?
             }
             TypeKind::_Bool => {
                 writeln!(ctx.asm, "    cmp rdi, 0")?;
                 writeln!(ctx.asm, "    setne dil")?;
                 writeln!(ctx.asm, "    movzb rdi, dil")?;
-                word = gen_store_asm(TypeKind::_Bool.size()).unwrap_or(word)
+                gen_store_asm(TypeKind::_Bool.size()).ok_or(Error::unknown_size())?
             }
 
-            x => word = gen_store_asm(x.size()).unwrap_or(word),
+            x => gen_store_asm(x.size()).ok_or(Error::unknown_size())?,
         }
-    }
+    } else {
+        return Err(Error::unknown_size());
+    };
+
     writeln!(ctx.asm, "    {}", word)?;
     writeln!(ctx.asm, "    push rdi")?;
     Ok(())
@@ -1019,6 +993,7 @@ fn _store(node: &Node, ctx: &mut Context) -> Result<(), Error> {
 /// 右辺の値が左辺値だった場合
 /// ex: a = b;
 fn store(node: &Node, ctx: &mut Context) -> Result<(), Error> {
+    #[cfg(debug_assertions)]
     writeln!(ctx.asm, "# store left value")?;
     if let Some(rhs) = &node.rhs {
         if let Ok(t) = rhs.get_type() {
@@ -1080,7 +1055,7 @@ fn cast(type_kind: &TypeKind, ctx: &mut Context) -> Result<(), Error> {
     match type_kind.size() {
         1 => writeln!(ctx.asm, "    movsx rax, al")?,
         2 => writeln!(ctx.asm, "    movsx rax, ax")?,
-        4 => writeln!(ctx.asm, "    movsx rax, eax")?,
+        4 => writeln!(ctx.asm, "    movsxd rax, eax")?,
         _ => (),
     }
     writeln!(ctx.asm, "    push rax")?;

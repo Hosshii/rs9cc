@@ -324,7 +324,8 @@ impl Node {
     pub fn get_type(&self) -> Result<TypeKind, &'static str> {
         match &self.kind {
             Assign | Add | Sub | Mul | Div | PostDec | PostInc | PreDec | PreInc | AAdd | ASub
-            | AMul | ADiv | Equal | Neq | Lesser | Leq | Greater | Geq => {
+            | AMul | ADiv | ARShift | ALShift | ABitAnd | ABitOr | ABitXor | Equal | Neq
+            | Lesser | Leq | Greater | Geq => {
                 if let Some(ref x) = self.lhs {
                     x.get_type()
                 } else {

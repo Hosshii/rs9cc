@@ -8,6 +8,7 @@ pub enum ErrorKind {
     NotFound,
     StrayBreak,
     StrayContinue,
+    UnknownSize,
     WriteError(String),
     Todo,
 }
@@ -53,6 +54,13 @@ impl Error {
         }
     }
 
+    pub fn unknown_size() -> Self {
+        Self {
+            kind: UnknownSize,
+            msg: None,
+        }
+    }
+
     pub fn todo() -> Self {
         Self {
             kind: Todo,
@@ -69,6 +77,7 @@ impl<'a> fmt::Display for Error {
             NotFound => err_format(self, f),
             StrayBreak => err_format(self, f),
             StrayContinue => err_format(self, f),
+            UnknownSize => err_format(self, f),
             WriteError(_) => err_format(self, f),
             Todo => err_format(self, f),
         }
@@ -82,6 +91,7 @@ fn err_format(err: &Error, f: &mut fmt::Formatter) -> fmt::Result {
         NotFound => writeln!(f, "Node not found"),
         StrayBreak => writeln!(f, "stray break"),
         StrayContinue => writeln!(f, "stray continue"),
+        UnknownSize => writeln!(f, "cannot get size"),
         WriteError(string) => writeln!(f, "{}", string),
         Todo => writeln!(f, "todo"),
     }
