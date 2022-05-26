@@ -45,8 +45,8 @@ $ ./runner.sh test_sh
 - pointer and String literal
 - comment
 - struct, enum
-- bit op (!,~,|,&,^)
-- goto,switch,continue,break
+- bit op (`!`,`~`,`|`,`&`,`^`)
+- `goto`,`switch`,`continue`,`break`
 - extern
 - lvar,gvar initializers
 - va_start
