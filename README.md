@@ -18,7 +18,7 @@ $ cc -no-pie a.s
 $ ./a.out
 ```
 
-Note: Since preprocessor is not currently implemented, you may have to do the prototype declarations yourself(as below).
+Note: Since preprocessor is not currently implemented, you may have to do the prototype declarations yourself.
 ```c
 int printf(char *p, ...);
 
