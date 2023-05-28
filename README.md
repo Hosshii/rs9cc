@@ -2,35 +2,43 @@
 
 mini C compiler written in Rust. This is my hobby project. I use [compilerbook](https://www.sigbus.info/compilerbook) as a reference for this project.
 
-now this compiler can compile [chibicc(historical/old branch)](https://github.com/rui314/chibicc/tree/historical/old) by using [self.sh](https://github.com/rui314/chibicc/blob/historical/old/self.sh)(you have to add some func definition in the self.sh to compile)
+now this compiler can compile [chibicc(historical/old branch)](https://github.com/rui314/chibicc/tree/historical/old) by using [self.sh](https://github.com/rui314/chibicc/blob/historical/old/self.sh) (you have to add some function definition in the self.sh to compile)
 
 
-## build 
-```
+## Build compiler
+```shell
 $ cargo build
 ```
 
-## test
-### unit test
+## Build C source
+Currently, only x86_64-linux-gnu is supported.
+```shell
+$ ./target/release/rs9cc /path/to/source.c > a.s
+$ cc -no-pie a.s
+$ ./a.out // execute binary
 ```
+
+## Test
+### Unit test
+```shell
 $ cargo test
 ```
 
-### integrated test
-docker is required
+### Integrated test
+docker is required.
 
-c script test
-```
+#### C script test
+```shell
 $ ./runner.sh test
 ```
-shell script test
-```
+#### shell script test
+```shell
 $ ./runner.sh test_sh
 ```
 
 
 
-## implemented
+## Implemented
 - Four arithmetic operations (`+`, `-`, `*`, `/`)
 - unray(`+`, `-`)
 - comparison(`>`, `>=`, `<`, `<=`, `==`, `!=`)
@@ -52,10 +60,11 @@ $ ./runner.sh test_sh
 - va_start
 - static local variable
 - static function, global variable
+
 etc
 
 
- # Reference
+# Reference
  - [低レイヤを知りたい人のためのCコンパイラ作成入門](https://www.sigbus.info/compilerbook)
 
 ## EBNF
