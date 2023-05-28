@@ -18,6 +18,15 @@ $ cc -no-pie a.s
 $ ./a.out
 ```
 
+Note: Since preprocessor is not currently implemented, you may have to do the prototype declarations yourself(as below).
+```c
+int printf(char *p, ...);
+
+int main() {
+    printf("hello world %d", 1);
+}
+```
+
 ## Test
 ### Unit test
 ```shell
