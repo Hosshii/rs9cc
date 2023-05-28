@@ -2,7 +2,7 @@
 
 mini C compiler written in Rust. This is my hobby project. I use [compilerbook](https://www.sigbus.info/compilerbook) as a reference for this project.
 
-now this compiler can compile [chibicc(historical/old branch)](https://github.com/rui314/chibicc/tree/historical/old) by using [self.sh](https://github.com/rui314/chibicc/blob/historical/old/self.sh) (you have to add some function definition in the self.sh to compile)
+Now this compiler can compile [chibicc(historical/old branch)](https://github.com/rui314/chibicc/tree/historical/old) by using [self.sh](https://github.com/rui314/chibicc/blob/historical/old/self.sh) (you have to add some function definition in the self.sh to compile)
 
 
 ## Build compiler
@@ -15,7 +15,7 @@ Currently, only x86_64-linux-gnu is supported.
 ```shell
 $ ./target/release/rs9cc /path/to/source.c > a.s
 $ cc -no-pie a.s
-$ ./a.out // execute binary
+$ ./a.out
 ```
 
 ## Test
