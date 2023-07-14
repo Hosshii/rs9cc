@@ -7,7 +7,7 @@ Now this compiler can compile [chibicc(historical/old branch)](https://github.co
 
 ## Build compiler
 ```shell
-$ cargo build
+$ cargo build --release
 ```
 
 ## Build C source
